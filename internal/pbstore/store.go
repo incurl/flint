@@ -180,6 +180,12 @@ type PageResult struct {
 	TotalItems int
 	// TotalPages is the total number of pages.
 	TotalPages int
+	// Truncated reports that the result is incomplete.
+	//
+	// It is set when the records were filtered locally and the bound of
+	// the local evaluation was reached, so that the total counts the
+	// fetched records only and not the whole collection.
+	Truncated bool
 }
 
 // SortFields parses the provided sort expression into native PocketBase

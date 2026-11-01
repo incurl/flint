@@ -190,6 +190,16 @@ Three rules catch most mistakes:
 - **Filters use the native PocketBase grammar**, not SQL. `title ~ "go"`,
   `status = "active"`, `-created,name` for sorting. Field names must
   exist in the collection schema.
+- **The native grammar cannot reach into a JSON array.** The expression
+  parser rejects `[`, and an array field compared with `=` matches
+  nothing. The `pbstore.Hybrid` wrapper evaluates those expressions
+  locally with `internal/jsonfilter`: `meta.tags.#(=="cli")`,
+  `meta.items.0.name = "x"`, `meta.items.#.qty > 5`. The detection is
+  syntactic, so the two layers never disagree.
+- **A local filter is bounded.** `max_local_records` (default 1000) caps
+  the number of records fetched for the local evaluation. When the bound
+  is reached, `PageResult.Truncated` is set and the pagination shows
+  `(partial)`. Never raise the bound without checking the memory cost.
 - **`record.Fields` is `map[string]any`.** Values arrive as `string`,
   `float64`, `bool`, `[]any`, `map[string]any`. Use the helpers:
   `rec.StringField("x")`, `rec.Field("x")`.

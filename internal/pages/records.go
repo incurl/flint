@@ -328,6 +328,7 @@ func (p *RecordsPage) applyResult(result *pbstore.PageResult) {
 	p.table.SetRows(clampRows(rows, len(p.table.Columns())))
 	p.table.SetCursor(0)
 	p.pagination.SetTotal(result.TotalItems, result.Page, result.PerPage)
+	p.pagination.SetTruncated(result.Truncated)
 	p.runtime.PageNumber = result.Page
 }
 

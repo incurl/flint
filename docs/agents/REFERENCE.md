@@ -38,6 +38,37 @@ type Store interface {
 Implementations must be **safe for concurrent use** — commands run in
 background goroutines and call the store while the render loop is live.
 
+### The `Hybrid` wrapper
+
+`pbstore.NewHybrid` wraps a store and evaluates the JSON filters that
+the native grammar cannot express. It implements `Store`, so the rest
+of the code does not know about it.
+
+```go
+func NewHybrid(inner Store, config HybridConfig) *Hybrid
+
+type HybridConfig struct {
+	// MaxLocalRecords bounds the local evaluation.
+	MaxLocalRecords int
+}
+```
+
+The application builds it in `cmd/tui/main.go`:
+
+```go
+store, err := newBackendStore(cfg)
+if err != nil {
+	return nil, err
+}
+
+return pbstore.NewHybrid(store, pbstore.HybridConfig{
+	MaxLocalRecords: cfg.MaxLocalRecords,
+}), nil
+```
+
+`Hybrid.Unwrap()` returns the wrapped store, which is useful in tests
+to compare the two paths.
+
 ### Modes and errors
 
 ```go
@@ -463,6 +494,8 @@ type Config struct {
 	Theme    string   `toml:"theme"`    // "dark" | "light"
 	PerPage  int      `toml:"per_page"`
 	LogLevel string   `toml:"log_level"` // "debug"|"info"|"warn"|"error"
+	// MaxLocalRecords bounds the local JSON filter evaluation.
+	MaxLocalRecords int `toml:"max_local_records"`
 	Embedded EmbeddedConfig `toml:"embedded"`
 	Remote   RemoteConfig   `toml:"remote"`
 	Sync     SyncConfig     `toml:"sync"`
@@ -470,15 +503,16 @@ type Config struct {
 ```
 
 Environment variables are prefixed `FLINT_`: `FLINT_MODE`,
-`FLINT_THEME`, `FLINT_PER_PAGE`, `FLINT_LOG_LEVEL`, `FLINT_DATA_DIR`,
+`FLINT_THEME`, `FLINT_PER_PAGE`, `FLINT_LOG_LEVEL`,
+`FLINT_MAX_LOCAL_RECORDS`, `FLINT_DATA_DIR`,
 `FLINT_ENCRYPTION_ENV`, `FLINT_DEV`, `FLINT_REMOTE_URL`,
 `FLINT_REMOTE_TOKEN`, `FLINT_REMOTE_COLLECTIONS`, `FLINT_REMOTE_TIMEOUT`,
 `FLINT_SYNC_COLLECTIONS`, `FLINT_SYNC_BATCH_SIZE`,
 `FLINT_SYNC_MAX_RECORDS`.
 
 CLI flags: `--mode`, `--theme`, `--per-page`, `--log-level`,
-`--data-dir`, `--encryption-env`, `--dev`, `--remote-url`,
-`--remote-token`, `--remote-collections`, `--collections`,
+`--max-local-records`, `--data-dir`, `--encryption-env`, `--dev`,
+`--remote-url`, `--remote-token`, `--remote-collections`, `--collections`,
 `--sync-collections`, `--sync-batch-size`, `--sync-max-records`,
 `--migrate-only`, `--config`.
 
@@ -585,3 +619,40 @@ Sorting: `-created,name` (descending first, then ascending).
 
 Field names must exist in the collection schema. A filter on an unknown
 field fails with `ErrInvalidFilter`.
+
+### JSON fields
+
+The native grammar reaches into the nested **objects** of a JSON field:
+
+```
+meta.lang = "go"           // equality
+meta.level > 2             // numeric comparison
+meta.nested.deep.value = "x"   // any depth
+```
+
+It cannot reach into an **array**. The expression parser rejects the
+`[` character, and an array field compared with `=` matches nothing:
+
+```
+meta.tags = "cli"          // matches nothing, silently
+meta.tags[0] = "cli"       // error: unexpected character '['
+```
+
+The `pbstore.Hybrid` wrapper routes those expressions to a local
+evaluation instead:
+
+```
+meta.tags.#(=="cli")       // any element equals "cli"
+meta.items.0.name = "x"    // the "name" of the first element
+meta.items.#.qty > 5      // a numeric comparison across the elements
+not (meta.lang = "go")     // a negation
+```
+
+The routing is **syntactic**: `jsonfilter.NeedsLocal` decides before the
+query is sent, so the two layers never disagree and the behaviour is
+identical on the embedded and the remote backend.
+
+The local evaluation is bounded by `max_local_records` (default 1000,
+flag `--max-local-records`). When the bound is reached,
+`PageResult.Truncated` is set and the pagination shows `(partial)`, so
+a partial count is never presented as a complete one.

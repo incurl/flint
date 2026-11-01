@@ -21,6 +21,7 @@ code, and the checks to run.
 | [`add-a-command.md`](add-a-command.md)                   | You want a key action or a background operation.          |
 | [`add-a-config-option.md`](add-a-config-option.md)       | You need a new setting.                                   |
 | [`add-a-sync.md`](add-a-sync.md)                         | You want to pull remote data into the local cache.        |
+| [`filter-json-fields.md`](filter-json-fields.md)         | You want to filter records by a JSON field or an array.   |
 | [`debug-a-tui.md`](debug-a-tui.md)                       | The UI is frozen, blank or wrong.                          |
 | [`verify.md`](verify.md)                                 | Before you commit. Run this.                              |
 

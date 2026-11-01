@@ -21,6 +21,9 @@ type Pagination struct {
 	paginator paginator.Model
 	// totalItems is the total number of matching records.
 	totalItems int
+	// truncated reports that the total is a lower bound, because the
+	// local filter evaluation reached its bound.
+	truncated bool
 	// perPage is the page size.
 	perPage int
 }
@@ -75,6 +78,16 @@ func (p *Pagination) SetTotal(totalItems, page, perPage int) int {
 	return pages
 }
 
+// SetTruncated reports that the total is a lower bound.
+//
+// The local filter evaluation fetches a bounded number of records, so
+// the count of the matching records can be lower than the count of the
+// records that match in the whole collection.
+func (p *Pagination) SetTruncated(truncated bool) { p.truncated = truncated }
+
+// Truncated reports whether the total is a lower bound.
+func (p *Pagination) Truncated() bool { return p.truncated }
+
 // Page returns the current page number.
 func (p *Pagination) Page() int { return p.paginator.Page }
 
@@ -118,6 +131,10 @@ func (p *Pagination) View() tea.View {
 
 	summary := p.theme.Muted.Render(fmt.Sprintf("%d records · page %d/%d",
 		p.totalItems, p.paginator.Page, maxInt(p.paginator.TotalPages, 1)))
+
+	if p.truncated {
+		summary += p.theme.Warning.Render(" (partial)")
+	}
 
 	return tea.NewView(summary + "  " + p.paginator.View())
 }

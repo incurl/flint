@@ -51,6 +51,11 @@ type Config struct {
 	PerPage int `toml:"per_page"`
 	// LogLevel is the log verbosity: "debug", "info", "warn" or "error".
 	LogLevel string `toml:"log_level"`
+	// MaxLocalRecords bounds the number of records fetched to evaluate a
+	// JSON filter that the native PocketBase grammar cannot express.
+	//
+	// A value of 0 uses the default.
+	MaxLocalRecords int `toml:"max_local_records"`
 
 	// Embedded holds the embedded store settings.
 	Embedded EmbeddedConfig `toml:"embedded"`
@@ -103,6 +108,8 @@ func Default() *Config {
 		Theme:    DefaultTheme,
 		PerPage:  DefaultPerPage,
 		LogLevel: "info",
+
+		MaxLocalRecords: pbstore.DefaultMaxLocalRecords,
 		Embedded: EmbeddedConfig{
 			DataDir: DefaultDataDir,
 		},
@@ -185,6 +192,7 @@ func (c *Config) SettingsRows() [][2]string {
 		{"theme", c.Theme},
 		{"per_page", fmt.Sprintf("%d", c.PerPage)},
 		{"log_level", c.LogLevel},
+		{"max_local_records", fmt.Sprintf("%d", c.MaxLocalRecords)},
 	}
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
@@ -275,6 +283,12 @@ func applyEnv(cfg *Config) {
 		cfg.LogLevel = v
 	}
 
+	if v := os.Getenv(EnvPrefix + "MAX_LOCAL_RECORDS"); v != "" {
+		if n, err := parseInt(v); err == nil {
+			cfg.MaxLocalRecords = n
+		}
+	}
+
 	if v := os.Getenv(EnvPrefix + "DATA_DIR"); v != "" {
 		cfg.Embedded.DataDir = v
 	}
@@ -340,6 +354,10 @@ func applyFlags(cfg *Config, flags Flags) {
 
 	if flags.LogLevel != "" {
 		cfg.LogLevel = flags.LogLevel
+	}
+
+	if flags.MaxLocalRecords > 0 {
+		cfg.MaxLocalRecords = flags.MaxLocalRecords
 	}
 
 	if flags.DataDir != "" {

@@ -108,7 +108,23 @@ func run() error {
 }
 
 // openStore creates the store described by the configuration.
+//
+// The store is wrapped in a [pbstore.Hybrid], which evaluates the JSON
+// filters that the native PocketBase grammar cannot express, such as
+// the ones that reach into an array.
 func openStore(cfg *config.Config) (pbstore.Store, error) {
+	store, err := newBackendStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return pbstore.NewHybrid(store, pbstore.HybridConfig{
+		MaxLocalRecords: cfg.MaxLocalRecords,
+	}), nil
+}
+
+// newBackendStore creates the backend described by the configuration.
+func newBackendStore(cfg *config.Config) (pbstore.Store, error) {
 	switch pbstore.Mode(cfg.Mode) {
 	case pbstore.ModeRemote:
 		return pbstore.OpenRemote(pbstore.RemoteConfig{

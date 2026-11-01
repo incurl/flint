@@ -21,6 +21,9 @@ type Flags struct {
 	PerPage int
 	// LogLevel overrides the log verbosity.
 	LogLevel string
+	// MaxLocalRecords overrides the bound of the local JSON filter
+	// evaluation.
+	MaxLocalRecords int
 	// DataDir overrides the embedded PocketBase data directory.
 	DataDir string
 	// EncryptionEnv overrides the settings encryption env var name.
@@ -65,6 +68,7 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.StringVar(&flags.Theme, "theme", "", "theme variant: dark or light")
 	fs.IntVar(&flags.PerPage, "per-page", 0, "number of records per page")
 	fs.StringVar(&flags.LogLevel, "log-level", "", "log verbosity: debug, info, warn or error")
+	fs.IntVar(&flags.MaxLocalRecords, "max-local-records", 0, "bound of the records fetched to evaluate a local JSON filter")
 	fs.StringVar(&flags.DataDir, "data-dir", "", "embedded PocketBase data directory")
 	fs.StringVar(&flags.EncryptionEnv, "encryption-env", "", "env variable holding the 32 char settings encryption key")
 	fs.BoolVar(&flags.Dev, "dev", false, "enable the verbose PocketBase logs")
