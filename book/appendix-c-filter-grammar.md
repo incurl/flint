@@ -124,28 +124,93 @@ invalid left operand "rank" - unknown field "rank"
 The field name can be:
 
 - a plain schema field: `title`, `rank`;
-- a JSON path: `payload.lang`, `labels.en.value`;
 - a relation field: `author`;
 - the special fields: `id`, `created`, `updated`, `collectionId`,
-  `collectionName`, `expand`.
+  `collectionName`, `expand`;
+- a dotted JSON path, **with the `SimpleFieldResolver` only**:
+  `payload.lang`, `labels.en.value`.
 
-### The JSON paths
+### The JSON fields
 
-A `JSONField` can be queried *inside*:
-
-```
-payload.lang = "en"
-payload.tags = "go"
-```
-
-The resolver generates:
+A `JSONField` is queried through the record resolver, which wraps the
+identifier in `json_extract`:
 
 ```sql
-JSON_EXTRACT([[payload]], '$.lang')
+json_extract([[payload]], '')
 ```
 
-⚠️ **This only works for `JSONField`s.** A `TextField` that happens to
-contain JSON is treated as a plain string.
+So a top-level primitive in a JSON field compares correctly against its
+SQL equivalent:
+
+```
+payload = 5
+```
+
+⚠️ **The dotted path syntax comes from the `SimpleFieldResolver`, not
+from the record resolver.** The record resolver resolves `labels` as a
+whole field; it does not interpret `labels.en.value`.
+
+```go
+// SimpleFieldResolver.Resolve, for a name with several parts:
+parts := strings.Split(field, ".")
+
+// single regular field
+if len(parts) == 1 {
+    return &ResolverResult{
+        Identifier: "[[" + inflector.Columnify(parts[0]) + "]]",
+    }, nil
+}
+
+// treat as json path
+var jsonPath strings.Builder
+jsonPath.WriteString("$")
+for _, part := range parts[1:] {
+    if _, err := strconv.Atoi(part); err == nil {
+        jsonPath.WriteString("[")
+        jsonPath.WriteString(inflector.Columnify(part))
+        jsonPath.WriteString("]")
+    } else {
+        jsonPath.WriteString(".")
+        jsonPath.WriteString(inflector.Columnify(part))
+    }
+}
+
+return &ResolverResult{
+    NullFallback: search.NullFallbackDisabled,
+    Identifier: fmt.Sprintf(
+        "JSON_EXTRACT([[%s]], '%s')",
+        inflector.Columnify(parts[0]),
+        jsonPath.String(),
+    ),
+}, nil
+```
+
+So `labels.en.value` becomes:
+
+```sql
+JSON_EXTRACT([[labels]], '$.en.value')
+```
+
+And `payload.tags.0` becomes:
+
+```sql
+JSON_EXTRACT([[payload]], '$.tags[0]')
+```
+
+So the dotted form requires a resolver that understands it:
+
+```go
+resolver := search.NewSimpleFieldResolver("labels.en.value", "title")
+```
+
+⚠️ **In practice, materialise the value into a schema field.** A JSON
+path filter compiles to a `json_extract` on every row: it cannot use an
+index, and it is opaque to the query planner. A `label_en` column with
+an index is faster, and it works with every resolver.
+
+⚠️ **A `TextField` that happens to contain JSON is treated as a plain
+string.** The `json_extract` wrapping only applies to the fields
+declared as `JSONField`.
 
 ### The relation fields
 

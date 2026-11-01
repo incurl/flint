@@ -210,9 +210,55 @@ resolver := core.NewRecordFieldResolver(app, collection, requestInfo, allowHidde
 
 This one understands:
 - the schema fields;
-- the JSON paths (`labels.en.value` → a `JSON_EXTRACT` expression);
 - the relation fields;
 - the `@request.*` pseudo-fields.
+
+For a field declared as `JSONField`, it wraps the identifier in
+`json_extract` so that a top-level JSON primitive compares correctly
+against its SQL equivalent:
+
+```go
+// wrap in json_extract to ensure that top-level primitives
+// stored as json work correctly when compared to their SQL equivalent
+if field.Type() == FieldTypeJSON {
+    result.NullFallback = search.NullFallbackDisabled
+    result.Identifier = dbutils.JSONExtract(r.activeTableAlias+"."+cleanFieldName, "")
+}
+```
+
+⚠️ **The *dotted path* syntax (`labels.en.value`) comes from the
+`SimpleFieldResolver`, not from the record resolver.** The record
+resolver resolves `labels` as a whole field. The dotted form is the
+`SimpleFieldResolver`'s interpretation of a name with several dots:
+
+```go
+// SimpleFieldResolver.Resolve, for a name with several parts:
+entries, ok := entries[r.language].(map[string]any)
+```
+
+So:
+
+| You want to filter…                     | Use                                        |
+| ---------------------------------------- | ------------------------------------------ |
+| A JSON field as a whole (`payload = 5`) | The record resolver                        |
+| Inside a JSON field (`labels.en.value`)  | The `SimpleFieldResolver`, or a dedicated field |
+
+⚠️ **The dotted form only works with the `SimpleFieldResolver`.** The
+template's embedded `List` uses the *record* resolver, so
+`labels.en.value` will **not** resolve there — it will report an
+unknown field.
+
+If you need to query inside a JSON field, the practical options are:
+
+1. **Materialise the value into a schema field** (the `label_en`
+   column from Chapter 24) — the fastest and the most reliable;
+2. **Use the `SimpleFieldResolver`** with an explicit field list, and
+   accept that you lose the relation resolution;
+3. **Add a computed field** to the collection that extracts the value.
+
+**Materialising is usually the right answer.** A JSON path filter is
+a `json_extract` on every row — it cannot use an index, and it is
+opaque to the query planner.
 
 ```go
 // Resolve parses the provided field and returns a properly formatted db

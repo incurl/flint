@@ -207,8 +207,8 @@ The scaffold is deliberately generic. It fits projects such as:
 **[`book/`](book/)** — *Building Terminal Applications with Bubble Tea and
 PocketBase*.
 
-Twenty chapters and five appendices (~61,000 words), from the terminal
-basics to shipping a production TUI:
+Twenty-five chapters and five appendices (~77,000 words), from the
+terminal basics to shipping a production TUI:
 
 - **Part I — Bubble Tea**: the Elm architecture, messages and commands,
   the key routing problem, rendering with lipgloss, the Bubbles
@@ -219,6 +219,10 @@ basics to shipping a production TUI:
 - **Part III — Putting them together**: the layering, the `pbstore`
   pattern, sync and offline-first caching, testing, performance, and
   shipping.
+- **Part IV — Extending the template**: the extension points and their
+  costs, the pattern library, the advanced patterns (background workers,
+  modals, command palettes, undo, virtualised lists), the four domain
+  shapes, and a playground of ideas you could build.
 
 Start at [`book/README.md`](book/README.md).
 

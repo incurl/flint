@@ -22,12 +22,27 @@ confidently.
 | Comfortable with Bubble Tea                 | Part II                |
 | Comfortable with PocketBase as a server      | Part II, Chapter 11    |
 | A Go developer who has never embedded a DB    | Chapter 10             |
+| **Ready to build your own application**      | **Part IV**            |
+| **Looking for something to build**           | **Chapter 25**         |
 
 ## How to read it
 
 The book is **linear** but each chapter stands alone. If you already know
 Bubble Tea, skim Part I and start at Part II. If you already know
 PocketBase, read Chapters 1–7 and 16–20.
+
+**Part IV is the "now what?" part.** It is for the moment when you have
+read the rest and want to build *your* application:
+
+- **Chapter 21** catalogues the extension points, with their costs.
+- **Chapter 22** is the pattern library — the recurring problems and
+  their solutions.
+- **Chapter 23** covers the advanced patterns: background workers,
+  modals, command palettes, undo, virtualised lists, imports.
+- **Chapter 24** is about the *data*: the four domain shapes and how to
+  model them.
+- **Chapter 25** is the playground: twenty-odd ideas you could build on
+  top of the template, from a diff viewer to a graph explorer.
 
 Every chapter ends with:
 
@@ -105,6 +120,14 @@ make run        # start the TUI
 18. [Testing Terminal Applications](ch18-testing.md)
 19. [Performance](ch19-performance.md)
 20. [Shipping: Configuration, Shutdown, Packaging](ch20-shipping.md)
+
+### Part IV — Extending the Template
+
+21. [Extension Points: A Catalogue](ch21-extension-points.md)
+22. [Patterns and Practices](ch22-patterns-and-practices.md)
+23. [Advanced Patterns](ch23-advanced-patterns.md)
+24. [Domain Patterns](ch24-domain-patterns.md)
+25. [Creative Ideas and Geek Playgrounds](ch25-creative-ideas.md)
 
 ### Appendices
 
