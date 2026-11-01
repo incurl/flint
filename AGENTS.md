@@ -167,9 +167,22 @@ Three rules catch most mistakes:
   `errInterrupted`, the check never matches and the program exits with
   status 1. Bubble Tea already installs its own `SIGINT` handler — do not
   add a second `signal.Notify`.
-- **`msg.String()` for keys.** `tea.KeyMsg.String()` returns `"ctrl+c"`,
-  `"enter"`, `"up"`, and single runes like `"j"`. Comparing to
-  `tea.KeyRunes` structs is fragile.
+- **`msg.String()` for keys.** `tea.KeyPressMsg.String()` returns
+  `"ctrl+c"`, `"enter"`, `"up"`, and single runes like `"j"`. Comparing
+  to `tea.KeyPressMsg` values is fragile.
+- **`View()` returns a `tea.View`, not a string.** Wrap the rendered
+  content in `tea.NewView(...)`. When a component's view is embedded
+  into another string, take its `.Content`.
+- **The alternate screen is a property of the view.** Set
+  `view.AltScreen = true` on every frame; there is no
+  `tea.WithAltScreen()` option in Bubble Tea v2.
+- **A `table` needs a width or it renders nothing.** In Bubble Tea v2 a
+  table whose viewport has no width produces an empty table — no error,
+  no panic. Call `SetWidth` on resize and give the table a
+  `WithWidth` default at construction.
+- **A `table` row must not have more cells than the table has
+  columns.** Bubble Tea v2 indexes the columns with the cell position
+  and panics with an index out of range otherwise.
 - **PocketBase ids are 15+ characters.** A short id from a remote source
   must be padded; `normalizeID` in `pbstore` does this.
 - **`PageResult.TotalItems` costs a second query.** Set

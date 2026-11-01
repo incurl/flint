@@ -2,9 +2,9 @@ package components
 
 import (
 	"fmt"
-	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/charmbracelet/bubbles/paginator"
+	"charm.land/bubbles/v2/paginator"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -96,7 +96,7 @@ func (p *Pagination) Init() tea.Cmd { return nil }
 
 // Update implements [tea.Model].
 func (p *Pagination) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if msg, ok := msg.(tea.KeyPressMsg); ok {
 		switch msg.String() {
 		case "left", "h", "p":
 			p.paginator.PrevPage()
@@ -111,15 +111,15 @@ func (p *Pagination) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View renders the pagination control.
-func (p *Pagination) View() string {
+func (p *Pagination) View() tea.View {
 	if p.totalItems == 0 {
-		return p.theme.Muted.Render("no records")
+		return tea.NewView(p.theme.Muted.Render("no records"))
 	}
 
 	summary := p.theme.Muted.Render(fmt.Sprintf("%d records · page %d/%d",
 		p.totalItems, p.paginator.Page, maxInt(p.paginator.TotalPages, 1)))
 
-	return summary + "  " + p.paginator.View()
+	return tea.NewView(summary + "  " + p.paginator.View())
 }
 
 // maxInt returns the larger of the two provided integers.

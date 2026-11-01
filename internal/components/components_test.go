@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -68,14 +68,14 @@ func TestRecordCard(t *testing.T) {
 	card.SetRecord(newRecord())
 	card.SetWidth(80)
 
-	view := card.View()
+	view := card.View().Content
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the title", view)
 	}
 
 	// Without a record the card renders a placeholder.
 	empty := components.NewRecordCard(theme.Default(), nil)
-	if empty.View() == "" {
+	if empty.View().Content == "" {
 		t.Error("View() returned an empty string for an empty card")
 	}
 }
@@ -89,7 +89,7 @@ func TestJSONViewer(t *testing.T) {
 		t.Fatalf("SetContent() error = %v", err)
 	}
 
-	view := viewer.View()
+	view := viewer.View().Content
 	if !strings.Contains(view, "root") {
 		t.Errorf("View() = %q, want it to contain the root node", view)
 	}
@@ -116,7 +116,7 @@ func TestJSONViewerCollapse(t *testing.T) {
 
 	// The root is expanded by default, so its direct children are
 	// visible, but the grandchildren are not: the "a" node is collapsed.
-	view := viewer.View()
+	view := viewer.View().Content
 	if !strings.Contains(view, "a") {
 		t.Errorf("View() = %q, want it to contain the first level key", view)
 	}
@@ -127,18 +127,18 @@ func TestJSONViewerCollapse(t *testing.T) {
 
 	// Expanding the "a" node reveals its child.
 	viewer.Focus()
-	viewer.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")})
-	viewer.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	viewer.Update(tea.KeyPressMsg{Code: 'j', Text: "j"})
+	viewer.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if !strings.Contains(viewer.View(), "b") {
-		t.Errorf("View() = %q, want the expanded child to be visible", viewer.View())
+	if !strings.Contains(viewer.View().Content, "b") {
+		t.Errorf("View() = %q, want the expanded child to be visible", viewer.View().Content)
 	}
 
 	// Collapsing it again hides the child.
-	viewer.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	viewer.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
-	if strings.Contains(viewer.View(), "b") {
-		t.Errorf("View() = %q, want the collapsed child to be hidden", viewer.View())
+	if strings.Contains(viewer.View().Content, "b") {
+		t.Errorf("View() = %q, want the collapsed child to be hidden", viewer.View().Content)
 	}
 }
 
@@ -193,15 +193,15 @@ func TestPagination(t *testing.T) {
 		t.Errorf("TotalItems() = %d, want 25", p.TotalItems())
 	}
 
-	view := p.View()
+	view := p.View().Content
 	if !strings.Contains(view, "25 records") {
 		t.Errorf("View() = %q, want it to contain the record count", view)
 	}
 
 	// The pagination is empty without records.
 	empty := components.NewPagination(theme.Default(), 10)
-	if !strings.Contains(empty.View(), "no records") {
-		t.Errorf("View() = %q, want the empty state", empty.View())
+	if !strings.Contains(empty.View().Content, "no records") {
+		t.Errorf("View() = %q, want the empty state", empty.View().Content)
 	}
 }
 
@@ -217,7 +217,7 @@ func TestStatusBar(t *testing.T) {
 		Hints:      components.FormatHints([][2]string{{"/", "filter"}, {"enter", "open"}}),
 	})
 
-	view := bar.View()
+	view := bar.View().Content
 	if !strings.Contains(view, "EMBEDDED") {
 		t.Errorf("View() = %q, want it to contain the mode", view)
 	}
@@ -256,7 +256,7 @@ func TestToast(t *testing.T) {
 		t.Error("Visible() = true on a fresh toast")
 	}
 
-	if toast.View() != "" {
+	if toast.View().Content != "" {
 		t.Error("View() returned a non empty string for a hidden toast")
 	}
 
@@ -269,8 +269,8 @@ func TestToast(t *testing.T) {
 		t.Error("Visible() = false after Show()")
 	}
 
-	if !strings.Contains(toast.View(), "saved") {
-		t.Errorf("View() = %q, want it to contain the text", toast.View())
+	if !strings.Contains(toast.View().Content, "saved") {
+		t.Errorf("View() = %q, want it to contain the text", toast.View().Content)
 	}
 
 	toast.Hide()
@@ -289,7 +289,7 @@ func TestRecordRendererInterface(t *testing.T) {
 	card := components.NewRecordCard(theme.Default(), &components.DefaultRecordRenderer{})
 	card.SetRecord(newRecord())
 
-	if card.View() == "" {
+	if card.View().Content == "" {
 		t.Error("the record card rendered nothing")
 	}
 }

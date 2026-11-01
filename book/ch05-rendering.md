@@ -414,9 +414,9 @@ type FieldRow struct {
 The card renders a record through an injected renderer:
 
 ```go
-func (c *RecordCard) View() string {
+func (c *RecordCard) View() tea.View {
     if c.record == nil {
-        return c.theme.Muted.Render("no record selected")
+        return tea.NewView(c.theme.Muted.Render("no record selected"))
     }
 
     var b strings.Builder
@@ -443,7 +443,7 @@ func (c *RecordCard) View() string {
         b.WriteString("\n")
     }
 
-    return b.String()
+    return tea.NewView(b.String())
 }
 ```
 
@@ -643,7 +643,7 @@ The status bar is the most custom-rendered component, because it has
 to fit a variable amount of information into a fixed width.
 
 ```go
-func (s *StatusBar) View() string {
+func (s *StatusBar) View() tea.View {
     left := s.leftSection()
     right := s.rightSection()
 
@@ -675,7 +675,7 @@ func (s *StatusBar) View() string {
         }
     }
 
-    return s.theme.StatusBar.Render(left + strings.Repeat(" ", gap) + hints + separator + right)
+    return tea.NewView(s.theme.StatusBar.Render(left + strings.Repeat(" ", gap) + hints + separator + right))
 }
 ```
 

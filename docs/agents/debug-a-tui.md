@@ -173,11 +173,11 @@ keeps its zero value. `total int` shows `0`, `err error` is `nil`.
 **Check 4 — is the content actually there?** Dump it:
 
 ```go
-func (p *RecordsPage) View() string {
+func (p *RecordsPage) View() tea.View {
 	out := p.theme.Title.Render("Records")
 	out += "\nDEBUG records=" + fmt.Sprintf("%d", len(p.records))
 
-	return out
+	return tea.NewView(out)
 }
 ```
 

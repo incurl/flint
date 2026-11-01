@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/table"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/table"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -100,6 +100,9 @@ func NewRecordsPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme,
 		table.WithColumns(defaultColumns()),
 		table.WithFocused(true),
 		table.WithHeight(10),
+		// Bubble Tea v2 renders nothing when the table viewport has no
+		// width, so a default is required before the first resize.
+		table.WithWidth(defaultTableWidth),
 	)
 	tbl.SetStyles(tableStyles(t))
 
@@ -153,7 +156,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, tea.Batch(p.spinner.Tick, p.Load())
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if p.filterFocused {
 			switch msg.String() {
 			case "enter":
@@ -236,9 +239,9 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *RecordsPage) View() string {
+func (p *RecordsPage) View() tea.View {
 	if p.runtime.Collection == "" {
-		return p.theme.Muted.Render("no collection selected — pick one on the home page")
+		return tea.NewView(p.theme.Muted.Render("no collection selected — pick one on the home page"))
 	}
 
 	var b []string
@@ -257,10 +260,10 @@ func (p *RecordsPage) View() string {
 	} else {
 		b = append(b, p.table.View())
 		b = append(b, "")
-		b = append(b, p.pagination.View())
+		b = append(b, p.pagination.View().Content)
 	}
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Refresh reloads the current page of records.
@@ -322,10 +325,32 @@ func (p *RecordsPage) applyResult(result *pbstore.PageResult) {
 	}
 
 	p.records = result.Records
-	p.table.SetRows(rows)
+	p.table.SetRows(clampRows(rows, len(p.table.Columns())))
 	p.table.SetCursor(0)
 	p.pagination.SetTotal(result.TotalItems, result.Page, result.PerPage)
 	p.runtime.PageNumber = result.Page
+}
+
+// clampRows truncates the rows that have more cells than the table has
+// columns.
+//
+// Bubble Tea v2 indexes the columns with the cell position, so a row
+// with too many cells panics with an index out of range. The rows built
+// here always match the default columns, but the columns are a
+// documented extension point, so the mismatch is defended against
+// rather than assumed away.
+func clampRows(rows []table.Row, columns int) []table.Row {
+	if columns <= 0 {
+		return rows
+	}
+
+	for i, row := range rows {
+		if len(row) > columns {
+			rows[i] = row[:columns]
+		}
+	}
+
+	return rows
 }
 
 // resize adapts the table height to the available space.
@@ -337,6 +362,7 @@ func (p *RecordsPage) resize() {
 		height = 3
 	}
 
+	p.table.SetWidth(p.width)
 	p.table.SetHeight(height)
 }
 

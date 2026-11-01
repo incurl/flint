@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -95,7 +95,7 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if p.editing {
 			switch msg.String() {
 			case "esc":
@@ -130,9 +130,9 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *DetailPage) View() string {
+func (p *DetailPage) View() tea.View {
 	if p.record == nil {
-		return p.theme.Muted.Render("no record selected")
+		return tea.NewView(p.theme.Muted.Render("no record selected"))
 	}
 
 	var b []string
@@ -143,28 +143,28 @@ func (p *DetailPage) View() string {
 	if p.editing {
 		b = append(b, p.theme.Subtitle.Render("Raw JSON editor"))
 		b = append(b, "")
-		b = append(b, p.editor.View())
+		b = append(b, p.editor.View().Content)
 
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	if p.runtime.RawJSON {
-		b = append(b, p.viewer.View())
+		b = append(b, p.viewer.View().Content)
 		b = append(b, "")
 		b = append(b, p.theme.Help.Render("↑/↓ move · enter expand/collapse · e edit · r structured view"))
 
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
-	b = append(b, p.card.View())
+	b = append(b, p.card.View().Content)
 	b = append(b, "")
 	b = append(b, p.theme.Subtitle.Render("Raw JSON"))
 	b = append(b, "")
-	b = append(b, p.viewer.View())
+	b = append(b, p.viewer.View().Content)
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("j json · r raw json · e edit · esc back"))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Refresh reloads the displayed record.

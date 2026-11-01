@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
 
@@ -91,7 +91,10 @@ func run() error {
 
 	model := app.New(store, cfg, nil)
 
-	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+	// In Bubble Tea v2 the alternate screen and the mouse mode are
+	// properties of the rendered view, not of the program: the root
+	// model sets them on every frame.
+	program := tea.NewProgram(model)
 
 	// Bubble Tea installs its own SIGINT and SIGTERM handler: SIGINT
 	// interrupts the program (tea.ErrInterrupted) and SIGTERM asks for a

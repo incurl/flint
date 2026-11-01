@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textarea"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textarea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -113,7 +113,7 @@ func (e *JSONEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		e.SetSize(msg.Width, msg.Height-4)
 		return e, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if !e.focused {
 			return e, nil
 		}
@@ -133,7 +133,7 @@ func (e *JSONEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (e *JSONEditor) View() string {
+func (e *JSONEditor) View() tea.View {
 	var b strings.Builder
 
 	b.WriteString(e.textarea.View())
@@ -145,5 +145,5 @@ func (e *JSONEditor) View() string {
 		b.WriteString(e.theme.Muted.Render("ctrl+s save · esc cancel"))
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }

@@ -173,7 +173,7 @@ A page is a self-contained `tea.Model`:
 package myapp
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -195,8 +195,8 @@ func (p *StatsPage) Init() tea.Cmd { return nil }
 func (p *StatsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return p, nil }
 
 // View implements tea.Model.
-func (p *StatsPage) View() string {
-	return p.theme.Title.Render("Statistics")
+func (p *StatsPage) View() tea.View {
+	return tea.NewView(p.theme.Title.Render("Statistics"))
 }
 ```
 

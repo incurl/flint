@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/state"
@@ -122,7 +122,7 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "tab":
 			p.focus = (p.focus + 1) % 3
@@ -163,7 +163,7 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *SyncPage) View() string {
+func (p *SyncPage) View() tea.View {
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Sync — pull a remote collection into the local store"))
@@ -174,7 +174,7 @@ func (p *SyncPage) View() string {
 		b = append(b, "")
 		b = append(b, p.theme.Muted.Render("the remote mode queries the server directly"))
 
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	b = append(b, p.theme.Label.Render("remote collection"))
@@ -209,7 +209,7 @@ func (p *SyncPage) View() string {
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("tab next field · ctrl+r run sync"))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Sync returns the command that runs the synchronisation.

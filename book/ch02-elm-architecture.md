@@ -28,7 +28,7 @@ effects as values — without the language's purity requirements.
 type Model interface {
     Init() Cmd
     Update(Msg) (Model, Cmd)
-    View() string
+    View() View
 }
 ```
 
@@ -380,9 +380,9 @@ The root model's `View` composes the active page with the global
 chrome:
 
 ```go
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     if m.quitting {
-        return ""
+        return tea.NewView("")
     }
 
     var body string
@@ -404,7 +404,7 @@ func (m *Model) View() string {
 
     parts = append(parts, m.statusBar.View())
 
-    return joinLines(parts)
+    return tea.NewView(joinLines(parts))
 }
 ```
 
@@ -561,7 +561,7 @@ A practical checklist for the messages in an application like ours:
 
 | Message               | Produced by        | Handled by        |
 | --------------------- | ------------------ | ----------------- |
-| `tea.KeyMsg`          | the terminal       | global + page     |
+| `tea.KeyPressMsg`     | the terminal       | global + page     |
 | `tea.WindowSizeMsg`   | the terminal       | root + components |
 | `recordsLoadedMsg`    | a page command     | the records page  |
 | `loadFailedMsg`       | a page command     | the records page  |

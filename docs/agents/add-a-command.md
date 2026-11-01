@@ -32,7 +32,7 @@ An action that does not need the store: open a panel, toggle a mode,
 copy to the clipboard.
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
 	if msg.String() == "c" {
 		return p, func() tea.Msg {
 			return CopyMsg{Text: p.SelectedRecord().StringField("title")}
@@ -47,7 +47,7 @@ reading `p` *inside* the closure after it has started.
 The safe form captures first:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
 	if msg.String() == "c" {
 		rec := p.SelectedRecord()
 		if rec == nil {
@@ -91,7 +91,7 @@ type DeleteMsg struct {
 **Step 2 — produce it from a command.** Capture the values first:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
 	if msg.String() == "x" {
 		rec := p.SelectedRecord()
 		if rec == nil {
@@ -135,7 +135,7 @@ A hotkey that works on every page belongs to the root model, in
 `handleGlobalKey`:
 
 ```go
-func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	// While a text input has the focus the global layer only handles
 	// the interrupt key and the page switch digits.
 	if m.inputFocused() {

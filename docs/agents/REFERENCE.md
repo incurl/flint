@@ -395,7 +395,7 @@ func NewXPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme) *XPag
 
 func (p *XPage) Init() tea.Cmd
 func (p *XPage) Update(msg tea.Msg) (tea.Model, tea.Cmd)
-func (p *XPage) View() string
+func (p *XPage) View() tea.View
 func (p *XPage) Refresh() tea.Cmd   // called by the root model on navigation
 ```
 
@@ -421,7 +421,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 
 func (m *Model) Init() tea.Cmd
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd)
-func (m *Model) View() string
+func (m *Model) View() tea.View
 ```
 
 Root-level messages (`internal/app/messages.go`):

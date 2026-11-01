@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/components"
@@ -111,7 +111,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.resize()
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// The global hotkey layer is only active when no page specific
 		// input has the focus.
 		if cmd, handled := m.handleGlobalKey(msg); handled {
@@ -218,37 +218,45 @@ func (m *Model) refreshStatusBar() {
 }
 
 // View implements [tea.Model].
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
 	if m.quitting {
-		return ""
+		return tea.NewView("")
 	}
 
 	var body string
 
 	switch m.runtime.Page {
 	case state.PageRecords:
-		body = m.records.View()
+		body = m.records.View().Content
 	case state.PageDetail:
-		body = m.detail.View()
+		body = m.detail.View().Content
 	case state.PageSearch:
-		body = m.search.View()
+		body = m.search.View().Content
 	case state.PageSettings:
-		body = m.settingsPage.View()
+		body = m.settingsPage.View().Content
 	case state.PageSync:
-		body = m.sync.View()
+		body = m.sync.View().Content
 	default:
-		body = m.home.View()
+		body = m.home.View().Content
 	}
 
 	parts := []string{body}
 
-	if toast := m.toast.View(); toast != "" {
+	if toast := m.toast.View().Content; toast != "" {
 		parts = append(parts, toast)
 	}
 
-	parts = append(parts, m.statusBar.View())
+	parts = append(parts, m.statusBar.View().Content)
 
-	return joinLines(parts)
+	view := tea.NewView(joinLines(parts))
+
+	// The alternate screen and the mouse mode are properties of the
+	// view in Bubble Tea v2, not of the program: they must be set on
+	// every rendered frame.
+	view.AltScreen = true
+	view.MouseMode = tea.MouseModeCellMotion
+
+	return view
 }
 
 // handleGlobalKey processes the global hotkeys.
@@ -256,7 +264,7 @@ func (m *Model) View() string {
 // It returns the command to run and whether the key was consumed. The
 // global layer is disabled while a text input has the focus, so that the
 // user can type freely.
-func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	// While a text input has the focus the global layer only handles the
 	// interrupt key and the page switch digits, so that the user can type
 	// freely in the input while still being able to jump between pages.

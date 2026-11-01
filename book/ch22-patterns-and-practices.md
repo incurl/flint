@@ -230,7 +230,7 @@ typing.
 
 ```go
 // ✗ "q" quits while the user is typing a filter.
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if cmd, handled := m.handleGlobalKey(msg); handled {
         return m, cmd
     }
@@ -269,9 +269,9 @@ something expensive, the UI stutters.
 
 ```go
 // ✗ Re-marshals the payload on every render.
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     data, _ := json.MarshalIndent(m.payload, "", "  ")
-    return data
+    return tea.NewView(data)
 }
 ```
 
@@ -292,8 +292,8 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     return m, nil
 }
 
-func (m *Model) View() string {
-    return m.renderedPayload
+func (m *Model) View() tea.View {
+    return tea.NewView(string(m.renderedPayload))
 }
 ```
 

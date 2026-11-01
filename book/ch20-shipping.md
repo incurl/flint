@@ -298,7 +298,7 @@ func run() error {
 
     // 6. Build and run the program.
     model := app.New(store, cfg, ctx)
-    program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+    program := tea.NewProgram(model)
 
     // 7. The signal handler.
     sigCh := make(chan os.Signal, 1)

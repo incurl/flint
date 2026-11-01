@@ -46,7 +46,7 @@ func TestModelNavigation(t *testing.T) {
 
     for _, tt := range pages {
         t.Run(tt.key, func(t *testing.T) {
-            updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+            updated, _ := m.Update(tea.KeyPressMsg{Code: rune(tt.key[0]), Text: tt.key})
             m = updated.(*app.Model)
 
             view := m.View()
@@ -146,7 +146,7 @@ func TestRecordsPageFilter(t *testing.T) {
     page := pages.NewRecordsPage(store, newRuntime(), theme.Default(), nil)
 
     // The "/" key focuses the filter input.
-    updated, _ := page.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+    updated, _ := page.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
     page = updated.(*pages.RecordsPage)
 
     if !page.FilterFocused() {
@@ -154,7 +154,7 @@ func TestRecordsPageFilter(t *testing.T) {
     }
 
     // The typed keys reach the input.
-    updated, _ = page.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+    updated, _ = page.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
     page = updated.(*pages.RecordsPage)
 
     if !page.FilterFocused() {
@@ -523,10 +523,10 @@ func TestIntegrationBrowseRecords(t *testing.T) {
 
     // Select the collection.
     m.Update(pages.HomeMsg{Collections: []pbstore.Collection{{Name: "vocab"}}})
-    m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("enter")})
+    m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 
     // The records page loads.
-    view := m.View()
+    view := m.View().Content
     if !strings.Contains(view, "Records") {
         t.Errorf("View() = %q, want the records page", view)
     }

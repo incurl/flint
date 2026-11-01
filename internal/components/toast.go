@@ -8,7 +8,7 @@ package components
 import (
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -149,9 +149,9 @@ func (t *Toast) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (t *Toast) View() string {
+func (t *Toast) View() tea.View {
 	if !t.visible || t.text == "" {
-		return ""
+		return tea.NewView("")
 	}
 
 	label := t.theme.StatusColor(t.level.String())
@@ -159,7 +159,7 @@ func (t *Toast) View() string {
 
 	body := label.Render(icon+" ") + t.theme.Base.Render(t.text)
 
-	return t.theme.Toast.Render(body)
+	return tea.NewView(t.theme.Toast.Render(body))
 }
 
 // icon returns the symbol prefixed to the toast body.

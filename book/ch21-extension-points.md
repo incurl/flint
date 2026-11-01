@@ -223,7 +223,7 @@ func (m *Model) updateActivePage(msg tea.Msg) []tea.Cmd {
     }
 }
 
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     switch m.runtime.Page {
     // ...
     case state.PageStats:

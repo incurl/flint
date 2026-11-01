@@ -179,9 +179,9 @@ Always move the call into a command.
 ### 2. A slow `View`
 
 ```go
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     data, _ := json.MarshalIndent(m.hugeThing, "", "  ")   // ✗ slow
-    return data
+    return tea.NewView(data)
 }
 ```
 
@@ -236,7 +236,7 @@ func main() {
 
     model := app.New(store, cfg, ctx)
 
-    program := tea.NewProgram(model, tea.WithAltScreen())
+    program := tea.NewProgram(model)
     // ...
 }
 ```
@@ -275,7 +275,7 @@ func run() error {
         }
     }()
 
-    program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+    program := tea.NewProgram(model)
 
     sigCh := make(chan os.Signal, 1)
     signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)

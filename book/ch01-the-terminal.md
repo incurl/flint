@@ -123,7 +123,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type model struct {
@@ -136,7 +136,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
@@ -147,8 +147,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
-	return fmt.Sprintf("Pressed %d times. (q to quit)", m.presses)
+func (m model) View() tea.View {
+	return tea.NewView(fmt.Sprintf("Pressed %d times. (q to quit)", m.presses))
 }
 
 func main() {
@@ -226,7 +226,7 @@ pointer receiver (`func (m *Model) Update(...)`) and it works fine.
 The value-receiver style is idiomatic Elm; the pointer style is
 idiomatic Go. Chapter 2 discusses when each is better.
 
-### `View() string`
+### `View() tea.View`
 
 Renders the current state. It is called after every `Update`.
 
@@ -247,20 +247,26 @@ timing depends on how fast the terminal is.
 renderer). `Run` starts the event loop and blocks until the program
 quits.
 
-The two options you will use constantly:
+In Bubble Tea v2 the screen options belong to the **view**, not to the
+program. You set them on every frame:
 
 ```go
-p := tea.NewProgram(model{},
-    tea.WithAltScreen(),        // use the alternate screen buffer
-    tea.WithMouseCellMotion(),  // enable mouse reporting
-)
+func (m model) View() tea.View {
+    v := tea.NewView(m.render())
+    v.AltScreen = true          // use the alternate screen buffer
+    v.MouseMode = tea.MouseModeCellMotion  // enable mouse reporting
+
+    return v
+}
+
+p := tea.NewProgram(model{})
 ```
 
-`WithAltScreen` is the single most important option for a full-screen
-application. Without it, your program draws over the user's shell
-history and leaves the terminal in a mess on exit. With it, the
-terminal's original content is restored when you quit, and your UI
-occupies a separate buffer that you can scribble on freely.
+The alternate screen is the single most important setting for a
+full-screen application. Without it, your program draws over the
+user's shell history and leaves the terminal in a mess on exit. With
+it, the terminal's original content is restored when you quit, and
+your UI occupies a separate buffer that you can scribble on freely.
 
 ## 1.5 The event loop
 
@@ -422,7 +428,7 @@ differently in each page.
    observe? Relate it to the "rendering happens after every update"
    rule.
 
-4. **Remove `tea.WithAltScreen()`** from a program that draws a full
+4. **Remove `v.AltScreen = true`** from a program that draws a full
    screen, run it, then quit. Describe what the terminal looks like
    afterwards. Then restore it.
 
@@ -437,7 +443,7 @@ differently in each page.
 - Bubble Tea implements the **Elm architecture**: `Model`, `Update`,
   `View`, with all input flowing through one function.
 - `Init` returns an optional command; `Update` returns the new model
-  and an optional command; `View` returns a string.
+  and an optional command; `View` returns a `tea.View`.
 - The event loop is **single-threaded**; `tea.Cmd` runs in a
   **goroutine** and reports back with a message.
 - `View` must be **fast and side-effect free**.
@@ -450,7 +456,7 @@ Read these files in the Bubble Tea source, in this order:
 - `tea.go` — the `Model` interface, `Cmd`, `Msg`, and `Run`.
 - `commands.go` — `Batch`, `Sequence`, `Tick`, `Every`.
 - `key.go` — the `Key` struct and `String()`.
-- `options.go` — `WithAltScreen` and friends.
+- `options.go` — the program options.
 - `standard_renderer.go` — how frames are diffed and written.
 
 Next: [Chapter 2 — The Elm Architecture](ch02-elm-architecture.md).

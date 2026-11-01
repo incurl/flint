@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -66,7 +67,7 @@ func (s *StatusBar) SetWidth(width int) { s.width = width }
 //
 // The bar degrades gracefully: the hints are dropped one by one when the
 // terminal is too narrow, then the right section.
-func (s *StatusBar) View() string {
+func (s *StatusBar) View() tea.View {
 	left := s.leftSection()
 	right := s.rightSection()
 
@@ -105,7 +106,7 @@ func (s *StatusBar) View() string {
 		}
 	}
 
-	return s.theme.StatusBar.Render(left + strings.Repeat(" ", gap) + hints + separator + right)
+	return tea.NewView(s.theme.StatusBar.Render(left + strings.Repeat(" ", gap) + hints + separator + right))
 }
 
 // leftSection renders the store mode and the connection health.

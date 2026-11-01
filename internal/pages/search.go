@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/list"
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/list"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -159,7 +159,7 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "enter":
 			p.loading = true
@@ -182,7 +182,7 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *SearchPage) View() string {
+func (p *SearchPage) View() tea.View {
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Search"))
@@ -194,19 +194,19 @@ func (p *SearchPage) View() string {
 		b = append(b, "")
 		b = append(b, p.theme.Help.Render("the filter must use the PocketBase filter syntax"))
 
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	if p.loading {
 		b = append(b, p.spinner.View()+" "+p.theme.Muted.Render("searching…"))
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	b = append(b, p.list.View())
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("enter run · esc clear · ↑/↓ navigate"))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Refresh re-runs the current search.

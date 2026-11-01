@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/theme"
 )
@@ -64,7 +64,7 @@ func NewJSONViewer(t *theme.Theme) *JSONViewer {
 		t = theme.Default()
 	}
 
-	v := viewport.New(20, 10)
+	v := viewport.New(viewport.WithWidth(20), viewport.WithHeight(10))
 	v.KeyMap.Up.SetEnabled(true)
 	v.KeyMap.Down.SetEnabled(true)
 
@@ -125,8 +125,8 @@ func (v *JSONViewer) Focused() bool { return v.focused }
 func (v *JSONViewer) SetSize(width, height int) {
 	v.width = width
 	v.height = height
-	v.viewport.Width = width
-	v.viewport.Height = height
+	v.viewport.SetWidth(width)
+	v.viewport.SetHeight(height)
 	v.render()
 }
 
@@ -140,7 +140,7 @@ func (v *JSONViewer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		v.SetSize(msg.Width, msg.Height-2)
 		return v, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if !v.focused {
 			return v, nil
 		}
@@ -166,12 +166,12 @@ func (v *JSONViewer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (v *JSONViewer) View() string {
+func (v *JSONViewer) View() tea.View {
 	if v.root == nil {
-		return v.theme.Muted.Render("no data")
+		return tea.NewView(v.theme.Muted.Render("no data"))
 	}
 
-	return v.viewport.View()
+	return tea.NewView(v.viewport.View())
 }
 
 // visibleNodes returns the flattened list of the currently visible nodes.

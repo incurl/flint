@@ -23,9 +23,9 @@ case refreshMsg:
 
 ```go
 // ✗ Marshalling on every render.
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     data, _ := json.MarshalIndent(m.payload, "", "  ")
-    return data
+    return tea.NewView(data)
 }
 ```
 
@@ -51,8 +51,9 @@ cursor is invisible, or the shell history is gone.
 **Cause:** the alternate screen was not used, or the program was killed
 with `SIGKILL`.
 
-**Fix:** use `tea.WithAltScreen()`. For a `SIGKILL`, no program can
-clean up — that is what `SIGTERM` is for.
+**Fix:** set `v.AltScreen = true` on the view (in Bubble Tea v2 the
+alternate screen is a property of the view, not of the program). For a
+`SIGKILL`, no program can clean up — that is what `SIGTERM` is for.
 
 ⚠️ **Add a `SIGTERM` handler** so that a `kill` (not `kill -9`) exits
 cleanly.

@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import "charm.land/lipgloss/v2"
 
 // Breakpoints describe the terminal width ranges used to switch the layout.
 type Breakpoints struct {

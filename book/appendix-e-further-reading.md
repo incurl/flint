@@ -19,6 +19,8 @@ well written, well commented, and it is the ground truth.
 
 Repository: <https://github.com/charmbracelet/bubbletea>
 
+Module path: `charm.land/bubbletea/v2`
+
 ### Bubbles
 
 | Package      | File                    | What it holds                |
@@ -36,6 +38,8 @@ Repository: <https://github.com/charmbracelet/bubbletea>
 
 Repository: <https://github.com/charmbracelet/bubbles>
 
+Module path: `charm.land/bubbles/v2`
+
 ### Lipgloss
 
 | File              | What it holds                                |
@@ -48,6 +52,8 @@ Repository: <https://github.com/charmbracelet/bubbles>
 | `get.go`          | The getters                                  |
 
 Repository: <https://github.com/charmbracelet/lipgloss>
+
+Module path: `charm.land/lipgloss/v2`
 
 ### PocketBase
 

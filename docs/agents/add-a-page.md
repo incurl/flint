@@ -29,7 +29,7 @@ package pages
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/state"
@@ -99,20 +99,20 @@ func (p *StatsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *StatsPage) View() string {
+func (p *StatsPage) View() tea.View {
 	b := []string{p.theme.Title.Render("Statistics")}
 
 	if p.loading {
-		return joinLines(append(b, "", "loading…"))
+		return tea.NewView(joinLines(append(b, "", "loading…")))
 	}
 
 	if p.err != nil {
-		return joinLines(append(b, "", p.theme.Error.Render(p.err.Error())))
+		return tea.NewView(joinLines(append(b, "", p.theme.Error.Render(p.err.Error()))))
 	}
 
 	b = append(b, "", fmt.Sprintf("%d records", p.total))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Refresh reloads the statistics.
@@ -316,6 +316,57 @@ golangci-lint run
 | Importing `internal/app` from the page                      | Import cycle. Emit a `NavigateMsg` instead.          |
 | Building a `lipgloss.Style` inline                          | Inconsistent with the rest of the UI.                 |
 | Returning an error from a command                            | It is discarded. Return a message with an `Err`.      |
+| Returning a string from `View()`                             | It must return a `tea.View`. Use `tea.NewView(s)`.    |
+| Embedding a component view without `.Content`                | A type error: `tea.View` is not a string.            |
+| Using a `table` without calling `SetWidth`                   | The table renders nothing, with no error.             |
+
+---
+
+## Bubble Tea v2 notes
+
+The template uses Bubble Tea v2 (`charm.land/bubbletea/v2`). Four
+things differ from v1 and will bite you if you copy an old snippet.
+
+**1. `View()` returns a `tea.View`.**
+
+```go
+func (p *StatsPage) View() tea.View {
+	return tea.NewView(joinLines(b))
+}
+```
+
+**2. Embedding a component takes its `.Content`.**
+
+```go
+b = append(b, p.table.View().Content)
+```
+
+**3. The alternate screen belongs to the view.**
+
+There is no `tea.WithAltScreen()` option. The root model sets
+`view.AltScreen = true` on every frame; a page does not need to.
+
+**4. A `table` needs a width.**
+
+A v2 table whose viewport has no width renders an empty table: no
+error, no panic, just missing rows. If your page shows a table, set
+the width when the page is resized:
+
+```go
+p.table.SetWidth(p.width)
+```
+
+and give the table a default at construction so it works before the
+first resize:
+
+```go
+tbl := table.New(
+	table.WithColumns(defaultColumns()),
+	table.WithFocused(true),
+	table.WithHeight(10),
+	table.WithWidth(88),
+)
+```
 
 ---
 
@@ -325,7 +376,7 @@ Pages cannot import `app`. Emit `pages.NavigateMsg` and let the root
 model handle it:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
 	if msg.String() == "s" {
 		return p, func() tea.Msg { return pages.NavigateMsg{Page: state.PageStats} }
 	}

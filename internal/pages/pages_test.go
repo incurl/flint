@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pages"
@@ -108,7 +108,7 @@ func TestHomePage(t *testing.T) {
 	updated, _ := page.Update(pages.HomeMsg{Collections: store.collections})
 	page = updated.(*pages.HomePage)
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "vocab") {
 		t.Errorf("View() = %q, want it to contain the collection name", view)
 	}
@@ -123,7 +123,7 @@ func TestHomePageError(t *testing.T) {
 	updated, _ := page.Update(pages.HomeMsg{Err: pbstore.ErrNotConnected})
 	page = updated.(*pages.HomePage)
 
-	if page.View() == "" {
+	if page.View().Content == "" {
 		t.Error("View() returned an empty string")
 	}
 }
@@ -153,7 +153,7 @@ func TestRecordsPage(t *testing.T) {
 	updated, _ := page.Update(pages.RecordsMsg{Result: result, Page: 1})
 	page = updated.(*pages.RecordsPage)
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "Records") {
 		t.Errorf("View() = %q, want it to contain the page title", view)
 	}
@@ -169,7 +169,7 @@ func TestRecordsPageFilter(t *testing.T) {
 	page := pages.NewRecordsPage(store, newRuntime(), theme.Default(), nil)
 
 	// The "/" key focuses the filter input.
-	updated, _ := page.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("/")})
+	updated, _ := page.Update(tea.KeyPressMsg{Code: '/', Text: "/"})
 	page = updated.(*pages.RecordsPage)
 
 	if !page.FilterFocused() {
@@ -177,7 +177,7 @@ func TestRecordsPageFilter(t *testing.T) {
 	}
 
 	// The typed keys reach the input.
-	updated, _ = page.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("a")})
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
 	page = updated.(*pages.RecordsPage)
 
 	if !page.FilterFocused() {
@@ -204,7 +204,7 @@ func TestSearchPage(t *testing.T) {
 	}})
 	page = updated.(*pages.SearchPage)
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "Search") {
 		t.Errorf("View() = %q, want it to contain the page title", view)
 	}
@@ -221,8 +221,8 @@ func TestSearchPageError(t *testing.T) {
 	updated, _ := page.Update(pages.SearchResultMsg{Err: pbstore.ErrInvalidFilter})
 	page = updated.(*pages.SearchPage)
 
-	if !strings.Contains(page.View(), "invalid filter") {
-		t.Errorf("View() = %q, want it to contain the error", page.View())
+	if !strings.Contains(page.View().Content, "invalid filter") {
+		t.Errorf("View() = %q, want it to contain the error", page.View().Content)
 	}
 }
 
@@ -242,7 +242,7 @@ func TestDetailPage(t *testing.T) {
 	updated, _ := page.Update(pages.DetailMsg{Record: store.records[0]})
 	page = updated.(*pages.DetailPage)
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the record title", view)
 	}
@@ -258,7 +258,7 @@ func TestSettingsPage(t *testing.T) {
 
 	page := pages.NewSettingsPage(newRuntime(), theme.Default(), rows)
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "mode") {
 		t.Errorf("View() = %q, want it to contain the mode row", view)
 	}
@@ -276,7 +276,7 @@ func TestSyncPage(t *testing.T) {
 		t.Error("Init() returned no command")
 	}
 
-	view := page.View()
+	view := page.View().Content
 	if !strings.Contains(view, "Sync") {
 		t.Errorf("View() = %q, want it to contain the page title", view)
 	}
@@ -291,8 +291,8 @@ func TestSyncPageRequiresCollection(t *testing.T) {
 	updated, _ := page.Update(pages.SyncMsg{Err: errRequired})
 	page = updated.(*pages.SyncPage)
 
-	if !strings.Contains(page.View(), "required") {
-		t.Errorf("View() = %q, want it to contain the error", page.View())
+	if !strings.Contains(page.View().Content, "required") {
+		t.Errorf("View() = %q, want it to contain the error", page.View().Content)
 	}
 }
 
@@ -312,8 +312,8 @@ func TestRendererIsUsed(t *testing.T) {
 	updated, _ := page.Update(pages.RecordsMsg{Result: &pbstore.PageResult{Records: store.records}, Page: 1})
 	page = updated.(*pages.RecordsPage)
 
-	if !strings.Contains(page.View(), "Go") {
-		t.Errorf("View() = %q, want it to contain the rendered title", page.View())
+	if !strings.Contains(page.View().Content, "Go") {
+		t.Errorf("View() = %q, want it to contain the rendered title", page.View().Content)
 	}
 }
 
@@ -347,8 +347,8 @@ func TestRecordsPageDiscardsStaleResponse(t *testing.T) {
 	})
 	page = updated.(*pages.RecordsPage)
 
-	if strings.Contains(page.View(), "Current") {
-		t.Errorf("View() = %q, want the stale response to be discarded", page.View())
+	if strings.Contains(page.View().Content, "Current") {
+		t.Errorf("View() = %q, want the stale response to be discarded", page.View().Content)
 	}
 }
 
@@ -378,7 +378,40 @@ func TestRecordsPageKeepsCurrentResponse(t *testing.T) {
 	})
 	page = updated.(*pages.RecordsPage)
 
-	if !strings.Contains(page.View(), "Current") {
-		t.Errorf("View() = %q, want the current response to be applied", page.View())
+	if !strings.Contains(page.View().Content, "Current") {
+		t.Errorf("View() = %q, want the current response to be applied", page.View().Content)
+	}
+}
+
+// TestRecordsPageRendersRows verifies that the record table renders the
+// fetched records.
+//
+// Bubble Tea v2 renders an empty table when the table viewport has no
+// width, which would silently hide every row. The regression is caught
+// here so that a missing SetWidth call cannot pass the test suite
+// unnoticed.
+func TestRecordsPageRendersRows(t *testing.T) {
+	store := &stubStore{
+		records: []*pbstore.Record{
+			{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Go"}},
+		},
+	}
+
+	page := pages.NewRecordsPage(store, newRuntime(), theme.Default(), nil)
+
+	result := &pbstore.PageResult{
+		Records:    store.records,
+		Page:       1,
+		PerPage:    30,
+		TotalItems: 1,
+		TotalPages: 1,
+	}
+
+	updated, _ := page.Update(pages.RecordsMsg{Result: result, Page: 1})
+	page = updated.(*pages.RecordsPage)
+
+	view := page.View().Content
+	if !strings.Contains(view, "Go") {
+		t.Errorf("View() = %q, want it to contain the record title", view)
 	}
 }

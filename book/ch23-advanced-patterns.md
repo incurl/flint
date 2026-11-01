@@ -168,11 +168,11 @@ But `tea.Every` never stops. Both approaches need a guard.
 
 ```go
 // ✗ Every page has to know about the modal.
-func (p *RecordsPage) View() string {
+func (p *RecordsPage) View() tea.View {
     if m.modal != nil {
-        return m.modal.View()
+        return tea.NewView(m.modal.View())
     }
-    return p.content()
+    return tea.NewView(p.content())
 }
 ```
 
@@ -209,15 +209,15 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 ```
 
 ```go
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     body := m.pageView()
 
     if m.modal != nil {
         // Overlay the modal on top of the body.
-        return overlay(modalView, body)
+        return tea.NewView(overlay(modalView, body))
     }
 
-    return body
+    return tea.NewView(body)
 }
 ```
 

@@ -39,7 +39,7 @@ func BenchmarkView(b *testing.B) {
 ```go
 func BenchmarkUpdate(b *testing.B) {
     m := newTestModel(b)
-    msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("j")}
+    msg := tea.KeyPressMsg{Code: 'j', Text: "j"}
 
     b.ResetTimer()
     for i := 0; i < b.N; i++ {
@@ -70,7 +70,7 @@ different bottlenecks and different fixes.
 For a real measurement, add a temporary instrumentation to `View`:
 
 ```go
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     start := time.Now()
     defer func() {
         if d := time.Since(start); d > 16*time.Millisecond {
@@ -186,7 +186,7 @@ Some messages are cheap; some are expensive.
 
 | Message              | Cost                                    |
 | -------------------- | --------------------------------------- |
-| `tea.KeyMsg`         | Trivial                                 |
+| `tea.KeyPressMsg`    | Trivial                                 |
 | `tea.WindowSizeMsg`  | Trivial, but causes a full re-layout    |
 | `tea.MouseMsg`       | Trivial, but the mouse fires a lot      |
 | A spinner tick       | Trivial                                 |

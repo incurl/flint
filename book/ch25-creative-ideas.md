@@ -264,7 +264,7 @@ data, so you can render it beautifully:
 
 ```go
 // The schema page.
-func (p *SchemaPage) View() string {
+func (p *SchemaPage) View() tea.View {
     collection, err := p.store.FindCollection(p.runtime.Collection)
     // ...
 
@@ -296,7 +296,7 @@ func (p *SchemaPage) View() string {
         b.WriteString("  " + p.theme.Accent.Render(index) + "\n")
     }
 
-    return b.String()
+    return tea.NewView(b.String())
 }
 ```
 
@@ -468,7 +468,7 @@ const (
 )
 
 // The key handling.
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     switch m.prefix {
     case prefixG:
         m.prefix = prefixNone
@@ -931,7 +931,7 @@ show it:
 
 ```
 Messages (last 10):
-  15:04:05.123  tea.KeyMsg          "j"
+  15:04:05.123  tea.KeyPressMsg     "j"
   15:04:05.124  pages.RecordsMsg    {Page: 1}
   15:04:05.130  spinner.TickMsg     {ID: 3, tag: 1}
   ...
@@ -1058,8 +1058,8 @@ worse than an application with a plain interface that works.
 ## 25.23 Further reading
 
 - `charmbracelet/gum` — the "tunable" helpers for lists and tables.
-- `charmbracelet/lipgloss` — the layout and the borders.
-- `charmbracelet/bubbles` — the components.
+- `charm.land/lipgloss/v2` — the layout and the borders.
+- `charm.land/bubbles/v2` — the components.
 - `pocketbase/pocketbase/examples/base` — a full application.
 - The `fzf` source — the fuzzy matching algorithm, if you want to
   reimplement it.

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/state"
 	"github.com/incurl/flint/internal/theme"
@@ -61,7 +61,7 @@ func (p *SettingsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *SettingsPage) View() string {
+func (p *SettingsPage) View() tea.View {
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Settings"))
@@ -90,7 +90,7 @@ func (p *SettingsPage) View() string {
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("configuration is resolved at startup: flags > env > config file"))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // FormatSetting renders a "name: value" pair for the settings list.

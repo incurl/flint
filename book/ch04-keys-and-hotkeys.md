@@ -23,16 +23,16 @@ part of what separates a usable TUI from a frustrating one.
 
 ## 4.2 How Bubble Tea reports keys
 
-Every keystroke arrives as a `tea.KeyMsg`:
+Every keystroke arrives as a `tea.KeyPressMsg`:
 
 ```go
-type KeyMsg Key
-
 type Key struct {
-    Type  KeyType
-    Runes []rune
-    Alt   bool
-    Paste bool
+    Text        string
+    Mod         KeyMod
+    Code        rune
+    ShiftedCode rune
+    BaseCode    rune
+    IsRepeat    bool
 }
 ```
 
@@ -103,7 +103,7 @@ pastes.
 Bubbles provides a declarative binding system:
 
 ```go
-import "github.com/charmbracelet/bubbles/key"
+import "charm.land/bubbles/v2/key"
 
 // Define a binding.
 type keyMap struct {
@@ -196,7 +196,7 @@ Each layer gets the key only if the layer above declined it.
 ### Implementing the layers
 
 ```go
-func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
     // Layer 1: a focused text input captures the key.
     if m.inputFocused() {
         switch msg.String() {
@@ -231,7 +231,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 And the root model's `Update`:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if cmd, handled := m.handleGlobalKey(msg); handled {
         return m, cmd
     }
@@ -433,7 +433,7 @@ This is usually fine, but it has two consequences:
 If this matters, you can coalesce repeated keys in `Update`:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if m.lastKey == msg.String() && time.Since(m.lastKeyAt) < 50*time.Millisecond {
         // Ignore the repeated key.
         return m, nil
@@ -452,17 +452,20 @@ focus.
 Bubble Tea can enable mouse reporting:
 
 ```go
-p := tea.NewProgram(model{},
-    tea.WithAltScreen(),
-    tea.WithMouseCellMotion(),
-)
+func (m model) View() tea.View {
+    v := tea.NewView(m.render())
+    v.AltScreen = true
+    v.MouseMode = tea.MouseModeCellMotion
+
+    return v
+}
 ```
 
-Then `tea.MouseMsg` arrives:
+Then a mouse message arrives:
 
 ```go
-case tea.MouseMsg:
-    switch msg.Button {
+case tea.MouseClickMsg:
+    switch msg.Button() {
     case tea.MouseButtonLeft:
         // ...
     }
@@ -476,16 +479,16 @@ values matters, that is a regression.
 The template enables it, because the table interaction feels natural.
 If your users need to copy text, leave it off.
 
-There is a middle path: `tea.WithMouseCellMotion()` only reports
-motion while a button is pressed; `tea.WithMouseAllMotion()` reports
-all motion. Neither avoids the copy problem, though.
+There is a middle path: `tea.MouseModeCellMotion` only reports motion
+while a button is pressed; `tea.MouseModeAllMotion` reports all motion.
+Neither avoids the copy problem, though.
 
 ## 4.10 A complete key handling example
 
 Here is the records page's key handling in full, with comments:
 
 ```go
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     // Layer 1: the focused filter input owns the keyboard.
     if p.filterFocused {
         switch msg.String() {
@@ -577,10 +580,10 @@ in the same fall-through path.
    the first row. Verify that the table's own `g` binding does not
    conflict.
 
-2. Demonstrate the paste problem: write a test that sends a
-   `tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("q"), Paste: true}`
-   and show that `msg.String()` is `"[q]"`. Then show that your quit
-   handler does not trigger.
+2. Demonstrate the paste handling: in Bubble Tea v2 a paste is not a
+   key event. Write a test that sends a `tea.PasteMsg{Text: "q"}` and
+   show that it does not trigger the quit handler, then handle it
+   explicitly.
 
 3. Change the global page-switch keys to `ctrl+1`…`ctrl+6` and remove
    the digit exception from the `inputFocused()` branch. Verify that
@@ -594,13 +597,13 @@ in the same fall-through path.
 5. Add key repeat coalescing for the arrow keys only, and verify that
    holding down "j" in a text input still types "jjjj".
 
-6. Measure: write a program that logs every `tea.KeyMsg` it receives,
+6. Measure: write a program that logs every `tea.KeyPressMsg` it receives,
    then hold down a key for one second. Count the messages. Compare
    with the number of renders.
 
 ## 4.12 What you learned
 
-- Keystrokes arrive as `tea.KeyMsg`; `String()` gives a stable name
+- Keystrokes arrive as `tea.KeyPressMsg`; `String()` gives a stable name
   (`"enter"`, `"esc"`, `"ctrl+s"`, `"alt+f"`).
 - **Control keys have aliases**: `ctrl+i` is `tab`, `ctrl+m` is
   `enter`, `ctrl+h` is `backspace`.

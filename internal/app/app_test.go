@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/app"
@@ -110,7 +110,7 @@ func TestModelInit(t *testing.T) {
 		t.Error("Init() returned no command")
 	}
 
-	view := m.View()
+	view := m.View().Content
 	if view == "" {
 		t.Error("View() returned an empty string")
 	}
@@ -134,10 +134,10 @@ func TestModelNavigation(t *testing.T) {
 
 	for _, tt := range pages {
 		t.Run(tt.key, func(t *testing.T) {
-			updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(tt.key)})
+			updated, _ := m.Update(tea.KeyPressMsg{Code: rune(tt.key[0]), Text: tt.key})
 			m = updated.(*app.Model)
 
-			view := m.View()
+			view := m.View().Content
 			if !contains(view, tt.want.Title()) {
 				t.Errorf("View() = %q, want it to contain %q", view, tt.want.Title())
 			}
@@ -152,7 +152,7 @@ func TestModelHealthCheck(t *testing.T) {
 	updated, _ := m.Update(app.HealthMsg{Status: "ok"})
 	m = updated.(*app.Model)
 
-	if !contains(m.View(), "ok") {
+	if !contains(m.View().Content, "ok") {
 		t.Error("View() does not show the connection status")
 	}
 }
@@ -165,7 +165,7 @@ func TestModelErrorHandling(t *testing.T) {
 	updated, _ := m.Update(pages.RecordsMsg{Err: errTest, Page: 1})
 	m = updated.(*app.Model)
 
-	if m.View() == "" {
+	if m.View().Content == "" {
 		t.Error("View() returned an empty string after an error")
 	}
 }
@@ -179,7 +179,7 @@ func TestModelDiscardsStaleRecordsError(t *testing.T) {
 	m := newTestModel(t)
 
 	// The user opens the records page: the runtime page number is 1.
-	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	updated, _ := m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
 	m = updated.(*app.Model)
 
 	// The response of the page 2 request arrives while the user is back
@@ -187,8 +187,8 @@ func TestModelDiscardsStaleRecordsError(t *testing.T) {
 	updated, _ = m.Update(pages.RecordsMsg{Err: errTest, Page: 2})
 	m = updated.(*app.Model)
 
-	if contains(m.View(), errTest.Error()) {
-		t.Errorf("View() = %q, want the stale error to be discarded", m.View())
+	if contains(m.View().Content, errTest.Error()) {
+		t.Errorf("View() = %q, want the stale error to be discarded", m.View().Content)
 	}
 }
 
@@ -203,7 +203,7 @@ func TestModelToast(t *testing.T) {
 		t.Error("the toast message did not return a command")
 	}
 
-	if !contains(m.View(), "hello") {
+	if !contains(m.View().Content, "hello") {
 		t.Error("View() does not show the toast")
 	}
 }
@@ -224,7 +224,7 @@ func TestModelToastExpires(t *testing.T) {
 	updated, _ := m.Update(components.ToastMsg{Level: components.ToastInfo, Text: "hello"})
 	m = updated.(*app.Model)
 
-	if !contains(m.View(), "hello") {
+	if !contains(m.View().Content, "hello") {
 		t.Fatal("the toast is not displayed")
 	}
 
@@ -232,7 +232,7 @@ func TestModelToastExpires(t *testing.T) {
 	updated, _ = m.Update(components.ToastExpiredMsg{})
 	m = updated.(*app.Model)
 
-	if contains(m.View(), "hello") {
+	if contains(m.View().Content, "hello") {
 		t.Error("the toast is still displayed after the expiry")
 	}
 }

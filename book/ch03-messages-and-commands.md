@@ -491,7 +491,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.height = msg.Height
         m.resize()
 
-    case tea.KeyMsg:
+    case tea.KeyPressMsg:
         if cmd, handled := m.handleGlobalKey(msg); handled {
             return m, cmd
         }
@@ -555,7 +555,7 @@ A more robust alternative is to avoid early returns:
 
 ```go
 switch msg := msg.(type) {
-case tea.KeyMsg:
+case tea.KeyPressMsg:
     if cmd, handled := m.handleGlobalKey(msg); handled {
         cmds = append(cmds, cmd)
         break        // breaks out of the switch, continues to the tail
@@ -654,7 +654,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         p.loading = false
         // ...
 
-    case tea.KeyMsg:
+    case tea.KeyPressMsg:
         // ...
 
     default:

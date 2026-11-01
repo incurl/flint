@@ -1,7 +1,13 @@
 # Appendix A — Bubble Tea API Reference
 
-A quick reference for the Bubble Tea v1.3.x API. Every signature here
-was verified against the source of `github.com/charmbracelet/bubbletea@v1.3.10`.
+A quick reference for the Bubble Tea v2 API. Every signature here
+was verified against the source of `charm.land/bubbletea/v2@v2.1.1`.
+
+⚠️ **Bubble Tea v2 is a major rewrite.** The module path is now
+`charm.land/bubbletea/v2` (not `github.com/charmbracelet/bubbletea`),
+and the `View` method, the key messages and the screen options all
+changed shape. See the "Migrating from v1" section at the end of this
+appendix.
 
 ## The core types
 
@@ -13,8 +19,22 @@ type Msg interface{}
 type Model interface {
     Init() Cmd
     Update(Msg) (Model, Cmd)
-    View() string
+    View() View
 }
+
+// View represents a terminal view: styled content plus the screen
+// options that apply to it.
+type View struct {
+    Content         string
+    AltScreen       bool
+    MouseMode       MouseMode
+    Cursor          *Cursor
+    BackgroundColor color.Color
+    ForegroundColor color.Color
+}
+
+// NewView builds a View from a styled string.
+func NewView(s string) View
 
 // Cmd is an IO operation that returns a message when it's complete.
 type Cmd func() Msg
@@ -63,30 +83,39 @@ func (p *Program) RestoreTerminal() error
 ## The options
 
 ```go
-func WithAltScreen() ProgramOption
-func WithMouseCellMotion() ProgramOption
-func WithMouseAllMotion() ProgramOption
-func WithMouseMode(mouseMode MouseMode) ProgramOption
-func WithInput(input io.Reader) ProgramOption
-func WithInputTTY() ProgramOption
-func WithOutput(output io.Writer) ProgramOption
 func WithContext(ctx context.Context) ProgramOption
+func WithInput(input io.Reader) ProgramOption
+func WithOutput(output io.Writer) ProgramOption
+func WithEnvironment(env []string) ProgramOption
+func WithFilter(filter func(Model, Msg) Msg) ProgramOption
+func WithFPS(fps int) ProgramOption
+func WithColorProfile(profile colorprofile.Profile) ProgramOption
+func WithWindowSize(width, height int) ProgramOption
 func WithoutSignalHandler() ProgramOption
 func WithoutCatchPanics() ProgramOption
-func WithFPS(fps int) ProgramOption
+func WithoutSignals() ProgramOption
+func WithoutRenderer() ProgramOption
 ```
 
-### The recommended set
+### The screen options moved to the view
+
+In v2 the alternate screen and the mouse mode are **properties of the
+rendered view**, not options of the program. Set them on every frame:
 
 ```go
-p := tea.NewProgram(model,
-    tea.WithAltScreen(),
-    tea.WithMouseCellMotion(),
-)
+func (m model) View() tea.View {
+    v := tea.NewView(m.render())
+    v.AltScreen = true
+    v.MouseMode = tea.MouseModeCellMotion
+
+    return v
+}
+
+p := tea.NewProgram(model)
 ```
 
 ⚠️ **The mouse takes the selection away from the user.** If copying
-text matters, omit `WithMouseCellMotion`.
+text matters, leave `MouseMode` at `tea.MouseModeNone`.
 
 ## The messages
 
@@ -94,22 +123,28 @@ text matters, omit `WithMouseCellMotion`.
 
 ```go
 type QuitMsg struct{}
+type SuspendMsg struct{}
+type ResumeMsg struct{}
+type InterruptMsg struct{}
 
 type WindowSizeMsg struct {
     Width  int
     Height int
 }
 
-type KeyMsg Key
+// KeyMsg is an interface satisfied by both the press and the release
+// events.
+type KeyMsg interface {
+    fmt.Stringer
+    Key() Key
+}
 
-type MouseMsg struct {
-    X      int
-    Y      int
-    Shift  bool
-    Alt    bool
-    Ctrl   bool
-    Action MouseAction
-    Button MouseButton
+type KeyPressMsg Key
+type KeyReleaseMsg Key
+
+type MouseMsg interface {
+    fmt.Stringer
+    Mouse() Mouse
 }
 
 type FocusMsg struct{}
@@ -121,14 +156,21 @@ type PasteMsg string
 
 ```go
 type Key struct {
-    Type  KeyType
-    Runes []rune
-    Alt   bool
-    Paste bool
+    Text        string
+    Mod         KeyMod
+    Code        rune
+    ShiftedCode rune
+    BaseCode    rune
+    IsRepeat    bool
 }
 
 func (k Key) String() string
+func (k Key) Keystroke() string
 ```
+
+`String()` returns the text of the key when there is one ("a", "2",
+"/"), and the canonical name of the special key otherwise ("enter",
+"ctrl+c", "up"). It is the stable way to match a key.
 
 ### The key names
 
@@ -162,35 +204,54 @@ func (k Key) String() string
 terminals send `0x0a` (LF) instead. Bubble Tea normalises both to
 `"enter"`.
 
-### The paste marker
+### Pasted text
+
+In v2 a paste is **not** a key event. It arrives as its own message:
 
 ```go
-if k.Paste {
-    buf.WriteByte('[')
+type PasteMsg struct {
+    Text string
 }
-buf.WriteString(string(k.Runes))
-if k.Paste {
-    buf.WriteByte(']')
-}
+
+type PasteStartMsg struct{}
+type PasteEndMsg struct{}
 ```
 
-A pasted `q` becomes `"[q]"`, so a string comparison against `"q"`
-fails. This is intentional.
-
-## The key types
-
-The `KeyType` constants:
+Handle it separately from the key handling:
 
 ```go
-KeyRunes, KeyUp, KeyDown, KeyRight, KeyLeft, KeyShiftTab,
+case tea.PasteMsg:
+    m.input += msg.Text
+```
+
+The v1 approach — flagging a key with `Paste` and wrapping it in
+brackets so that it does not match a plain key — is gone.
+
+## The key constants
+
+The `KeyType` enum is gone: the key is now described by its `Code`
+and its `Text`. The constants that remain:
+
+```go
+KeyUp, KeyDown, KeyRight, KeyLeft, KeyShiftTab,
 KeyHome, KeyEnd, KeyPgUp, KeyPgDown, KeyDelete, KeyInsert,
-KeySpace, KeyCtrlA … KeyCtrlZ, KeyCtrlSpace, KeyCtrlOpenBracket,
-KeyCtrlCloseBracket, KeyCtrlCaret, KeyCtrlUnderscore,
-KeyCtrlBackslash, KeyCtrlSquareBracket,
-KeyEnter, KeyBackspace, KeyEsc, KeyEscape, KeyTab, KeyDelete,
-KeyShiftUp, KeyShiftDown, KeyShiftRight, KeyShiftLeft,
-KeyCtrlC, KeyCtrlD, KeyCtrlR, KeyCtrlS, ...
+KeySpace, KeyEnter, KeyBackspace, KeyEsc, KeyEscape, KeyTab,
+KeyF1 … KeyF12,
+KeyCtrlA … KeyCtrlZ,
+...
 ```
+
+Use `msg.Code` to compare against them:
+
+```go
+case tea.KeyPressMsg:
+    if msg.Code == tea.KeyEnter {
+        ...
+    }
+```
+
+Matching on `msg.String()` remains the simplest option for the common
+cases ("enter", "ctrl+c", "up", "a").
 
 ## The Bubbles packages
 
@@ -198,7 +259,7 @@ KeyCtrlC, KeyCtrlD, KeyCtrlR, KeyCtrlS, ...
 | -------------- | --------------------------- | --------------------------------- |
 | `textinput`    | `textinput.Model`           | `Focus`, `Blur`, `Value`, `SetValue`, `Reset`, `CursorEnd` |
 | `textarea`     | `textarea.Model`            | `Focus`, `Blur`, `Value`, `SetValue`, `SetWidth`, `SetHeight` |
-| `table`        | `table.Model`               | `SetRows`, `SetColumns`, `SetStyles`, `MoveUp`, `MoveDown`, `Cursor`, `SetHeight` |
+| `table`        | `table.Model`               | `SetRows`, `SetColumns`, `SetStyles`, `MoveUp`, `MoveDown`, `Cursor`, `SetWidth`, `SetHeight` |
 | `list`         | `list.Model`                | `SetItems`, `SetItem`, `SetSize`, `SetFilterState`, `VisibleItems` |
 | `viewport`     | `viewport.Model`            | `SetContent`, `SetWidth`, `SetHeight`, `GotoTop`, `GotoBottom`, `LineDown` |
 | `spinner`      | `spinner.Model`             | `Tick`, `Update`, `SetSpinner`     |
@@ -322,7 +383,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 type model struct {
@@ -335,7 +396,7 @@ func (m model) Init() tea.Cmd { return nil }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -355,7 +416,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
+func (m model) View() tea.View {
 	s := "Choose an option:\n\n"
 	for i, choice := range m.choices {
 		cursor := " "
@@ -364,7 +425,11 @@ func (m model) View() string {
 		}
 		s += fmt.Sprintf("%s %s\n", cursor, choice)
 	}
-	return s + "\n(enter to select, q to quit)"
+
+	v := tea.NewView(s + "\n(enter to select, q to quit)")
+	v.AltScreen = true
+
+	return v
 }
 
 func main() {
@@ -375,3 +440,122 @@ func main() {
 	}
 }
 ```
+
+## Migrating from v1
+
+The changes that actually bite, in the order you meet them.
+
+### 1. The module path
+
+```go
+// Before
+import tea "github.com/charmbracelet/bubbletea"
+import "github.com/charmbracelet/bubbles/table"
+import "github.com/charmbracelet/lipgloss"
+
+// After
+import tea "charm.land/bubbletea/v2"
+import "charm.land/bubbles/v2/table"
+import "charm.land/lipgloss/v2"
+```
+
+The v2 modules live under Charm's own domain, not under
+`github.com/charmbracelet/`. Asking for the GitHub path fails with a
+"module declares its path as" error.
+
+### 2. `View()` returns a `tea.View`
+
+```go
+// Before
+func (m model) View() string {
+	return m.render()
+}
+
+// After
+func (m model) View() tea.View {
+	return tea.NewView(m.render())
+}
+```
+
+When a component's view is embedded into another string, take its
+`Content`:
+
+```go
+b = append(b, p.table.View().Content)
+```
+
+### 3. The screen options moved to the view
+
+```go
+// Before
+p := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
+
+// After
+func (m model) View() tea.View {
+	v := tea.NewView(m.render())
+	v.AltScreen = true
+	v.MouseMode = tea.MouseModeCellMotion
+
+	return v
+}
+
+p := tea.NewProgram(model)
+```
+
+### 4. The key messages
+
+`tea.KeyMsg` is now an interface. Use `tea.KeyPressMsg` in a type
+switch:
+
+```go
+case tea.KeyPressMsg:
+	switch msg.String() {
+	case "enter":
+		...
+	}
+```
+
+`tea.KeyMsg` still works as a type switch case and matches both the
+press and the release events. Release events are only delivered if
+the program asks for them
+(`v.KeyboardEnhancements.ReportEventTypes = true`), so the default
+behaviour matches v1.
+
+To build a key in a test:
+
+```go
+// Before
+tea.KeyPressMsg{Code: 'a', Text: "a"}
+
+// After
+tea.KeyPressMsg{Code: 'a', Text: "a"}
+```
+
+### 5. The Bubbles components
+
+```go
+// Before
+v := viewport.New(20, 10)
+v.Width = 20
+v.Height = 10
+
+// After
+v := viewport.New(viewport.WithWidth(20), viewport.WithHeight(10))
+v.SetWidth(20)
+v.SetHeight(10)
+```
+
+The `Width` and `Height` fields are unexported in v2.
+
+### 6. The tables need a width
+
+⚠️ **This one fails silently.** A v2 table whose viewport has no width
+renders nothing at all: no error, no panic, just an empty table. If
+the rows disappear after the migration, call `SetWidth` (and give the
+table a `WithWidth` default at construction, before the first resize).
+
+### 7. The tables panic on ragged rows
+
+A row with **more** cells than the table has columns panics with an
+index out of range, because v2 indexes the columns with the cell
+position. A row with fewer cells is fine.

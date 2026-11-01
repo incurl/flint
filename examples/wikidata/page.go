@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -88,7 +88,7 @@ func (p *Page) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "enter" {
 			p.loading = true
 			return p, tea.Batch(p.search())
@@ -103,16 +103,16 @@ func (p *Page) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *Page) View() string {
+func (p *Page) View() tea.View {
 	header := p.theme.Title.Render("Wikidata") + "\n" + p.query.View()
 
 	switch {
 	case p.loading:
-		return header + "\n\n" + p.theme.Muted.Render("searching…")
+		return tea.NewView(header + "\n\n" + p.theme.Muted.Render("searching…"))
 	case p.err != nil:
-		return header + "\n\n" + p.theme.Error.Render(p.err.Error())
+		return tea.NewView(header + "\n\n" + p.theme.Error.Render(p.err.Error()))
 	default:
-		return header + "\n\n" + p.card.View()
+		return tea.NewView(header + "\n\n" + p.card.View().Content)
 	}
 }
 

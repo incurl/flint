@@ -3,11 +3,19 @@ package pages
 import (
 	"strings"
 
-	"github.com/charmbracelet/bubbles/table"
+	"charm.land/bubbles/v2/table"
 
 	"github.com/incurl/flint/internal/state"
 	"github.com/incurl/flint/internal/theme"
 )
+
+// defaultTableWidth is the width used by the record table before the
+// first window resize.
+//
+// Bubble Tea v2 renders an empty table when its viewport has no width,
+// so the table needs a usable default from the start. The value matches
+// the sum of the default column widths.
+const defaultTableWidth = 88
 
 // defaultColumns returns the columns of the record table.
 //

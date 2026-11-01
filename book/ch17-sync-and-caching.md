@@ -660,7 +660,7 @@ extension point exists; the default is conservative.
 ### The sync page
 
 ```go
-func (p *SyncPage) View() string {
+func (p *SyncPage) View() tea.View {
     var b []string
 
     b = append(b, p.theme.Title.Render("Sync — pull a remote collection into the local store"))
@@ -670,7 +670,7 @@ func (p *SyncPage) View() string {
         b = append(b, p.theme.Warning.Render("sync is only available in the embedded mode"))
         b = append(b, "")
         b = append(b, p.theme.Muted.Render("the remote mode queries the server directly"))
-        return joinLines(b)
+        return tea.NewView(joinLines(b))
     }
 
     // ... the inputs, the spinner, the report ...

@@ -86,8 +86,8 @@ func (p *recordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 ```
 
 ```go
-func (p *recordsPage) View() string {
-    return p.filter.View() + "\n\n" + p.table.View()
+func (p *recordsPage) View() tea.View {
+    return tea.NewView(p.filter.View() + "\n\n" + p.table.View())
 }
 ```
 
@@ -592,7 +592,7 @@ func (c *RecordCard) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
     return c, nil
 }
 
-func (c *RecordCard) View() string { /* ... */ }
+func (c *RecordCard) View() tea.View { /* ... */ }
 ```
 
 The rules for a good component:

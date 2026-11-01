@@ -337,7 +337,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.height = msg.Height
         m.resize()
 
-    case tea.KeyMsg:
+    case tea.KeyPressMsg:
         if cmd, handled := m.handleGlobalKey(msg); handled {
             m.refreshStatusBar()
             return m, cmd
@@ -469,9 +469,9 @@ page.
 ### The composition
 
 ```go
-func (m *Model) View() string {
+func (m *Model) View() tea.View {
     if m.quitting {
-        return ""
+        return tea.NewView("")
     }
 
     var body string
@@ -491,7 +491,7 @@ func (m *Model) View() string {
 
     parts = append(parts, m.statusBar.View())
 
-    return joinLines(parts)
+    return tea.NewView(joinLines(parts))
 }
 ```
 
@@ -602,7 +602,7 @@ Let us trace the "open a record" flow through every layer.
 User presses "enter" on the records page
    │
    ▼
-RecordsPage.Update(tea.KeyMsg{...})
+RecordsPage.Update(tea.KeyPressMsg{...})
    │   the page finds the selected record
    │   returns: func() tea.Msg { return OpenRecordMsg{ID: rec.ID} }
    ▼

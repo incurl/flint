@@ -5,7 +5,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/theme"
@@ -229,9 +230,9 @@ func (c *RecordCard) SetWidth(width int) { c.width = width }
 //
 // The layout adapts to the available width: the field name and value are
 // stacked when the terminal is too narrow.
-func (c *RecordCard) View() string {
+func (c *RecordCard) View() tea.View {
 	if c.record == nil {
-		return c.theme.Muted.Render("no record selected")
+		return tea.NewView(c.theme.Muted.Render("no record selected"))
 	}
 
 	var b strings.Builder
@@ -259,7 +260,7 @@ func (c *RecordCard) View() string {
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	return tea.NewView(b.String())
 }
 
 // padRight pads a string with spaces up to the requested width.

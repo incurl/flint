@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/state"
@@ -100,7 +100,7 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return p, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "up", "k":
 			if p.cursor > 0 {
@@ -132,7 +132,7 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // View implements [tea.Model].
-func (p *HomePage) View() string {
+func (p *HomePage) View() tea.View {
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Flint — PocketBase TUI scaffold"))
@@ -141,12 +141,12 @@ func (p *HomePage) View() string {
 
 	if p.loading {
 		b = append(b, p.spinner.View()+" "+p.theme.Muted.Render("loading collections…"))
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	if len(p.runtime.Collections) == 0 {
 		b = append(b, p.theme.Muted.Render("no collection available"))
-		return joinLines(b)
+		return tea.NewView(joinLines(b))
 	}
 
 	b = append(b, p.theme.Subtitle.Render("Collections"))
@@ -168,7 +168,7 @@ func (p *HomePage) View() string {
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("↑/↓ select · enter open · 2 records · / search"))
 
-	return joinLines(b)
+	return tea.NewView(joinLines(b))
 }
 
 // Refresh reloads the list of the available collections.
