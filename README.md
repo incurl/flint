@@ -154,9 +154,14 @@ batch_size = 200
 | `--collections`       | `FLINT_REMOTE_COLLECTIONS`  | all              |
 | `--sync-collections`  | `FLINT_SYNC_COLLECTIONS`    | none             |
 | `--sync-batch-size`   | `FLINT_SYNC_BATCH_SIZE`     | `100`            |
+| `--migrate-only`      | —                           | `false`          |
 
 > **Security:** never commit an API token. Use `FLINT_REMOTE_TOKEN` or an
 > untracked config file.
+
+> **`--migrate-only`** applies the embedded migrations and exits without
+> starting the TUI. It is what `make pb-migrate` runs, and it is handy in a
+> deployment pipeline that separates the migration step from the run step.
 
 ## Project layout
 

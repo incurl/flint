@@ -130,6 +130,7 @@ func Load(configPath string, flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if path != "" {
 		if err := loadFile(cfg, path); err != nil {
 			return nil, err
@@ -145,6 +146,7 @@ func Load(configPath string, flags Flags) (*Config, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+
 	return cfg, nil
 }
 
@@ -208,6 +210,7 @@ func (c *Config) RemoteTimeout() time.Duration {
 	if c.Remote.Timeout <= 0 {
 		return pbstore.DefaultRemoteTimeout
 	}
+
 	return time.Duration(c.Remote.Timeout) * time.Second
 }
 
@@ -219,6 +222,7 @@ func resolveConfigPath(explicit string) (string, error) {
 		if _, err := os.Stat(explicit); err != nil {
 			return "", fmt.Errorf("config: cannot read %q: %w", explicit, err)
 		}
+
 		return explicit, nil
 	}
 
@@ -247,6 +251,7 @@ func loadFile(cfg *Config, path string) error {
 	if err := toml.Unmarshal(raw, cfg); err != nil {
 		return fmt.Errorf("config: cannot parse %q: %w", path, err)
 	}
+
 	return nil
 }
 
@@ -255,14 +260,17 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv(EnvPrefix + "MODE"); v != "" {
 		cfg.Mode = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "THEME"); v != "" {
 		cfg.Theme = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "PER_PAGE"); v != "" {
 		if n, err := parseInt(v); err == nil {
 			cfg.PerPage = n
 		}
 	}
+
 	if v := os.Getenv(EnvPrefix + "LOG_LEVEL"); v != "" {
 		cfg.LogLevel = v
 	}
@@ -270,9 +278,11 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv(EnvPrefix + "DATA_DIR"); v != "" {
 		cfg.Embedded.DataDir = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "ENCRYPTION_ENV"); v != "" {
 		cfg.Embedded.EncryptionEnv = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "DEV"); v != "" {
 		cfg.Embedded.Dev = parseBool(v)
 	}
@@ -280,12 +290,15 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv(EnvPrefix + "REMOTE_URL"); v != "" {
 		cfg.Remote.URL = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "REMOTE_TOKEN"); v != "" {
 		cfg.Remote.Token = v
 	}
+
 	if v := os.Getenv(EnvPrefix + "REMOTE_COLLECTIONS"); v != "" {
 		cfg.Remote.Collections = parseList(v)
 	}
+
 	if v := os.Getenv(EnvPrefix + "REMOTE_TIMEOUT"); v != "" {
 		if n, err := parseInt(v); err == nil {
 			cfg.Remote.Timeout = n
@@ -295,11 +308,13 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv(EnvPrefix + "SYNC_COLLECTIONS"); v != "" {
 		cfg.Sync.Collections = parseList(v)
 	}
+
 	if v := os.Getenv(EnvPrefix + "SYNC_BATCH_SIZE"); v != "" {
 		if n, err := parseInt(v); err == nil {
 			cfg.Sync.BatchSize = n
 		}
 	}
+
 	if v := os.Getenv(EnvPrefix + "SYNC_MAX_RECORDS"); v != "" {
 		if n, err := parseInt(v); err == nil {
 			cfg.Sync.MaxRecords = n
@@ -314,39 +329,51 @@ func applyFlags(cfg *Config, flags Flags) {
 	if flags.Mode != "" {
 		cfg.Mode = flags.Mode
 	}
+
 	if flags.Theme != "" {
 		cfg.Theme = flags.Theme
 	}
+
 	if flags.PerPage > 0 {
 		cfg.PerPage = flags.PerPage
 	}
+
 	if flags.LogLevel != "" {
 		cfg.LogLevel = flags.LogLevel
 	}
+
 	if flags.DataDir != "" {
 		cfg.Embedded.DataDir = flags.DataDir
 	}
+
 	if flags.EncryptionEnv != "" {
 		cfg.Embedded.EncryptionEnv = flags.EncryptionEnv
 	}
+
 	if flags.Dev {
 		cfg.Embedded.Dev = true
 	}
+
 	if flags.RemoteURL != "" {
 		cfg.Remote.URL = flags.RemoteURL
 	}
+
 	if flags.RemoteToken != "" {
 		cfg.Remote.Token = flags.RemoteToken
 	}
+
 	if len(flags.RemoteCollections) > 0 {
 		cfg.Remote.Collections = flags.RemoteCollections
 	}
+
 	if len(flags.SyncCollections) > 0 {
 		cfg.Sync.Collections = flags.SyncCollections
 	}
+
 	if flags.SyncBatchSize > 0 {
 		cfg.Sync.BatchSize = flags.SyncBatchSize
 	}
+
 	if flags.SyncMaxRecords > 0 {
 		cfg.Sync.MaxRecords = flags.SyncMaxRecords
 	}
@@ -358,6 +385,7 @@ func parseInt(v string) (int, error) {
 	if _, err := fmt.Sscanf(strings.TrimSpace(v), "%d", &n); err != nil {
 		return 0, err
 	}
+
 	return n, nil
 }
 
@@ -374,6 +402,7 @@ func parseBool(v string) bool {
 // parseList splits a comma separated list.
 func parseList(v string) []string {
 	parts := strings.Split(v, ",")
+
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -381,5 +410,6 @@ func parseList(v string) []string {
 			out = append(out, p)
 		}
 	}
+
 	return out
 }

@@ -80,22 +80,25 @@ func (p *Page) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.err = msg.Err
 			return p, nil
 		}
+
 		p.err = nil
 		if msg.Record != nil {
 			p.card.SetRecord(msg.Record)
 		}
+
 		return p, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "enter":
+		if msg.String() == "enter" {
 			p.loading = true
 			return p, tea.Batch(p.search())
 		}
 	}
 
 	var cmd tea.Cmd
+
 	p.query, cmd = p.query.Update(msg)
+
 	return p, cmd
 }
 
@@ -140,6 +143,7 @@ func (p *Page) search() tea.Cmd {
 		if len(result.Records) == 0 {
 			return SearchResultMsg{}
 		}
+
 		return SearchResultMsg{Record: result.Records[0]}
 	}
 }

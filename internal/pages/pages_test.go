@@ -34,6 +34,7 @@ func (s *stubStore) List(ctx context.Context, q pbstore.Query) (*pbstore.PageRes
 	if s.err != nil {
 		return nil, s.err
 	}
+
 	return &pbstore.PageResult{
 		Records:    s.records,
 		Page:       1,
@@ -47,6 +48,7 @@ func (s *stubStore) Get(ctx context.Context, collection, id string) (*pbstore.Re
 	if len(s.records) > 0 {
 		return s.records[0], nil
 	}
+
 	return nil, pbstore.ErrNotFound
 }
 
@@ -87,6 +89,7 @@ var errRequired = errors.New("the remote collection is required")
 func newRuntime() *state.Runtime {
 	r := state.NewRuntime()
 	r.Collection = "vocab"
+
 	return r
 }
 
@@ -147,13 +150,14 @@ func TestRecordsPage(t *testing.T) {
 		TotalPages: 1,
 	}
 
-	updated, _ := page.Update(pages.RecordsMsg{Result: result})
+	updated, _ := page.Update(pages.RecordsMsg{Result: result, Page: 1})
 	page = updated.(*pages.RecordsPage)
 
 	view := page.View()
 	if !strings.Contains(view, "Records") {
 		t.Errorf("View() = %q, want it to contain the page title", view)
 	}
+
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the record title", view)
 	}
@@ -204,6 +208,7 @@ func TestSearchPage(t *testing.T) {
 	if !strings.Contains(view, "Search") {
 		t.Errorf("View() = %q, want it to contain the page title", view)
 	}
+
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the result title", view)
 	}
@@ -241,6 +246,7 @@ func TestDetailPage(t *testing.T) {
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the record title", view)
 	}
+
 	if !strings.Contains(view, "root") {
 		t.Errorf("View() = %q, want it to contain the JSON tree", view)
 	}
@@ -256,6 +262,7 @@ func TestSettingsPage(t *testing.T) {
 	if !strings.Contains(view, "mode") {
 		t.Errorf("View() = %q, want it to contain the mode row", view)
 	}
+
 	if !strings.Contains(view, "embedded") {
 		t.Errorf("View() = %q, want it to contain the mode value", view)
 	}
@@ -302,10 +309,76 @@ func TestRendererIsUsed(t *testing.T) {
 		TitleFields: []string{"label"},
 	})
 
-	updated, _ := page.Update(pages.RecordsMsg{Result: &pbstore.PageResult{Records: store.records}})
+	updated, _ := page.Update(pages.RecordsMsg{Result: &pbstore.PageResult{Records: store.records}, Page: 1})
 	page = updated.(*pages.RecordsPage)
 
 	if !strings.Contains(page.View(), "Go") {
 		t.Errorf("View() = %q, want it to contain the rendered title", page.View())
+	}
+}
+
+// TestRecordsPageDiscardsStaleResponse verifies that a response for a page
+// that is no longer the current one is discarded.
+//
+// Without this guard a slow query that resolves after the user moved to
+// another page would overwrite the visible rows with stale data.
+func TestRecordsPageDiscardsStaleResponse(t *testing.T) {
+	store := &stubStore{
+		records: []*pbstore.Record{
+			{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Current"}},
+		},
+	}
+
+	runtime := newRuntime()
+	page := pages.NewRecordsPage(store, runtime, theme.Default(), nil)
+
+	// The user navigates to page 3 while the page 1 request is in flight.
+	runtime.PageNumber = 3
+
+	updated, _ := page.Update(pages.RecordsMsg{
+		Result: &pbstore.PageResult{
+			Records:    store.records,
+			Page:       1,
+			PerPage:    30,
+			TotalItems: 1,
+			TotalPages: 1,
+		},
+		Page: 1,
+	})
+	page = updated.(*pages.RecordsPage)
+
+	if strings.Contains(page.View(), "Current") {
+		t.Errorf("View() = %q, want the stale response to be discarded", page.View())
+	}
+}
+
+// TestRecordsPageKeepsCurrentResponse verifies that a response matching the
+// current page is applied.
+func TestRecordsPageKeepsCurrentResponse(t *testing.T) {
+	store := &stubStore{
+		records: []*pbstore.Record{
+			{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Current"}},
+		},
+	}
+
+	runtime := newRuntime()
+	runtime.PageNumber = 3
+
+	page := pages.NewRecordsPage(store, runtime, theme.Default(), nil)
+
+	updated, _ := page.Update(pages.RecordsMsg{
+		Result: &pbstore.PageResult{
+			Records:    store.records,
+			Page:       3,
+			PerPage:    30,
+			TotalItems: 1,
+			TotalPages: 1,
+		},
+		Page: 3,
+	})
+	page = updated.(*pages.RecordsPage)
+
+	if !strings.Contains(page.View(), "Current") {
+		t.Errorf("View() = %q, want the current response to be applied", page.View())
 	}
 }

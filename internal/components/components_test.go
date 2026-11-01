@@ -35,6 +35,7 @@ func TestDefaultRecordRenderer(t *testing.T) {
 	if got := r.Title(rec); got != "Go" {
 		t.Errorf("Title() = %q, want %q", got, "Go")
 	}
+
 	if got := r.Summary(rec); !strings.Contains(got, "vocab") {
 		t.Errorf("Summary() = %q, want it to contain the collection name", got)
 	}
@@ -92,6 +93,7 @@ func TestJSONViewer(t *testing.T) {
 	if !strings.Contains(view, "root") {
 		t.Errorf("View() = %q, want it to contain the root node", view)
 	}
+
 	if !strings.Contains(view, "a") {
 		t.Errorf("View() = %q, want it to contain the key %q", view, "a")
 	}
@@ -118,6 +120,7 @@ func TestJSONViewerCollapse(t *testing.T) {
 	if !strings.Contains(view, "a") {
 		t.Errorf("View() = %q, want it to contain the first level key", view)
 	}
+
 	if strings.Contains(view, "b") {
 		t.Errorf("View() = %q, want the collapsed child to be hidden", view)
 	}
@@ -153,18 +156,21 @@ func TestJSONEditor(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
+
 	if doc["a"] != float64(1) {
 		t.Errorf("Validate() = %v, want a=1", doc)
 	}
 
 	// An invalid document is rejected.
 	editor.SetContent(`{invalid`)
+
 	if _, err := editor.Validate(); err == nil {
 		t.Error("Validate() with an invalid document returned no error")
 	}
 
 	// An empty document is rejected too.
 	editor.SetContent("")
+
 	if _, err := editor.Validate(); err == nil {
 		t.Error("Validate() with an empty document returned no error")
 	}
@@ -178,9 +184,11 @@ func TestPagination(t *testing.T) {
 	if pages != 3 {
 		t.Errorf("SetTotal() = %d pages, want 3", pages)
 	}
+
 	if p.Page() != 1 {
 		t.Errorf("Page() = %d, want 1", p.Page())
 	}
+
 	if p.TotalItems() != 25 {
 		t.Errorf("TotalItems() = %d, want 25", p.TotalItems())
 	}
@@ -213,9 +221,11 @@ func TestStatusBar(t *testing.T) {
 	if !strings.Contains(view, "EMBEDDED") {
 		t.Errorf("View() = %q, want it to contain the mode", view)
 	}
+
 	if !strings.Contains(view, "vocab") {
 		t.Errorf("View() = %q, want it to contain the collection", view)
 	}
+
 	if !strings.Contains(view, "filter") {
 		t.Errorf("View() = %q, want it to contain the hints", view)
 	}
@@ -232,6 +242,7 @@ func TestFormatHints(t *testing.T) {
 	if len(hints) != 2 {
 		t.Fatalf("FormatHints() returned %d hints, want 2", len(hints))
 	}
+
 	if hints[0] != "ctrl+r sync" {
 		t.Errorf("hints[0] = %q, want %q", hints[0], "ctrl+r sync")
 	}
@@ -244,6 +255,7 @@ func TestToast(t *testing.T) {
 	if toast.Visible() {
 		t.Error("Visible() = true on a fresh toast")
 	}
+
 	if toast.View() != "" {
 		t.Error("View() returned a non empty string for a hidden toast")
 	}
@@ -252,14 +264,17 @@ func TestToast(t *testing.T) {
 	if cmd == nil {
 		t.Error("Show() returned no command")
 	}
+
 	if !toast.Visible() {
 		t.Error("Visible() = false after Show()")
 	}
+
 	if !strings.Contains(toast.View(), "saved") {
 		t.Errorf("View() = %q, want it to contain the text", toast.View())
 	}
 
 	toast.Hide()
+
 	if toast.Visible() {
 		t.Error("Visible() = true after Hide()")
 	}
@@ -273,6 +288,7 @@ func TestRecordRendererInterface(t *testing.T) {
 	// A custom renderer is accepted by the record card.
 	card := components.NewRecordCard(theme.Default(), &components.DefaultRecordRenderer{})
 	card.SetRecord(newRecord())
+
 	if card.View() == "" {
 		t.Error("the record card rendered nothing")
 	}

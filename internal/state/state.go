@@ -152,6 +152,7 @@ func (r *Runtime) SetPage(page Page) {
 	if r.Page == page {
 		return
 	}
+
 	r.PreviousPage = r.Page
 	r.Page = page
 }
@@ -163,9 +164,9 @@ func (r *Runtime) GoBack() {
 	if r.PreviousPage == "" {
 		return
 	}
+
 	current := r.Page
-	r.Page = r.PreviousPage
-	r.PreviousPage = current
+	r.Page, r.PreviousPage = r.PreviousPage, current
 }
 
 // SetError records the last store level error.
@@ -174,5 +175,6 @@ func (r *Runtime) SetError(err error) {
 		r.LastError = ""
 		return
 	}
+
 	r.LastError = err.Error()
 }

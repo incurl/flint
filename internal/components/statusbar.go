@@ -49,6 +49,7 @@ func NewStatusBar(t *theme.Theme) *StatusBar {
 	if t == nil {
 		t = theme.Default()
 	}
+
 	return &StatusBar{theme: t}
 }
 
@@ -81,6 +82,7 @@ func (s *StatusBar) View() string {
 		lipgloss.Width(left)+lipgloss.Width(right)+lipgloss.Width(s.hintsSectionN(visible))+sepWidth > s.width {
 		visible--
 	}
+
 	hints := s.hintsSectionN(visible)
 
 	// Drop the right section when it still does not fit.
@@ -114,6 +116,7 @@ func (s *StatusBar) leftSection() string {
 	if connection == "" {
 		connection = "unknown"
 	}
+
 	conn := s.theme.StatusColor(connection).Render("● " + connection)
 
 	parts := []string{mode, conn}
@@ -121,9 +124,11 @@ func (s *StatusBar) leftSection() string {
 	if s.info.Collection != "" {
 		parts = append(parts, s.theme.Muted.Render(s.info.Collection))
 	}
+
 	if s.info.Sync != "" && s.info.Sync != "idle" {
 		parts = append(parts, s.theme.StatusColor(s.info.Sync).Render(s.info.Sync))
 	}
+
 	if s.info.SyncProgress != "" {
 		parts = append(parts, s.theme.Muted.Render(s.info.SyncProgress))
 	}
@@ -138,16 +143,12 @@ func (s *StatusBar) rightSection() string {
 	if s.info.Page != "" {
 		parts = append(parts, s.theme.Muted.Render(s.info.Page))
 	}
+
 	if s.info.Error != "" {
 		parts = append(parts, s.theme.Error.Render("✗ "+s.info.Error))
 	}
 
 	return strings.Join(parts, s.theme.Muted.Render(" │ "))
-}
-
-// hintsSection renders all the contextual hotkey hints.
-func (s *StatusBar) hintsSection() string {
-	return s.hintsSectionN(len(s.info.Hints))
 }
 
 // hintsSectionN renders the first n contextual hotkey hints.
@@ -157,6 +158,7 @@ func (s *StatusBar) hintsSectionN(n int) string {
 	if n <= 0 || len(s.info.Hints) == 0 {
 		return ""
 	}
+
 	if n > len(s.info.Hints) {
 		n = len(s.info.Hints)
 	}
@@ -165,6 +167,7 @@ func (s *StatusBar) hintsSectionN(n int) string {
 	for _, h := range s.info.Hints[:n] {
 		rendered = append(rendered, s.theme.Help.Render(h))
 	}
+
 	return strings.Join(rendered, "  ")
 }
 
@@ -178,7 +181,9 @@ func FormatHints(pairs [][2]string) []string {
 		if p[0] == "" || p[1] == "" {
 			continue
 		}
+
 		out = append(out, fmt.Sprintf("%s %s", p[0], p[1]))
 	}
+
 	return out
 }

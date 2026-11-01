@@ -85,6 +85,7 @@ func NewSearchPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme, 
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
@@ -143,6 +144,7 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.width = msg.Width
 		p.height = msg.Height
 		p.resize()
+
 		return p, nil
 
 	case SearchResultMsg:
@@ -151,8 +153,10 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.err = msg.Err
 			return p, nil
 		}
+
 		p.err = nil
 		p.applyResult(msg.Result)
+
 		return p, nil
 
 	case tea.KeyMsg:
@@ -171,7 +175,9 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// presses are never forwarded to the bubbles list: its own filter
 	// binding ("/") would otherwise shadow the page filter.
 	var cmd tea.Cmd
+
 	p.input, cmd = p.input.Update(msg)
+
 	return p, cmd
 }
 
@@ -187,6 +193,7 @@ func (p *SearchPage) View() string {
 		b = append(b, p.theme.Error.Render("✗ "+p.err.Error()))
 		b = append(b, "")
 		b = append(b, p.theme.Help.Render("the filter must use the PocketBase filter syntax"))
+
 		return joinLines(b)
 	}
 
@@ -211,6 +218,7 @@ func (p *SearchPage) Refresh() tea.Cmd {
 	p.err = nil
 	p.input.Focus()
 	p.resize()
+
 	return tea.Batch(p.spinner.Tick, p.Search())
 }
 
@@ -245,6 +253,7 @@ func (p *SearchPage) Search() tea.Cmd {
 		if store == nil {
 			return SearchResultMsg{Err: fmt.Errorf("pages: no store configured")}
 		}
+
 		if collection == "" {
 			return SearchResultMsg{Err: fmt.Errorf("pages: select a collection on the home page first")}
 		}
@@ -262,6 +271,7 @@ func (p *SearchPage) Search() tea.Cmd {
 		if err != nil {
 			return SearchResultMsg{Err: err}
 		}
+
 		return SearchResultMsg{Result: result}
 	}
 }

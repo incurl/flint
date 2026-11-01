@@ -41,6 +41,7 @@ func Migrations() []core.Migration {
 					&core.JSONField{Name: "descriptions"},
 					&core.JSONField{Name: "claims"},
 				)
+
 				if err := txApp.Save(items); err != nil {
 					return err
 				}
@@ -51,6 +52,7 @@ func Migrations() []core.Migration {
 					&core.TextField{Name: "language", Required: true, Max: 16},
 					&core.TextField{Name: "label", Max: 500},
 				)
+
 				return txApp.Save(labels)
 			},
 			Down: func(txApp core.App) error {

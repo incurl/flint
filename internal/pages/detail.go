@@ -57,6 +57,7 @@ func NewDetailPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme, 
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
@@ -82,13 +83,16 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.width = msg.Width
 		p.height = msg.Height
 		p.resize()
+
 		return p, nil
 
 	case DetailMsg:
 		if msg.Err != nil || msg.Record == nil {
 			return p, nil
 		}
+
 		p.setRecord(msg.Record)
+
 		return p, nil
 
 	case tea.KeyMsg:
@@ -97,6 +101,7 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "esc":
 				p.editing = false
 				p.editor.Blur()
+
 				return p, nil
 			case "ctrl+s":
 				return p, p.save()
@@ -109,6 +114,7 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "e":
 				p.editing = true
 				p.editor.Focus()
+
 				return p, nil
 			case "r":
 				p.runtime.RawJSON = !p.runtime.RawJSON
@@ -119,6 +125,7 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	updated, cmd := p.viewer.Update(msg)
 	p.viewer = updated.(*components.JSONViewer)
+
 	return p, cmd
 }
 
@@ -137,6 +144,7 @@ func (p *DetailPage) View() string {
 		b = append(b, p.theme.Subtitle.Render("Raw JSON editor"))
 		b = append(b, "")
 		b = append(b, p.editor.View())
+
 		return joinLines(b)
 	}
 
@@ -144,6 +152,7 @@ func (p *DetailPage) View() string {
 		b = append(b, p.viewer.View())
 		b = append(b, "")
 		b = append(b, p.theme.Help.Render("↑/↓ move · enter expand/collapse · e edit · r structured view"))
+
 		return joinLines(b)
 	}
 
@@ -179,6 +188,7 @@ func (p *DetailPage) Load() tea.Cmd {
 		if err != nil {
 			return DetailMsg{Err: err}
 		}
+
 		return DetailMsg{Record: rec}
 	}
 }
@@ -235,6 +245,7 @@ func (p *DetailPage) resize() {
 	if viewerHeight < 3 {
 		viewerHeight = 3
 	}
+
 	p.viewer.SetSize(p.width, viewerHeight)
 	p.editor.SetSize(p.width, p.height-6)
 	p.card.SetWidth(p.width)

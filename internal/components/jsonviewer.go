@@ -95,6 +95,7 @@ func (v *JSONViewer) SetContent(raw string) error {
 	}
 
 	v.render()
+
 	return nil
 }
 
@@ -158,7 +159,9 @@ func (v *JSONViewer) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	var cmd tea.Cmd
+
 	v.viewport, cmd = v.viewport.Update(msg)
+
 	return v, cmd
 }
 
@@ -167,6 +170,7 @@ func (v *JSONViewer) View() string {
 	if v.root == nil {
 		return v.theme.Muted.Render("no data")
 	}
+
 	return v.viewport.View()
 }
 
@@ -176,7 +180,9 @@ func (v *JSONViewer) visibleNodes() []*JSONNode {
 	if v.root == nil {
 		return out
 	}
+
 	collectVisible(v.root, v.expanded, &out)
+
 	return out
 }
 
@@ -191,6 +197,7 @@ func (v *JSONViewer) moveCursor(delta int) {
 	if v.cursor < 0 {
 		v.cursor = 0
 	}
+
 	if v.cursor >= len(nodes) {
 		v.cursor = len(nodes) - 1
 	}
@@ -211,6 +218,7 @@ func (v *JSONViewer) toggleCurrent() {
 	if v.expanded[node.path] {
 		delete(v.expanded, node.path)
 		v.render()
+
 		return
 	}
 
@@ -240,6 +248,7 @@ func (v *JSONViewer) renderNode(node *JSONNode, selected bool) string {
 	indent := strings.Repeat("  ", node.Depth())
 
 	marker := "  "
+
 	if node.IsContainer {
 		if v.expanded[node.path] {
 			marker = "▾ "
@@ -263,6 +272,7 @@ func (v *JSONViewer) renderNode(node *JSONNode, selected bool) string {
 	if selected {
 		return v.theme.Selected.Render(prefix)
 	}
+
 	return prefix
 }
 
@@ -273,6 +283,7 @@ func collectVisible(node *JSONNode, expanded map[string]bool, out *[]*JSONNode) 
 	if !node.IsContainer || !expanded[node.path] {
 		return
 	}
+
 	for _, child := range node.Children {
 		collectVisible(child, expanded, out)
 	}
@@ -286,6 +297,7 @@ func buildJSONNode(key string, value any, depth int, parentPath string) *JSONNod
 	if parentPath != "" {
 		path = parentPath + "/" + key
 	}
+
 	node := &JSONNode{Key: key, Value: value, depth: depth, path: path}
 
 	switch v := value.(type) {
@@ -296,6 +308,7 @@ func buildJSONNode(key string, value any, depth int, parentPath string) *JSONNod
 		for k := range v {
 			keys = append(keys, k)
 		}
+
 		sort.Strings(keys)
 
 		for _, k := range keys {
@@ -330,6 +343,7 @@ func formatScalar(value any) string {
 		if v == float64(int64(v)) {
 			return fmt.Sprintf("%d", int64(v))
 		}
+
 		return fmt.Sprintf("%g", v)
 	default:
 		return fmt.Sprintf("%v", v)

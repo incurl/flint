@@ -26,6 +26,7 @@ func TestNewResolvesVariants(t *testing.T) {
 			if got.Variant != tt.want {
 				t.Errorf("New(%q).Variant = %q, want %q", tt.variant, got.Variant, tt.want)
 			}
+
 			if got.Palette.Foreground == "" {
 				t.Error("New() returned an empty foreground colour")
 			}
@@ -38,9 +39,11 @@ func TestVariantValid(t *testing.T) {
 	if !theme.VariantDark.Valid() {
 		t.Error("VariantDark.Valid() = false, want true")
 	}
+
 	if !theme.VariantLight.Valid() {
 		t.Error("VariantLight.Valid() = false, want true")
 	}
+
 	if theme.Variant("other").Valid() {
 		t.Error("an unknown variant reported itself as valid")
 	}
@@ -101,6 +104,7 @@ func TestSplitWidth(t *testing.T) {
 			if left != tt.wantLeft {
 				t.Errorf("SplitWidth() left = %d, want %d", left, tt.wantLeft)
 			}
+
 			if right != tt.wantRight {
 				t.Errorf("SplitWidth() right = %d, want %d", right, tt.wantRight)
 			}
@@ -129,8 +133,10 @@ func TestTruncate(t *testing.T) {
 				if got != "" {
 					t.Errorf("Truncate() = %q, want an empty string", got)
 				}
+
 				return
 			}
+
 			if len(got) > tt.width && tt.width > 1 {
 				t.Errorf("Truncate(%q, %d) = %q, which is too long", tt.in, tt.width, got)
 			}

@@ -83,6 +83,7 @@ func NewToast(t *theme.Theme) *Toast {
 	if t == nil {
 		t = theme.Default()
 	}
+
 	return &Toast{theme: t}
 }
 
@@ -108,6 +109,7 @@ func (t *Toast) ShowWithDuration(level ToastLevel, text string, duration time.Du
 	if duration <= 0 {
 		duration = DefaultToastDuration
 	}
+
 	t.level = level
 	t.text = text
 	t.visible = true
@@ -142,6 +144,7 @@ func (t *Toast) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		t.width = msg.Width
 	}
+
 	return t, nil
 }
 

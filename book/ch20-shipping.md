@@ -364,16 +364,53 @@ is: quit the program → close the store → cancel the context → exit.
 ```go
 func main() {
     if err := run(); err != nil {
-        if !errors.Is(err, tea.ErrProgramKilled) && !errors.Is(err, errInterrupted) {
-            fmt.Fprintf(os.Stderr, "flint: %v\n", err)
-            os.Exit(1)
+        if isBenignShutdown(err) {
+            return
         }
+        fmt.Fprintf(os.Stderr, "flint: %v\n", err)
+        os.Exit(1)
     }
+}
+
+// isBenignShutdown reports whether the error is one of the expected
+// shutdown outcomes of a Bubble Tea program.
+func isBenignShutdown(err error) bool {
+    return errors.Is(err, tea.ErrInterrupted) ||
+        errors.Is(err, tea.ErrProgramKilled)
 }
 ```
 
 ⚠️ **Do not print an error for a normal exit.** A `SIGINT` is not a
 failure. Printing "flint: interrupted" on every `ctrl+c` is noise.
+
+⚠️ **Do not invent your own "interrupted" sentinel.** The obvious
+mistake is to declare `var errInterrupted = errors.New("interrupted")`
+and check for it. That sentinel is never returned by anything, so the
+check never matches and the program exits with the status 1 on every
+`ctrl+c`.
+
+The sentinel that Bubble Tea actually returns is **`tea.ErrInterrupted`**
+(it is returned when the program receives a `SIGINT`). Check for that
+one, plus `tea.ErrProgramKilled`.
+
+⚠️ **And do not install a second signal handler.** Bubble Tea already
+registers its own `SIGINT`/`SIGTERM` handler, and `Program.Run` returns
+when it fires. Adding a `signal.Notify` of your own races with it: both
+handlers receive the signal, and the outcome depends on which one wins.
+Let Bubble Tea own the signal and simply handle the error it returns.
+
+The difference is easy to observe — run the program, press `ctrl+c`,
+and check `$?`:
+
+```console
+$ ./flint
+^C
+$ echo $?
+0
+```
+
+A non-zero status here breaks every shell script and CI job that wraps
+the TUI.
 
 ## 20.5 The logging
 
@@ -823,7 +860,8 @@ jobs:
 
 ## 20.12 Exercises
 
-1. Implement the `migrate` subcommand properly, and add it to the CI.
+1. Add the `--migrate-only` flag to the CI: run it before the smoke
+   test, so that a broken migration fails the build.
 2. Add the version to the binary and print it in the settings page.
 3. Write the release workflow with the cross build and the checksums.
 4. Add a `--log-file` flag that writes the logs to a file instead of

@@ -98,8 +98,8 @@ pb-serve: ## Run a local PocketBase server (requires the pocketbase CLI)
 
 .PHONY: pb-migrate
 pb-migrate: ## Apply the PocketBase migrations to the embedded database
-	$(GO) run $(CMD) --mode embedded --data-dir $(DATA_DIR) --help >/dev/null
-	@echo "the migrations run automatically on the embedded startup"
+	$(GO) run $(CMD) --mode embedded --data-dir $(DATA_DIR) --migrate-only
+	@echo "the migrations have been applied to $(DATA_DIR)"
 
 .PHONY: cross-build
 cross-build: ## Build the binary for the supported platforms

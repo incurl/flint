@@ -78,9 +78,11 @@ func NewRecordsPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme,
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
+
 	if renderer == nil {
 		renderer = &components.DefaultRecordRenderer{}
 	}
@@ -127,6 +129,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		p.width = msg.Width
 		p.height = msg.Height
 		p.resize()
+
 		return p, nil
 
 	case RecordsMsg:
@@ -134,13 +137,20 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			return p, nil
 		}
+		// Discard the response of a query that is no longer current.
+		if msg.Page != p.runtime.PageNumber {
+			return p, nil
+		}
+
 		p.applyResult(msg.Result)
+
 		return p, nil
 
 	case RecordsFilterMsg:
 		p.runtime.Filter = msg.Filter
 		p.runtime.PageNumber = 1
 		p.loading = true
+
 		return p, tea.Batch(p.spinner.Tick, p.Load())
 
 	case tea.KeyMsg:
@@ -149,6 +159,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "enter":
 				p.filterFocused = false
 				p.filter.Blur()
+
 				return p, tea.Batch(
 					func() tea.Msg { return RecordsFilterMsg{Filter: p.filter.Value()} },
 					p.Load(),
@@ -157,12 +168,15 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				p.filterFocused = false
 				p.filter.Blur()
 				p.filter.SetValue(p.runtime.Filter)
+
 				return p, nil
 			}
 
 			// The focused input consumes the key.
 			var cmd tea.Cmd
+
 			p.filter, cmd = p.filter.Update(msg)
+
 			return p, cmd
 		}
 
@@ -171,6 +185,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.filterFocused = true
 			p.filter.Focus()
 			p.filter.SetValue(p.runtime.Filter)
+
 			return p, nil
 
 		case "enter":
@@ -180,6 +195,7 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					return OpenRecordMsg{ID: rec.ID}
 				}
 			}
+
 			return p, nil
 
 		case "up", "k":
@@ -193,21 +209,26 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				p.pagination.SetPage(p.pagination.Page() - 1)
 				p.runtime.PageNumber = p.pagination.Page()
 				p.loading = true
+
 				return p, tea.Batch(p.spinner.Tick, p.Load())
 			}
+
 			return p, nil
 		case "right", "l":
 			if p.pagination.Page() < p.pagination.TotalPages() {
 				p.pagination.SetPage(p.pagination.Page() + 1)
 				p.runtime.PageNumber = p.pagination.Page()
 				p.loading = true
+
 				return p, tea.Batch(p.spinner.Tick, p.Load())
 			}
+
 			return p, nil
 		}
 	}
 
 	var cmd tea.Cmd
+
 	p.table, cmd = p.table.Update(msg)
 	cmds = append(cmds, cmd)
 
@@ -226,6 +247,7 @@ func (p *RecordsPage) View() string {
 	if p.runtime.Filter != "" {
 		header += "  " + p.theme.Muted.Render("filter: "+p.runtime.Filter)
 	}
+
 	b = append(b, header)
 	b = append(b, p.filter.View())
 	b = append(b, "")
@@ -279,6 +301,7 @@ func (p *RecordsPage) Load() tea.Cmd {
 		if err != nil {
 			return RecordsMsg{Err: err, Page: page}
 		}
+
 		return RecordsMsg{Result: result, Page: page}
 	}
 }
@@ -313,6 +336,7 @@ func (p *RecordsPage) resize() {
 	if height < 3 {
 		height = 3
 	}
+
 	p.table.SetHeight(height)
 }
 
@@ -329,5 +353,6 @@ func (p *RecordsPage) SelectedRecord() *pbstore.Record {
 	if cursor < 0 || cursor >= len(p.records) {
 		return nil
 	}
+
 	return p.records[cursor]
 }

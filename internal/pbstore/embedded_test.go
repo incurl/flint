@@ -31,6 +31,7 @@ func newEmbeddedStore(t *testing.T) *pbstore.Embedded {
 	if err != nil {
 		t.Fatalf("OpenEmbedded() error = %v", err)
 	}
+
 	t.Cleanup(func() { _ = store.Close() })
 
 	return store
@@ -50,6 +51,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureDictionaryCollection() error = %v", err)
 	}
+
 	if collection.Name != "vocab" {
 		t.Errorf("collection name = %q, want %q", collection.Name, "vocab")
 	}
@@ -59,6 +61,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("EnsureDictionaryCollection() second call error = %v", err)
 	}
+
 	if again.ID != collection.ID {
 		t.Errorf("collection id = %q, want %q", again.ID, collection.ID)
 	}
@@ -73,9 +76,11 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
+
 	if rec.ID == "" {
 		t.Error("Create() returned an empty id")
 	}
+
 	if got := rec.StringField("label"); got != "Go" {
 		t.Errorf("label = %q, want %q", got, "Go")
 	}
@@ -85,6 +90,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
+
 	if got.StringField("key") != "go" {
 		t.Errorf("key = %q, want %q", got.StringField("key"), "go")
 	}
@@ -96,6 +102,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
+
 	if updated.StringField("label") != "Golang" {
 		t.Errorf("label = %q, want %q", updated.StringField("label"), "Golang")
 	}
@@ -105,6 +112,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Count() error = %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("Count() = %d, want 1", count)
 	}
@@ -118,6 +126,7 @@ func TestEmbeddedCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Count() after delete error = %v", err)
 	}
+
 	if count != 0 {
 		t.Errorf("Count() after delete = %d, want 0", count)
 	}
@@ -208,14 +217,17 @@ func TestEmbeddedListFilters(t *testing.T) {
 			if err != nil {
 				t.Fatalf("List() error = %v", err)
 			}
+
 			if len(result.Records) != tt.want {
 				t.Errorf("List() returned %d records, want %d", len(result.Records), tt.want)
 			}
+
 			if tt.first != "" && len(result.Records) > 0 {
 				if got := result.Records[0].StringField("key"); got != tt.first {
 					t.Errorf("first record key = %q, want %q", got, tt.first)
 				}
 			}
+
 			if result.TotalItems != tt.wantTotal {
 				t.Errorf("TotalItems = %d, want %d", result.TotalItems, tt.wantTotal)
 			}
@@ -265,6 +277,7 @@ func TestEmbeddedAllowlist(t *testing.T) {
 	if _, err := store.EnsureDictionaryCollection(ctx, "allowed", nil); err != nil {
 		t.Fatalf("EnsureDictionaryCollection() error = %v", err)
 	}
+
 	if _, err := store.EnsureDictionaryCollection(ctx, "denied", nil); err != nil {
 		t.Fatalf("EnsureDictionaryCollection() error = %v", err)
 	}
@@ -279,6 +292,7 @@ func TestEmbeddedAllowlist(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Collections() error = %v", err)
 	}
+
 	for _, c := range collections {
 		if c.Name == "denied" {
 			t.Error("Collections() returned the denied collection")
@@ -297,9 +311,11 @@ func TestEmbeddedRuntimeStore(t *testing.T) {
 	}
 
 	rt.Set("flint:test", "value")
+
 	if got := rt.Get("flint:test"); got != "value" {
 		t.Errorf("RuntimeStore().Get() = %v, want %q", got, "value")
 	}
+
 	if !rt.Has("flint:test") {
 		t.Error("RuntimeStore().Has() = false, want true")
 	}
@@ -313,6 +329,7 @@ func TestEmbeddedHealthCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HealthCheck() error = %v", err)
 	}
+
 	if status == "" {
 		t.Error("HealthCheck() returned an empty status")
 	}
@@ -352,6 +369,7 @@ func TestEmbeddedMigrations(t *testing.T) {
 			Up: func(txApp core.App) error {
 				collection := core.NewBaseCollection("migrated")
 				collection.Fields.Add(&core.TextField{Name: "value"})
+
 				return txApp.Save(collection)
 			},
 			Down: func(txApp core.App) error { return nil },
@@ -368,14 +386,80 @@ func TestEmbeddedMigrations(t *testing.T) {
 	}
 
 	found := false
+
 	for _, c := range collections {
 		if c.Name == "migrated" {
 			found = true
 			break
 		}
 	}
+
 	if !found {
 		t.Error("the migrated collection was not created")
+	}
+}
+
+// TestEmbeddedSyncSendsToken verifies that the sync authenticates against
+// the remote source with the configured token.
+//
+// Without the token the remote server answers with an empty list for a
+// non-public collection, so the sync would silently replicate nothing.
+func TestEmbeddedSyncSendsToken(t *testing.T) {
+	const token = "sync-secret-token"
+
+	var gotAuth string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth = r.Header.Get("Authorization")
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"page": 1,
+			"perPage": 30,
+			"totalItems": 1,
+			"totalPages": 1,
+			"items": [{
+				"id": "remote1",
+				"collectionId": "col1",
+				"collectionName": "vocab",
+				"key": "go",
+				"label": "Go"
+			}]
+		}`))
+	}))
+	defer server.Close()
+
+	dir := filepath.Join(t.TempDir(), "pb_data")
+
+	app := pocketbase.NewWithConfig(pocketbase.Config{
+		DefaultDataDir:  dir,
+		HideStartBanner: true,
+	})
+
+	store, err := pbstore.OpenEmbedded(app, pbstore.EmbeddedConfig{
+		DataDir:         dir,
+		SyncRemoteURL:   server.URL,
+		SyncRemoteToken: token,
+	})
+	if err != nil {
+		t.Fatalf("OpenEmbedded() error = %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	report, err := store.SyncCollection(context.Background(), pbstore.SyncRequest{
+		RemoteCollection: "vocab",
+		LocalCollection:  "vocab",
+	})
+	if err != nil {
+		t.Fatalf("SyncCollection() error = %v", err)
+	}
+
+	if gotAuth != token {
+		t.Errorf("Authorization header = %q, want %q", gotAuth, token)
+	}
+
+	if report.Fetched != 1 {
+		t.Errorf("Fetched = %d, want 1", report.Fetched)
 	}
 }
 
@@ -432,6 +516,7 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 	if report.Fetched != 1 {
 		t.Errorf("Fetched = %d, want 1", report.Fetched)
 	}
+
 	if report.Created != 1 {
 		t.Errorf("Created = %d, want 1", report.Created)
 	}
@@ -441,6 +526,7 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
+
 	if got := rec.StringField("label"); got != "Go" {
 		t.Errorf("label = %q, want %q", got, "Go")
 	}
@@ -454,9 +540,11 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SyncCollection() second call error = %v", err)
 	}
+
 	if report.Created != 0 {
 		t.Errorf("Created = %d on the second sync, want 0", report.Created)
 	}
+
 	if report.Updated != 1 {
 		t.Errorf("Updated = %d on the second sync, want 1", report.Updated)
 	}
@@ -465,6 +553,7 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Count() error = %v", err)
 	}
+
 	if count != 1 {
 		t.Errorf("Count() = %d, want 1", count)
 	}

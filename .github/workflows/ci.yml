@@ -78,3 +78,6 @@ jobs:
 
       - name: Smoke test
         run: ./flint --help
+
+      - name: Migration smoke test
+        run: ./flint --mode embedded --data-dir ./pb_data --migrate-only

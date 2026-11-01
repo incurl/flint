@@ -116,7 +116,9 @@ func (r *Record) Field(name string) (any, bool) {
 	if r == nil || r.Fields == nil {
 		return nil, false
 	}
+
 	v, ok := r.Fields[name]
+
 	return v, ok
 }
 
@@ -126,9 +128,11 @@ func (r *Record) StringField(name string) string {
 	if !ok || v == nil {
 		return ""
 	}
+
 	if s, ok := v.(string); ok {
 		return s
 	}
+
 	return fmt.Sprintf("%v", v)
 }
 
@@ -188,6 +192,7 @@ func SortFields(sort string) []search.SortField {
 	if sort == "" {
 		return nil
 	}
+
 	return search.ParseSortFromString(sort)
 }
 
@@ -201,13 +206,16 @@ func FilterExpr(filter string, resolver search.FieldResolver, params ...dbx.Para
 	if filter == "" {
 		return nil, nil
 	}
+
 	if resolver == nil {
 		resolver = search.NewSimpleFieldResolver(`^\w+[\w\.]*$`)
 	}
+
 	expr, err := search.FilterData(filter).BuildExpr(resolver, params...)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidFilter, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFilter, err)
 	}
+
 	return expr, nil
 }
 
@@ -373,6 +381,7 @@ func recordFromCore(rec *core.Record) *Record {
 	for k, v := range rec.FieldsData() {
 		out.Fields[k] = v
 	}
+
 	for k, v := range rec.CustomData() {
 		if _, ok := out.Fields[k]; !ok {
 			out.Fields[k] = v
@@ -382,15 +391,19 @@ func recordFromCore(rec *core.Record) *Record {
 	if v, ok := out.Fields[core.FieldNameId]; ok {
 		out.ID = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields[core.FieldNameCollectionId]; ok {
 		out.CollectionID = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields[core.FieldNameCollectionName]; ok {
 		out.CollectionName = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields[fieldNameCreated]; ok {
 		out.Created = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields[fieldNameUpdated]; ok {
 		out.Updated = fmt.Sprintf("%v", v)
 	}

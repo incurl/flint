@@ -405,31 +405,48 @@ The Makefile has a target for the migrations:
 ```make
 .PHONY: pb-migrate
 pb-migrate: ## Apply the PocketBase migrations to the embedded database
-	$(GO) run $(CMD) --mode embedded --data-dir $(DATA_DIR) --help >/dev/null
-	@echo "the migrations run automatically on the embedded startup"
+	$(GO) run $(CMD) --mode embedded --data-dir $(DATA_DIR) --migrate-only
+	@echo "the migrations have been applied to $(DATA_DIR)"
 ```
 
-⚠️ **This is a bit of a fudge.** The migrations run automatically when
-the app starts, so there is nothing to trigger separately.
+⚠️ **Do not fake this with `--help`.** An earlier version of the template
+ran `$(CMD) --help`, which prints the usage and exits without ever
+touching the database. The target looked like it worked and silently
+migrated nothing. A Makefile target that does not do what it says is worse
+than no target at all.
 
-A more useful implementation would be a dedicated subcommand that
-migrates and exits:
+The flag it relies on is a small addition to the command line:
+
+```go
+// config/flags.go
+fs.BoolVar(&flags.MigrateOnly, "migrate-only", false,
+    "apply the embedded migrations and exit without starting the TUI")
+```
+
+And the entry point honours it:
 
 ```go
 // cmd/tui/main.go
-if len(os.Args) > 1 && os.Args[1] == "migrate" {
-    // open the store, run the migrations, exit
+store, err := openStore(cfg)
+if err != nil {
+    return err
+}
+defer func() { _ = store.Close() }()
+
+// The store has already run the migrations while it was opened, so
+// opening it is enough to migrate.
+if flags.MigrateOnly {
+    return nil
 }
 ```
 
-Let us implement that properly, because it is genuinely useful for
-deployment (you want to migrate in CI, not on the first user launch).
-
-⚠️ **But note the trade-off.** If the migrations run only via the
-subcommand, a user who runs the app without migrating gets a broken
-schema. Running them automatically on startup is the safer default for
-a single-user tool. Many projects do **both**: the automatic run is
-idempotent, and the subcommand exists for CI.
+⚠️ **But note the trade-off.** If the migrations run *only* via the
+flag, a user who runs the app without migrating gets a broken schema.
+Running them automatically on startup is the safer default for a
+single-user tool. Many projects do **both**: the automatic run is
+idempotent, and the flag exists for CI. The template does exactly this —
+`OpenEmbedded` always calls `RunAllMigrations`, and `--migrate-only`
+simply skips the rest of the startup.
 
 ## 13.13 Exercises
 
@@ -446,7 +463,9 @@ idempotent, and the subcommand exists for CI.
    one field). Verify that the schema is unchanged — the transaction
    rolled back.
 
-5. Implement the `migrate` subcommand properly.
+5. Add a `--migrate-only` flag that migrates and exits, and wire it to a
+   `make pb-migrate` target. Verify that it is idempotent: running it
+   twice must leave the schema unchanged.
 
 6. Measure how long a migration that adds a `Required` field takes on
    a table with 100,000 rows.

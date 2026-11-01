@@ -35,9 +35,11 @@ func NewSettingsPage(runtime *state.Runtime, t *theme.Theme, settings [][2]strin
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
+
 	return &SettingsPage{
 		runtime:  runtime,
 		theme:    t,
@@ -50,12 +52,11 @@ func (p *SettingsPage) Init() tea.Cmd { return nil }
 
 // Update implements [tea.Model].
 func (p *SettingsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		p.width = msg.Width
 		p.height = msg.Height
-		return p, nil
 	}
+
 	return p, nil
 }
 
@@ -72,6 +73,7 @@ func (p *SettingsPage) View() string {
 			width = len(s[0])
 		}
 	}
+
 	if width > 24 {
 		width = 24
 	}
@@ -81,6 +83,7 @@ func (p *SettingsPage) View() string {
 		if len(label) < width {
 			label += strings.Repeat(" ", width-len(label))
 		}
+
 		b = append(b, p.theme.Label.Render(label)+p.theme.Value.Render(s[1]))
 	}
 
@@ -95,6 +98,7 @@ func FormatSetting(name, value string) [2]string {
 	if value == "" {
 		value = "(not set)"
 	}
+
 	return [2]string{name, value}
 }
 
@@ -106,5 +110,6 @@ func SettingsSummary(mode string, collection string) string {
 	if collection != "" {
 		parts = append(parts, fmt.Sprintf("collection=%s", collection))
 	}
+
 	return strings.Join(parts, " ")
 }

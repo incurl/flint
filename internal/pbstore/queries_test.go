@@ -111,9 +111,11 @@ func TestSortFields(t *testing.T) {
 	if len(fields) != 2 {
 		t.Fatalf("SortFields() returned %d fields, want 2", len(fields))
 	}
+
 	if fields[0].Name != "created" || fields[0].Direction != search.SortDesc {
 		t.Errorf("first field = %+v, want created DESC", fields[0])
 	}
+
 	if fields[1].Name != "name" || fields[1].Direction != search.SortAsc {
 		t.Errorf("second field = %+v, want name ASC", fields[1])
 	}
@@ -130,6 +132,7 @@ func TestFilterExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FilterExpr() error = %v", err)
 	}
+
 	if expr == nil {
 		t.Fatal("FilterExpr() returned a nil expression")
 	}
@@ -139,6 +142,7 @@ func TestFilterExpr(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FilterExpr(\"\") error = %v", err)
 	}
+
 	if expr != nil {
 		t.Error("FilterExpr(\"\") returned a non nil expression")
 	}
@@ -208,6 +212,7 @@ func TestExpandList(t *testing.T) {
 		if len(got) != len(tt.want) {
 			t.Fatalf("ExpandList(%q) = %v, want %v", tt.in, got, tt.want)
 		}
+
 		for i := range got {
 			if got[i] != tt.want[i] {
 				t.Errorf("ExpandList(%q) = %v, want %v", tt.in, got, tt.want)
@@ -221,9 +226,11 @@ func TestSearchURL(t *testing.T) {
 	if got := pbstore.SearchURL("items"); got != "/api/collections/items/records" {
 		t.Errorf("SearchURL() = %q", got)
 	}
+
 	if got := pbstore.RecordURL("items", "abc"); got != "/api/collections/items/records/abc" {
 		t.Errorf("RecordURL() = %q", got)
 	}
+
 	if got := pbstore.CollectionURL("items"); got != "/api/collections/items" {
 		t.Errorf("CollectionURL() = %q", got)
 	}

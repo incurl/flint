@@ -42,6 +42,9 @@ type Flags struct {
 	SyncBatchSize int
 	// SyncMaxRecords caps the number of synced records per collection.
 	SyncMaxRecords int
+	// MigrateOnly asks the application to apply the migrations and exit
+	// without starting the TUI.
+	MigrateOnly bool
 }
 
 // ParseFlags parses the command line arguments.
@@ -72,6 +75,7 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.StringVar(&syncList, "sync-collections", "", "comma separated list of the collections to sync")
 	fs.IntVar(&flags.SyncBatchSize, "sync-batch-size", 0, "number of records fetched per sync request")
 	fs.IntVar(&flags.SyncMaxRecords, "sync-max-records", 0, "maximum number of records synced per collection")
+	fs.BoolVar(&flags.MigrateOnly, "migrate-only", false, "apply the embedded migrations and exit without starting the TUI")
 
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "flint — a Bubble Tea + PocketBase TUI scaffold\n\n")
@@ -94,6 +98,7 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 		// The generic --collections flag applies to both backends.
 		flags.RemoteCollections = parseList(collections)
 	}
+
 	flags.SyncCollections = parseList(syncList)
 
 	return &flags, fs.Args(), nil
@@ -107,17 +112,22 @@ func (f *Flags) String() string {
 	if f.Mode != "" {
 		parts = append(parts, "mode="+f.Mode)
 	}
+
 	if f.Theme != "" {
 		parts = append(parts, "theme="+f.Theme)
 	}
+
 	if f.DataDir != "" {
 		parts = append(parts, "data-dir="+f.DataDir)
 	}
+
 	if f.RemoteURL != "" {
 		parts = append(parts, "remote-url="+f.RemoteURL)
 	}
+
 	if len(f.RemoteCollections) > 0 {
 		parts = append(parts, "collections="+strings.Join(f.RemoteCollections, ","))
 	}
+
 	return strings.Join(parts, " ")
 }

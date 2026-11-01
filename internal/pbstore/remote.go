@@ -82,6 +82,7 @@ func OpenRemote(config RemoteConfig) (*Remote, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pbstore: invalid remote url %q: %w", config.BaseURL, err)
 	}
+
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, fmt.Errorf("pbstore: invalid remote url %q: expected http or https scheme", config.BaseURL)
 	}
@@ -116,6 +117,7 @@ func (s *Remote) HealthCheck(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "cancelled", err
 	}
+
 	if s.isClosed() {
 		return "closed", ErrClosed
 	}
@@ -127,7 +129,7 @@ func (s *Remote) HealthCheck(ctx context.Context) (string, error) {
 	}
 
 	if err := s.doJSON(ctx, http.MethodGet, "/api/health", nil, &payload, false); err != nil {
-		return "unreachable", fmt.Errorf("%w: %v", ErrNotConnected, err)
+		return "unreachable", fmt.Errorf("%w: %w", ErrNotConnected, err)
 	}
 
 	return fmt.Sprintf("ok (server code %d)", payload.Code), nil
@@ -138,6 +140,7 @@ func (s *Remote) Collections(ctx context.Context) ([]Collection, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
@@ -163,6 +166,7 @@ func (s *Remote) Collections(ctx context.Context) ([]Collection, error) {
 		if len(s.allowed) > 0 && isUnauthorized(err) {
 			return s.allowedCollections(), nil
 		}
+
 		return nil, err
 	}
 
@@ -171,8 +175,10 @@ func (s *Remote) Collections(ctx context.Context) ([]Collection, error) {
 		if !s.isAllowed(item.Name) {
 			continue
 		}
+
 		out = append(out, Collection{ID: item.ID, Name: item.Name, Type: item.Type})
 	}
+
 	return out, nil
 }
 
@@ -185,12 +191,14 @@ func (s *Remote) allowedCollections() []Collection {
 	for name := range s.allowed {
 		names = append(names, name)
 	}
+
 	sort.Strings(names)
 
 	out := make([]Collection, 0, len(names))
 	for _, name := range names {
 		out = append(out, Collection{Name: name, Type: "base"})
 	}
+
 	return out
 }
 
@@ -199,12 +207,15 @@ func (s *Remote) List(ctx context.Context, q Query) (*PageResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if q.Collection == "" {
 		return nil, errors.New("pbstore: collection is required")
 	}
+
 	if !s.isAllowed(q.Collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, q.Collection)
 	}
@@ -234,6 +245,7 @@ func (s *Remote) List(ctx context.Context, q Query) (*PageResult, error) {
 	for _, item := range payload.Items {
 		out.Records = append(out.Records, recordFromMap(item))
 	}
+
 	return out, nil
 }
 
@@ -242,9 +254,11 @@ func (s *Remote) Get(ctx context.Context, collection, id string) (*Record, error
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -253,6 +267,7 @@ func (s *Remote) Get(ctx context.Context, collection, id string) (*Record, error
 	if err := s.doJSON(ctx, http.MethodGet, RecordURL(collection, id), nil, &payload, true); err != nil {
 		return nil, err
 	}
+
 	return recordFromMap(payload), nil
 }
 
@@ -261,9 +276,11 @@ func (s *Remote) FindFirst(ctx context.Context, collection, filter string) (*Rec
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -272,6 +289,7 @@ func (s *Remote) FindFirst(ctx context.Context, collection, filter string) (*Rec
 	if filter != "" {
 		params.Set("filter", filter)
 	}
+
 	params.Set("perPage", "1")
 
 	var payload struct {
@@ -282,9 +300,11 @@ func (s *Remote) FindFirst(ctx context.Context, collection, filter string) (*Rec
 	if err := s.doJSON(ctx, http.MethodGet, endpoint, nil, &payload, true); err != nil {
 		return nil, err
 	}
+
 	if len(payload.Items) == 0 {
 		return nil, fmt.Errorf("%w: %s", ErrNotFound, collection)
 	}
+
 	return recordFromMap(payload.Items[0]), nil
 }
 
@@ -293,9 +313,11 @@ func (s *Remote) Create(ctx context.Context, collection string, data map[string]
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -304,6 +326,7 @@ func (s *Remote) Create(ctx context.Context, collection string, data map[string]
 	if err := s.doJSON(ctx, http.MethodPost, SearchURL(collection), data, &payload, true); err != nil {
 		return nil, err
 	}
+
 	return recordFromMap(payload), nil
 }
 
@@ -312,9 +335,11 @@ func (s *Remote) Update(ctx context.Context, collection, id string, data map[str
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -323,6 +348,7 @@ func (s *Remote) Update(ctx context.Context, collection, id string, data map[str
 	if err := s.doJSON(ctx, http.MethodPatch, RecordURL(collection, id), data, &payload, true); err != nil {
 		return nil, err
 	}
+
 	return recordFromMap(payload), nil
 }
 
@@ -331,9 +357,11 @@ func (s *Remote) Delete(ctx context.Context, collection, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	if s.isClosed() {
 		return ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -341,6 +369,7 @@ func (s *Remote) Delete(ctx context.Context, collection, id string) error {
 	if err := s.doJSON(ctx, http.MethodDelete, RecordURL(collection, id), nil, nil, true); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -349,9 +378,11 @@ func (s *Remote) Count(ctx context.Context, collection, filter string) (int, err
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+
 	if s.isClosed() {
 		return 0, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return 0, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -360,6 +391,7 @@ func (s *Remote) Count(ctx context.Context, collection, filter string) (int, err
 	if filter != "" {
 		params.Set("filter", filter)
 	}
+
 	params.Set("perPage", "1")
 
 	var payload struct {
@@ -370,6 +402,7 @@ func (s *Remote) Count(ctx context.Context, collection, filter string) (int, err
 	if err := s.doJSON(ctx, http.MethodGet, endpoint, nil, &payload, true); err != nil {
 		return 0, err
 	}
+
 	return payload.TotalItems, nil
 }
 
@@ -394,7 +427,9 @@ func (s *Remote) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRepo
 func (s *Remote) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
 	s.closed = true
+
 	return nil
 }
 
@@ -402,6 +437,7 @@ func (s *Remote) Close() error {
 func (s *Remote) isClosed() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.closed
 }
 
@@ -410,6 +446,7 @@ func (s *Remote) isAllowed(collection string) bool {
 	if len(s.allowed) == 0 {
 		return true
 	}
+
 	return s.allowed[strings.ToLower(collection)]
 }
 
@@ -427,6 +464,7 @@ func (s *Remote) doJSON(ctx context.Context, method, path string, body any, out 
 		if err != nil {
 			return fmt.Errorf("pbstore: encode request body: %w", err)
 		}
+
 		payload = encoded
 	}
 
@@ -436,6 +474,7 @@ func (s *Remote) doJSON(ctx context.Context, method, path string, body any, out 
 	}
 
 	var lastErr error
+
 	for attempt := 0; attempt < attempts; attempt++ {
 		if attempt > 0 {
 			// Linear backoff between the retries.
@@ -452,9 +491,11 @@ func (s *Remote) doJSON(ctx context.Context, method, path string, body any, out 
 		}
 
 		req.Header.Set("Accept", "application/json")
+
 		if body != nil {
 			req.Header.Set("Content-Type", "application/json")
 		}
+
 		if auth && s.token != "" {
 			req.Header.Set("Authorization", s.token)
 		}
@@ -478,7 +519,7 @@ func (s *Remote) doJSON(ctx context.Context, method, path string, body any, out 
 		}
 
 		if resp.StatusCode < 200 || resp.StatusCode > 299 {
-			return fmt.Errorf("pbstore: %s %s: unexpected status %d: %s", method, path, resp.StatusCode, summarize(raw))
+			return fmt.Errorf("pbstore: %s %s: unexpected status %d: %s", method, path, resp.StatusCode, summarise(raw))
 		}
 
 		if readErr != nil {
@@ -488,12 +529,15 @@ func (s *Remote) doJSON(ctx context.Context, method, path string, body any, out 
 		if out == nil {
 			return nil
 		}
+
 		if len(raw) == 0 {
 			return nil
 		}
+
 		if err := json.Unmarshal(raw, out); err != nil {
 			return fmt.Errorf("pbstore: decode response: %w", err)
 		}
+
 		return nil
 	}
 
@@ -505,18 +549,20 @@ func isUnauthorized(err error) bool {
 	if err == nil {
 		return false
 	}
+
 	return strings.Contains(err.Error(), "unexpected status 401") ||
 		strings.Contains(err.Error(), "unexpected status 403")
 }
 
-// summarize trims a raw error payload to a short, single line message.
-func summarize(raw []byte) string {
+// summarise trims a raw error payload to a short, single line message.
+func summarise(raw []byte) string {
 	const maxLen = 200
 
 	text := strings.TrimSpace(string(raw))
 	if len(text) > maxLen {
 		return text[:maxLen] + "..."
 	}
+
 	return text
 }
 
@@ -544,18 +590,23 @@ func recordFromMap(payload map[string]any) *Record {
 	if v, ok := out.Fields["id"]; ok {
 		out.ID = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields["collectionId"]; ok {
 		out.CollectionID = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields["collectionName"]; ok {
 		out.CollectionName = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields["created"]; ok {
 		out.Created = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields["updated"]; ok {
 		out.Updated = fmt.Sprintf("%v", v)
 	}
+
 	if v, ok := out.Fields["expand"].(map[string]any); ok {
 		out.Expand = v
 	}

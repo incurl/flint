@@ -22,6 +22,7 @@ func marshalIndent(v any) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("pbstore: marshal json: %w", err)
 	}
+
 	return string(b), nil
 }
 
@@ -30,6 +31,7 @@ func NormalizePage(page int) int {
 	if page < 1 {
 		return 1
 	}
+
 	return page
 }
 
@@ -39,9 +41,11 @@ func NormalizePerPage(perPage int) int {
 	if perPage <= 0 {
 		return search.DefaultPerPage
 	}
+
 	if perPage > search.MaxPerPage {
 		return search.MaxPerPage
 	}
+
 	return perPage
 }
 
@@ -57,15 +61,19 @@ func QueryParams(q Query) url.Values {
 	if q.Filter != "" {
 		values.Set(search.FilterQueryParam, q.Filter)
 	}
+
 	if q.Sort != "" {
 		values.Set(search.SortQueryParam, q.Sort)
 	}
+
 	if q.Expand != "" {
 		values.Set("expand", q.Expand)
 	}
+
 	if q.Fields != "" {
 		values.Set("fields", q.Fields)
 	}
+
 	if q.SkipTotal {
 		values.Set(search.SkipTotalQueryParam, "true")
 	}
@@ -103,6 +111,7 @@ func ExpandList(expand string) []string {
 	}
 
 	parts := strings.Split(expand, ",")
+
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -110,6 +119,7 @@ func ExpandList(expand string) []string {
 			out = append(out, p)
 		}
 	}
+
 	return out
 }
 
@@ -124,6 +134,7 @@ func SyncFilter(userFilter string, since *string) string {
 	if s := strings.TrimSpace(userFilter); s != "" {
 		clauses = append(clauses, "("+s+")")
 	}
+
 	if since != nil && *since != "" {
 		clauses = append(clauses, `updated > "`+escapeFilterValue(*since)+`"`)
 	}
@@ -131,6 +142,7 @@ func SyncFilter(userFilter string, since *string) string {
 	if len(clauses) == 0 {
 		return ""
 	}
+
 	return strings.Join(clauses, " && ")
 }
 
@@ -141,6 +153,7 @@ func escapeFilterValue(v string) string {
 		`\`, `\\`,
 		`"`, `\"`,
 	)
+
 	return replacer.Replace(v)
 }
 
@@ -166,6 +179,7 @@ func joinErrors(errs map[string]error) error {
 	for k := range errs {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	messages := make([]string, 0, len(keys))
@@ -178,5 +192,6 @@ func joinErrors(errs map[string]error) error {
 	if len(messages) == 0 {
 		return nil
 	}
+
 	return errors.New(strings.Join(messages, "; "))
 }

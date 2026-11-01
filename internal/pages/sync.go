@@ -62,6 +62,7 @@ func NewSyncPage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme) *S
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
@@ -106,6 +107,7 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		p.width = msg.Width
 		p.height = msg.Height
+
 		return p, nil
 
 	case SyncMsg:
@@ -114,8 +116,10 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			p.err = msg.Err
 			return p, nil
 		}
+
 		p.err = nil
 		p.report = msg.Report
+
 		return p, nil
 
 	case tea.KeyMsg:
@@ -123,17 +127,21 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "tab":
 			p.focus = (p.focus + 1) % 3
 			p.applyFocus()
+
 			return p, nil
 		case "shift+tab":
 			p.focus = (p.focus + 2) % 3
 			p.applyFocus()
+
 			return p, nil
 		case "ctrl+r":
 			if p.running {
 				return p, nil
 			}
+
 			p.running = true
 			p.err = nil
+
 			return p, tea.Batch(p.spinner.Tick, p.Sync())
 		}
 	}
@@ -141,6 +149,7 @@ func (p *SyncPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
 	var cmd tea.Cmd
+
 	p.collection, cmd = p.collection.Update(msg)
 	cmds = append(cmds, cmd)
 
@@ -164,6 +173,7 @@ func (p *SyncPage) View() string {
 		b = append(b, p.theme.Warning.Render("sync is only available in the embedded mode"))
 		b = append(b, "")
 		b = append(b, p.theme.Muted.Render("the remote mode queries the server directly"))
+
 		return joinLines(b)
 	}
 
@@ -219,6 +229,7 @@ func (p *SyncPage) Sync() tea.Cmd {
 		if store == nil {
 			return SyncMsg{Err: fmt.Errorf("pages: no store configured")}
 		}
+
 		if req.RemoteCollection == "" {
 			return SyncMsg{Err: fmt.Errorf("pages: the remote collection is required")}
 		}
@@ -230,6 +241,7 @@ func (p *SyncPage) Sync() tea.Cmd {
 		if err != nil {
 			return SyncMsg{Err: err}
 		}
+
 		return SyncMsg{Report: report}
 	}
 }

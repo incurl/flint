@@ -13,9 +13,11 @@ import (
 // TestRemoteList verifies that the remote backend speaks the native
 // PocketBase REST API.
 func TestRemoteList(t *testing.T) {
-	var gotPath string
-	var gotQuery string
-	var gotAuth string
+	var (
+		gotPath  string
+		gotQuery string
+		gotAuth  string
+	)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
@@ -67,9 +69,11 @@ func TestRemoteList(t *testing.T) {
 	if gotPath != "/api/collections/items/records" {
 		t.Errorf("request path = %q, want %q", gotPath, "/api/collections/items/records")
 	}
+
 	if gotAuth != "secret-token" {
 		t.Errorf("Authorization header = %q, want %q", gotAuth, "secret-token")
 	}
+
 	if gotQuery == "" {
 		t.Error("the request carried no query parameters")
 	}
@@ -77,12 +81,15 @@ func TestRemoteList(t *testing.T) {
 	if len(result.Records) != 2 {
 		t.Fatalf("List() returned %d records, want 2", len(result.Records))
 	}
+
 	if result.Records[0].ID != "rec1" {
 		t.Errorf("first record id = %q, want %q", result.Records[0].ID, "rec1")
 	}
+
 	if result.Records[0].StringField("title") != "Alpha" {
 		t.Errorf("first record title = %q, want %q", result.Records[0].StringField("title"), "Alpha")
 	}
+
 	if result.TotalItems != 2 {
 		t.Errorf("TotalItems = %d, want 2", result.TotalItems)
 	}
@@ -112,9 +119,11 @@ func TestRemoteGetUnwrapsEnvelope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Get() error = %v", err)
 	}
+
 	if rec.ID != "rec1" {
 		t.Errorf("record id = %q, want %q", rec.ID, "rec1")
 	}
+
 	if rec.StringField("title") != "Alpha" {
 		t.Errorf("record title = %q, want %q", rec.StringField("title"), "Alpha")
 	}
@@ -168,6 +177,7 @@ func TestRemoteHealthCheck(t *testing.T) {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"code": 200, "message": "API is healthy."})
 	}))
@@ -183,6 +193,7 @@ func TestRemoteHealthCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("HealthCheck() error = %v", err)
 	}
+
 	if status == "" {
 		t.Error("HealthCheck() returned an empty status")
 	}
@@ -232,6 +243,7 @@ func TestRemoteUnsupportedOperations(t *testing.T) {
 	if _, err := store.EnsureDictionaryCollection(ctx, "vocab", nil); err == nil {
 		t.Error("EnsureDictionaryCollection() returned no error")
 	}
+
 	if _, err := store.SyncCollection(ctx, pbstore.SyncRequest{RemoteCollection: "vocab"}); err == nil {
 		t.Error("SyncCollection() returned no error")
 	}

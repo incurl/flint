@@ -27,7 +27,7 @@ linters:
     - unconvert
     - unparam
     - unused
-    - wsl
+    - wsl_v5
   disable:
     - errcheck # the Bubble Tea Update signature forces the error to be dropped
     - lll        # long lines are fine in the doc comments
@@ -53,6 +53,13 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      # "Color" is the spelling used by the Lip Gloss API. Renaming it is
+      # impossible, so the UK locale of the misspell linter is not applied
+      # to the qualified calls.
+      - linters:
+          - misspell
+        text: "`Color` is a misspelling of `Colour`"
     paths:
       - third_party$
       - builtin$

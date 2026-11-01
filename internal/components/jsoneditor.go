@@ -82,6 +82,7 @@ func (e *JSONEditor) Validate() (map[string]any, error) {
 	if err := json.Unmarshal([]byte(raw), &doc); err != nil {
 		return nil, err
 	}
+
 	return doc, nil
 }
 
@@ -117,16 +118,17 @@ func (e *JSONEditor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return e, nil
 		}
 
-		switch msg.String() {
-		case "ctrl+s":
-			// The save is handled by the owning page, which owns the
-			// store access.
+		// The save is handled by the owning page, which owns the
+		// store access, so the key is simply swallowed here.
+		if msg.String() == "ctrl+s" {
 			return e, nil
 		}
 	}
 
 	var cmd tea.Cmd
+
 	e.textarea, cmd = e.textarea.Update(msg)
+
 	return e, cmd
 }
 

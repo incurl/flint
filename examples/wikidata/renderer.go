@@ -26,6 +26,7 @@ func NewRenderer(language string) *Renderer {
 	if language == "" {
 		language = "en"
 	}
+
 	return &Renderer{language: language}
 }
 
@@ -38,6 +39,7 @@ func (r *Renderer) Title(rec *pbstore.Record) string {
 	if label := r.label(rec); label != "" {
 		return label
 	}
+
 	return rec.StringField("qid")
 }
 
@@ -53,6 +55,7 @@ func (r *Renderer) Summary(rec *pbstore.Record) string {
 	if description == "" {
 		return qid
 	}
+
 	return fmt.Sprintf("%s — %s", qid, description)
 }
 
@@ -99,6 +102,7 @@ func (r *Renderer) label(rec *pbstore.Record) string {
 	}
 
 	value, _ := entry["value"].(string)
+
 	return value
 }
 
@@ -120,5 +124,6 @@ func (r *Renderer) description(rec *pbstore.Record) string {
 	}
 
 	value, _ := entry["value"].(string)
+
 	return strings.TrimSpace(value)
 }

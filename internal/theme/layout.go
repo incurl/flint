@@ -60,11 +60,13 @@ func SplitWidth(total, left, gap int) (int, int) {
 	if left <= 0 {
 		left = available / 2
 	}
+
 	if left > available {
 		left = available
 	}
 
 	right := available - left
+
 	return left, max(0, right)
 }
 
@@ -77,12 +79,15 @@ func Truncate(s string, width int) string {
 	if width <= 0 {
 		return ""
 	}
+
 	if lipgloss.Width(s) <= width {
 		return s
 	}
+
 	if width == 1 {
 		return "…"
 	}
+
 	return lipgloss.NewStyle().MaxWidth(width).Render(s)
 }
 
@@ -91,5 +96,6 @@ func max(a, b int) int {
 	if a > b {
 		return a
 	}
+
 	return b
 }

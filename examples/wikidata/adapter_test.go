@@ -47,6 +47,7 @@ func TestRenderer(t *testing.T) {
 	if got := r.Title(rec); got != "Douglas Adams" {
 		t.Errorf("Title() = %q, want %q", got, "Douglas Adams")
 	}
+
 	if got := r.Summary(rec); got != "Q42 — author" {
 		t.Errorf("Summary() = %q, want %q", got, "Q42 — author")
 	}
@@ -55,6 +56,7 @@ func TestRenderer(t *testing.T) {
 	if len(rows) != 4 {
 		t.Fatalf("Fields() returned %d rows, want 4", len(rows))
 	}
+
 	if rows[0].Name != "QID" || rows[0].Value != "Q42" {
 		t.Errorf("first row = %+v, want the QID", rows[0])
 	}

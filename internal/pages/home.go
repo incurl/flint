@@ -50,6 +50,7 @@ func NewHomePage(store pbstore.Store, runtime *state.Runtime, t *theme.Theme) *H
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if runtime == nil {
 		runtime = state.NewRuntime()
 	}
@@ -78,6 +79,7 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		p.width = msg.Width
 		p.height = msg.Height
+
 		return p, nil
 
 	case HomeMsg:
@@ -85,6 +87,7 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			return p, nil
 		}
+
 		p.runtime.Collections = msg.Collections
 
 		// Keep the previously selected collection when it still exists.
@@ -94,6 +97,7 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
+
 		return p, nil
 
 	case tea.KeyMsg:
@@ -102,20 +106,24 @@ func (p *HomePage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if p.cursor > 0 {
 				p.cursor--
 			}
+
 			return p, nil
 		case "down", "j":
 			if p.cursor < len(p.runtime.Collections)-1 {
 				p.cursor++
 			}
+
 			return p, nil
 		case "enter":
 			if c := p.selected(); c != nil {
 				p.runtime.Collection = c.Name
 				p.runtime.PageNumber = 1
+
 				return p, tea.Sequence(
 					func() tea.Msg { return NavigateMsg{Page: state.PageRecords} },
 				)
 			}
+
 			return p, nil
 		}
 	}
@@ -146,11 +154,13 @@ func (p *HomePage) View() string {
 
 	for i, c := range p.runtime.Collections {
 		marker := "  "
+
 		style := p.theme.Normal
 		if i == p.cursor {
 			marker = "▸ "
 			style = p.theme.Selected
 		}
+
 		label := fmt.Sprintf("%-28s %s", c.Name, c.Type)
 		b = append(b, style.Render(marker+label))
 	}
@@ -170,6 +180,7 @@ func (p *HomePage) Refresh() tea.Cmd {
 // Load returns the command that fetches the available collections.
 func (p *HomePage) Load() tea.Cmd {
 	store := p.store
+
 	return func() tea.Msg {
 		if store == nil {
 			return HomeMsg{Err: fmt.Errorf("pages: no store configured")}
@@ -182,6 +193,7 @@ func (p *HomePage) Load() tea.Cmd {
 		if err != nil {
 			return HomeMsg{Err: err}
 		}
+
 		return HomeMsg{Collections: collections}
 	}
 }
@@ -191,5 +203,6 @@ func (p *HomePage) selected() *pbstore.Collection {
 	if p.cursor < 0 || p.cursor >= len(p.runtime.Collections) {
 		return nil
 	}
+
 	return &p.runtime.Collections[p.cursor]
 }

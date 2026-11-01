@@ -86,7 +86,7 @@ func (s *stubStore) Close() error {
 }
 
 // newTestModel builds a root model backed by the stub store.
-func newTestModel(t *testing.T) (*app.Model, *stubStore) {
+func newTestModel(t *testing.T) *app.Model {
 	t.Helper()
 
 	store := &stubStore{
@@ -99,12 +99,12 @@ func newTestModel(t *testing.T) (*app.Model, *stubStore) {
 		},
 	}
 
-	return app.New(store, config.Default(), nil), store
+	return app.New(store, config.Default(), nil)
 }
 
 // TestModelInit verifies that the model starts without panicking.
 func TestModelInit(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
 	if cmd := m.Init(); cmd == nil {
 		t.Error("Init() returned no command")
@@ -118,7 +118,7 @@ func TestModelInit(t *testing.T) {
 
 // TestModelNavigation verifies that the global hotkeys switch the page.
 func TestModelNavigation(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
 	pages := []struct {
 		key  string
@@ -147,7 +147,7 @@ func TestModelNavigation(t *testing.T) {
 
 // TestModelHealthCheck verifies that a health check updates the status bar.
 func TestModelHealthCheck(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
 	updated, _ := m.Update(app.HealthMsg{Status: "ok"})
 	m = updated.(*app.Model)
@@ -160,9 +160,9 @@ func TestModelHealthCheck(t *testing.T) {
 // TestModelErrorHandling verifies that a store error is surfaced instead of
 // panicking.
 func TestModelErrorHandling(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
-	updated, _ := m.Update(pages.RecordsMsg{Err: errTest})
+	updated, _ := m.Update(pages.RecordsMsg{Err: errTest, Page: 1})
 	m = updated.(*app.Model)
 
 	if m.View() == "" {
@@ -170,9 +170,31 @@ func TestModelErrorHandling(t *testing.T) {
 	}
 }
 
+// TestModelDiscardsStaleRecordsError verifies that an error for a query
+// that is no longer current does not set the global error state.
+//
+// A slow query that fails after the user moved to another page of the
+// records must not raise a toast for a page the user has already left.
+func TestModelDiscardsStaleRecordsError(t *testing.T) {
+	m := newTestModel(t)
+
+	// The user opens the records page: the runtime page number is 1.
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("2")})
+	m = updated.(*app.Model)
+
+	// The response of the page 2 request arrives while the user is back
+	// on page 1: it is stale and must not raise a toast.
+	updated, _ = m.Update(pages.RecordsMsg{Err: errTest, Page: 2})
+	m = updated.(*app.Model)
+
+	if contains(m.View(), errTest.Error()) {
+		t.Errorf("View() = %q, want the stale error to be discarded", m.View())
+	}
+}
+
 // TestModelToast verifies that a toast message is handled.
 func TestModelToast(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
 	updated, cmd := m.Update(components.ToastMsg{Level: components.ToastInfo, Text: "hello"})
 	m = updated.(*app.Model)
@@ -180,6 +202,7 @@ func TestModelToast(t *testing.T) {
 	if cmd == nil {
 		t.Error("the toast message did not return a command")
 	}
+
 	if !contains(m.View(), "hello") {
 		t.Error("View() does not show the toast")
 	}
@@ -196,7 +219,7 @@ func contains(haystack, needle string) bool {
 // The expiry message is owned by the toast component, so the root model
 // must forward it instead of swallowing it.
 func TestModelToastExpires(t *testing.T) {
-	m, _ := newTestModel(t)
+	m := newTestModel(t)
 
 	updated, _ := m.Update(components.ToastMsg{Level: components.ToastInfo, Text: "hello"})
 	m = updated.(*app.Model)

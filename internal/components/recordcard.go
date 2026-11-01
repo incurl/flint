@@ -88,14 +88,17 @@ func (r *DefaultRecordRenderer) Title(rec *pbstore.Record) string {
 		if !ok || value == nil {
 			continue
 		}
+
 		text, ok := value.(string)
 		if !ok || text == "" {
 			continue
 		}
+
 		return text
 	}
 
 	var best string
+
 	for _, name := range r.sortedFieldNames(rec) {
 		if systemFields[name] {
 			continue
@@ -106,14 +109,17 @@ func (r *DefaultRecordRenderer) Title(rec *pbstore.Record) string {
 		if !ok || value == nil {
 			continue
 		}
+
 		text, ok := value.(string)
 		if !ok || text == "" {
 			continue
 		}
+
 		if best == "" || len(text) < len(best) {
 			best = text
 		}
 	}
+
 	if best != "" {
 		return best
 	}
@@ -126,6 +132,7 @@ func (r *DefaultRecordRenderer) Summary(rec *pbstore.Record) string {
 	if rec == nil {
 		return ""
 	}
+
 	return fmt.Sprintf("%s · %s", rec.CollectionName, rec.ID)
 }
 
@@ -141,15 +148,19 @@ func (r *DefaultRecordRenderer) Fields(rec *pbstore.Record) []FieldRow {
 	}
 
 	rows := make([]FieldRow, 0, max)
+
 	for _, name := range r.sortedFieldNames(rec) {
 		if systemFields[name] {
 			continue
 		}
+
 		if len(rows) >= max {
 			break
 		}
+
 		rows = append(rows, FieldRow{Name: name, Value: formatValue(rec.Fields[name])})
 	}
+
 	return rows
 }
 
@@ -159,7 +170,9 @@ func (r *DefaultRecordRenderer) sortedFieldNames(rec *pbstore.Record) []string {
 	for name := range rec.Fields {
 		names = append(names, name)
 	}
+
 	sort.Strings(names)
+
 	return names
 }
 
@@ -186,9 +199,11 @@ func NewRecordCard(t *theme.Theme, renderer RecordRenderer) *RecordCard {
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if renderer == nil {
 		renderer = &DefaultRecordRenderer{}
 	}
+
 	return &RecordCard{theme: t, renderer: renderer}
 }
 
@@ -197,6 +212,7 @@ func (c *RecordCard) SetRenderer(renderer RecordRenderer) {
 	if renderer == nil {
 		renderer = &DefaultRecordRenderer{}
 	}
+
 	c.renderer = renderer
 }
 
@@ -234,6 +250,7 @@ func (c *RecordCard) View() string {
 			b.WriteString("\n")
 			b.WriteString("  " + c.theme.Value.Render(row.Value))
 			b.WriteString("\n")
+
 			continue
 		}
 
@@ -254,6 +271,7 @@ func padRight(s string, width int) string {
 	if visible >= width {
 		return s
 	}
+
 	return s + strings.Repeat(" ", width-visible)
 }
 
@@ -269,6 +287,7 @@ func formatValue(value any) string {
 		for _, item := range v {
 			parts = append(parts, formatValue(item))
 		}
+
 		return strings.Join(parts, ", ")
 	case map[string]any:
 		return fmt.Sprintf("{%d keys}", len(v))

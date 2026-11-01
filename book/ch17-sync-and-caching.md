@@ -186,7 +186,10 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
         }
     }
 
-    remote, err := OpenRemote(RemoteConfig{BaseURL: s.config.SyncRemoteURL})
+    remote, err := OpenRemote(RemoteConfig{
+        BaseURL: s.config.SyncRemoteURL,
+        Token:   s.config.SyncRemoteToken,
+    })
     if err != nil {
         return nil, fmt.Errorf("pbstore: open sync source: %w", err)
     }
@@ -250,6 +253,27 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 ```
 
 Let us examine the decisions.
+
+### The sync source is authenticated
+
+```go
+remote, err := OpenRemote(RemoteConfig{
+    BaseURL: s.config.SyncRemoteURL,
+    Token:   s.config.SyncRemoteToken,
+})
+```
+
+The sync opens a second client against the remote server, and that client
+needs its own credentials. Without a token the requests are anonymous, so
+a remote collection whose list rule is not `""` (the public rule) returns
+an empty list instead of an error: the sync silently replicates zero
+records.
+
+⚠️ **This was a bug in the template.** The sync ignored the configured
+`remote.token`, so syncing from a private collection appeared to work and
+produced an empty local dataset. The fix is to carry a dedicated
+`SyncRemoteToken` in the embedded configuration and to forward it when the
+sync client is opened.
 
 ### The local collection is created on the fly
 

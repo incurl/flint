@@ -33,6 +33,7 @@ func NewPagination(t *theme.Theme, perPage int) *Pagination {
 	if t == nil {
 		t = theme.Default()
 	}
+
 	if perPage <= 0 {
 		perPage = 30
 	}
@@ -56,6 +57,7 @@ func (p *Pagination) SetTotal(totalItems, page, perPage int) int {
 	if perPage > 0 {
 		p.perPage = perPage
 	}
+
 	p.totalItems = totalItems
 
 	pages := 0
@@ -64,6 +66,7 @@ func (p *Pagination) SetTotal(totalItems, page, perPage int) int {
 	}
 
 	p.paginator.TotalPages = pages
+
 	p.paginator.Page = page
 	if p.paginator.PerPage != p.perPage {
 		p.paginator.PerPage = p.perPage
@@ -93,8 +96,7 @@ func (p *Pagination) Init() tea.Cmd { return nil }
 
 // Update implements [tea.Model].
 func (p *Pagination) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	if msg, ok := msg.(tea.KeyMsg); ok {
 		switch msg.String() {
 		case "left", "h", "p":
 			p.paginator.PrevPage()
@@ -104,6 +106,7 @@ func (p *Pagination) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return p, nil
 		}
 	}
+
 	return p, nil
 }
 
@@ -124,5 +127,6 @@ func maxInt(a, b int) int {
 	if a > b {
 		return a
 	}
+
 	return b
 }

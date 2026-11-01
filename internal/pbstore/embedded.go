@@ -52,6 +52,12 @@ type EmbeddedConfig struct {
 	// the embedded store can pull a remote reference dataset into the
 	// local database.
 	SyncRemoteURL string
+	// SyncRemoteToken authenticates the requests made to the sync source.
+	//
+	// It is required when the remote collections have list rules that are
+	// not "public". It is usually set from the `remote.token`
+	// configuration value.
+	SyncRemoteToken string
 	// Logger receives the PocketBase debug logs.
 	//
 	// When nil the PocketBase default logger is used.
@@ -88,6 +94,7 @@ func OpenEmbedded(app core.App, config EmbeddedConfig) (*Embedded, error) {
 	if app == nil {
 		return nil, errors.New("pbstore: nil pocketbase app")
 	}
+
 	if config.DataDir == "" {
 		return nil, errors.New("pbstore: embedded data dir is required")
 	}
@@ -138,6 +145,7 @@ func (s *Embedded) HealthCheck(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "cancelled", err
 	}
+
 	if s.isClosed() {
 		return "closed", ErrClosed
 	}
@@ -156,6 +164,7 @@ func (s *Embedded) Collections(ctx context.Context) ([]Collection, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
@@ -170,8 +179,10 @@ func (s *Embedded) Collections(ctx context.Context) ([]Collection, error) {
 		if !s.isAllowed(m.Name) {
 			continue
 		}
+
 		out = append(out, Collection{ID: m.Id, Name: m.Name, Type: m.Type})
 	}
+
 	return out, nil
 }
 
@@ -184,12 +195,15 @@ func (s *Embedded) List(ctx context.Context, q Query) (*PageResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if q.Collection == "" {
 		return nil, errors.New("pbstore: collection is required")
 	}
+
 	if !s.isAllowed(q.Collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, q.Collection)
 	}
@@ -207,11 +221,13 @@ func (s *Embedded) List(ctx context.Context, q Query) (*PageResult, error) {
 	// Reuse the native URL parameter parsing so that the embedded backend
 	// and the remote backend interpret the very same query strings.
 	if err := provider.Parse(QueryParams(q).Encode()); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidFilter, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidFilter, err)
 	}
+
 	provider.SkipTotal(q.SkipTotal)
 
 	records := []*core.Record{}
+
 	result, err := provider.Exec(&records)
 	if err != nil {
 		return nil, fmt.Errorf("pbstore: list %q: %w", q.Collection, err)
@@ -236,6 +252,7 @@ func (s *Embedded) List(ctx context.Context, q Query) (*PageResult, error) {
 	for _, rec := range records {
 		out.Records = append(out.Records, recordFromCore(rec))
 	}
+
 	return out, nil
 }
 
@@ -244,9 +261,11 @@ func (s *Embedded) Get(ctx context.Context, collection, id string) (*Record, err
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -256,8 +275,10 @@ func (s *Embedded) Get(ctx context.Context, collection, id string) (*Record, err
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s/%s", ErrNotFound, collection, id)
 		}
+
 		return nil, fmt.Errorf("pbstore: get %s/%s: %w", collection, id, err)
 	}
+
 	return recordFromCore(rec), nil
 }
 
@@ -266,9 +287,11 @@ func (s *Embedded) FindFirst(ctx context.Context, collection, filter string) (*R
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -278,8 +301,10 @@ func (s *Embedded) FindFirst(ctx context.Context, collection, filter string) (*R
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s", ErrNotFound, collection)
 		}
+
 		return nil, fmt.Errorf("pbstore: find first %q: %w", collection, err)
 	}
+
 	return recordFromCore(rec), nil
 }
 
@@ -288,9 +313,11 @@ func (s *Embedded) Create(ctx context.Context, collection string, data map[strin
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -306,6 +333,7 @@ func (s *Embedded) Create(ctx context.Context, collection string, data map[strin
 	if err := s.app.Save(rec); err != nil {
 		return nil, fmt.Errorf("pbstore: create %q: %w", collection, err)
 	}
+
 	return recordFromCore(rec), nil
 }
 
@@ -314,9 +342,11 @@ func (s *Embedded) Update(ctx context.Context, collection, id string, data map[s
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -326,6 +356,7 @@ func (s *Embedded) Update(ctx context.Context, collection, id string, data map[s
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s/%s", ErrNotFound, collection, id)
 		}
+
 		return nil, fmt.Errorf("pbstore: get %s/%s: %w", collection, id, err)
 	}
 
@@ -334,6 +365,7 @@ func (s *Embedded) Update(ctx context.Context, collection, id string, data map[s
 	if err := s.app.Save(rec); err != nil {
 		return nil, fmt.Errorf("pbstore: update %s/%s: %w", collection, id, err)
 	}
+
 	return recordFromCore(rec), nil
 }
 
@@ -342,9 +374,11 @@ func (s *Embedded) Delete(ctx context.Context, collection, id string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+
 	if s.isClosed() {
 		return ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -354,12 +388,14 @@ func (s *Embedded) Delete(ctx context.Context, collection, id string) error {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s/%s", ErrNotFound, collection, id)
 		}
+
 		return fmt.Errorf("pbstore: get %s/%s: %w", collection, id, err)
 	}
 
 	if err := s.app.Delete(rec); err != nil {
 		return fmt.Errorf("pbstore: delete %s/%s: %w", collection, id, err)
 	}
+
 	return nil
 }
 
@@ -368,9 +404,11 @@ func (s *Embedded) Count(ctx context.Context, collection, filter string) (int, e
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
+
 	if s.isClosed() {
 		return 0, ErrClosed
 	}
+
 	if !s.isAllowed(collection) {
 		return 0, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
@@ -383,6 +421,7 @@ func (s *Embedded) Count(ctx context.Context, collection, filter string) (int, e
 	if err != nil {
 		return 0, err
 	}
+
 	return result.TotalItems, nil
 }
 
@@ -395,9 +434,11 @@ func (s *Embedded) EnsureDictionaryCollection(ctx context.Context, name string, 
 	if err := ctx.Err(); err != nil {
 		return Collection{}, err
 	}
+
 	if s.isClosed() {
 		return Collection{}, ErrClosed
 	}
+
 	if name == "" {
 		return Collection{}, errors.New("pbstore: dictionary collection name is required")
 	}
@@ -419,6 +460,7 @@ func (s *Embedded) EnsureDictionaryCollection(ctx context.Context, name string, 
 		if err != nil {
 			return Collection{}, err
 		}
+
 		collection.Fields.Add(field)
 	}
 
@@ -461,9 +503,11 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+
 	if s.isClosed() {
 		return nil, ErrClosed
 	}
+
 	if req.RemoteCollection == "" {
 		return nil, errors.New("pbstore: remote collection is required for sync")
 	}
@@ -472,6 +516,7 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 	if local == "" {
 		local = req.RemoteCollection
 	}
+
 	if !s.isAllowed(local) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, local)
 	}
@@ -487,7 +532,10 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 		}
 	}
 
-	remote, err := OpenRemote(RemoteConfig{BaseURL: s.config.SyncRemoteURL})
+	remote, err := OpenRemote(RemoteConfig{
+		BaseURL: s.config.SyncRemoteURL,
+		Token:   s.config.SyncRemoteToken,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("pbstore: open sync source: %w", err)
 	}
@@ -499,12 +547,14 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 	}
 
 	var since *string
+
 	if req.Since != nil {
 		s := req.Since.UTC().Format("2006-01-02 15:04:05.000Z")
 		since = &s
 	}
 
 	page := 1
+
 	for {
 		if err := ctx.Err(); err != nil {
 			return nil, err
@@ -526,12 +576,14 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 				report.Skipped++
 				continue
 			}
+
 			report.Fetched++
 
 			created, err := s.upsertSynced(ctx, local, rec)
 			if err != nil {
 				return nil, err
 			}
+
 			if created {
 				report.Created++
 			} else {
@@ -542,10 +594,12 @@ func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRe
 		if len(result.Records) < batchSize || result.TotalPages <= page {
 			break
 		}
+
 		page++
 	}
 
 	report.Duration = time.Since(start)
+
 	return report, nil
 }
 
@@ -558,6 +612,10 @@ func (s *Embedded) upsertSynced(ctx context.Context, collection string, rec *Rec
 		return false, errors.New("pbstore: nil synced record")
 	}
 
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
 	// The system fields are owned by the local database and must not be
 	// overwritten by the remote copy.
 	data := make(map[string]any, len(rec.Fields))
@@ -567,6 +625,7 @@ func (s *Embedded) upsertSynced(ctx context.Context, collection string, rec *Rec
 			fieldNameCreated, fieldNameUpdated:
 			continue
 		}
+
 		data[k] = v
 	}
 
@@ -587,16 +646,19 @@ func (s *Embedded) upsertSynced(ctx context.Context, collection string, rec *Rec
 		newRec.Id = normalizeID(rec.ID)
 		newRec.Load(data)
 
-		if err := s.app.Save(newRec); err != nil {
+		if err := s.app.SaveWithContext(ctx, newRec); err != nil {
 			return false, fmt.Errorf("pbstore: sync insert %s/%s: %w", collection, rec.ID, err)
 		}
+
 		return true, nil
 	}
 
 	existing.Load(data)
-	if err := s.app.Save(existing); err != nil {
+
+	if err := s.app.SaveWithContext(ctx, existing); err != nil {
 		return false, fmt.Errorf("pbstore: sync update %s/%s: %w", collection, rec.ID, err)
 	}
+
 	return false, nil
 }
 
@@ -613,6 +675,7 @@ func normalizeID(id string) string {
 	if len(id) >= minRecordIDLength {
 		return id
 	}
+
 	return id + strings.Repeat("0", minRecordIDLength-len(id))
 }
 
@@ -627,6 +690,7 @@ func (s *Embedded) Close() error {
 	if s.closed {
 		return nil
 	}
+
 	s.closed = true
 
 	if s.app != nil {
@@ -634,6 +698,7 @@ func (s *Embedded) Close() error {
 			return fmt.Errorf("pbstore: close embedded store: %w", err)
 		}
 	}
+
 	return nil
 }
 
@@ -641,6 +706,7 @@ func (s *Embedded) Close() error {
 func (s *Embedded) isClosed() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+
 	return s.closed
 }
 
@@ -651,6 +717,7 @@ func (s *Embedded) isAllowed(collection string) bool {
 	if len(s.allowed) == 0 {
 		return true
 	}
+
 	return s.allowed[strings.ToLower(collection)]
 }
 
@@ -659,6 +726,7 @@ func toSet(names []string) map[string]bool {
 	if len(names) == 0 {
 		return nil
 	}
+
 	set := make(map[string]bool, len(names))
 	for _, n := range names {
 		n = strings.TrimSpace(strings.ToLower(n))
@@ -666,5 +734,6 @@ func toSet(names []string) map[string]bool {
 			set[n] = true
 		}
 	}
+
 	return set
 }

@@ -27,6 +27,7 @@ func NewLabelStore(store pbstore.Store, language string) *LabelStore {
 	if language == "" {
 		language = "en"
 	}
+
 	return &LabelStore{store: store, language: language}
 }
 
@@ -39,6 +40,7 @@ func (l *LabelStore) Label(ctx context.Context, qid string) (string, error) {
 		if errors.Is(err, pbstore.ErrNotFound) {
 			return "", fmt.Errorf("%w: %s", ErrUnknownLabel, qid)
 		}
+
 		return "", err
 	}
 

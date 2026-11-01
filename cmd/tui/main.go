@@ -10,8 +10,6 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
-	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/pocketbase/pocketbase"
@@ -24,15 +22,29 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		if !errors.Is(err, tea.ErrProgramKilled) && !errors.Is(err, errInterrupted) {
-			fmt.Fprintf(os.Stderr, "flint: %v\n", err)
-			os.Exit(1)
+		// A killed program and an interrupted one (Ctrl+C) are normal
+		// shutdown paths, not failures: report them silently and exit
+		// with a zero status.
+		if isBenignShutdown(err) {
+			return
 		}
+
+		fmt.Fprintf(os.Stderr, "flint: %v\n", err)
+		os.Exit(1)
 	}
 }
 
-// errInterrupted is returned when the process is interrupted.
-var errInterrupted = errors.New("interrupted")
+// isBenignShutdown reports whether the error is one of the expected
+// shutdown outcomes of a Bubble Tea program.
+//
+// Bubble Tea returns [tea.ErrInterrupted] when the program receives a
+// SIGINT (the usual Ctrl+C) and [tea.ErrProgramKilled] when it is killed.
+// Both are normal shutdown paths and must not produce a non-zero exit
+// status.
+func isBenignShutdown(err error) bool {
+	return errors.Is(err, tea.ErrInterrupted) ||
+		errors.Is(err, tea.ErrProgramKilled)
+}
 
 // run starts the application and blocks until it exits.
 func run() error {
@@ -41,8 +53,10 @@ func run() error {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
 		}
+
 		return err
 	}
+
 	if len(args) > 0 {
 		return fmt.Errorf("unexpected argument %q", args[0])
 	}
@@ -67,24 +81,26 @@ func run() error {
 		}
 	}()
 
+	// The migrate-only mode applies the migrations and exits: the store
+	// has already run them while it was opened.
+	if flags.MigrateOnly {
+		logger.Info("the migrations have been applied", "data_dir", cfg.Embedded.DataDir)
+
+		return nil
+	}
+
 	model := app.New(store, cfg, nil)
 
 	program := tea.NewProgram(model, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
-	// The signal handler cancels the program so that the deferred store
-	// close always runs.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-	defer signal.Stop(sigCh)
-
-	go func() {
-		<-sigCh
-		program.Quit()
-	}()
-
+	// Bubble Tea installs its own SIGINT and SIGTERM handler: SIGINT
+	// interrupts the program (tea.ErrInterrupted) and SIGTERM asks for a
+	// graceful shutdown. Both return from Program.Run, so the deferred
+	// store close below always runs.
 	if _, err := program.Run(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -109,12 +125,13 @@ func openStore(cfg *config.Config) (pbstore.Store, error) {
 		})
 
 		return pbstore.OpenEmbedded(pb, pbstore.EmbeddedConfig{
-			DataDir:       cfg.Embedded.DataDir,
-			EncryptionEnv: cfg.Embedded.EncryptionEnv,
-			Dev:           cfg.Embedded.Dev,
-			Collections:   cfg.Remote.Collections,
-			SyncRemoteURL: cfg.Remote.URL,
-			Migrations:    appMigrations(),
+			DataDir:         cfg.Embedded.DataDir,
+			EncryptionEnv:   cfg.Embedded.EncryptionEnv,
+			Dev:             cfg.Embedded.Dev,
+			Collections:     cfg.Remote.Collections,
+			SyncRemoteURL:   cfg.Remote.URL,
+			SyncRemoteToken: cfg.Remote.Token,
+			Migrations:      appMigrations(),
 		})
 
 	default:

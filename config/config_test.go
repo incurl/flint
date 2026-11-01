@@ -20,9 +20,11 @@ func TestLoadDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+
 	if cfg.Mode != config.DefaultMode {
 		t.Errorf("Mode = %q, want %q", cfg.Mode, config.DefaultMode)
 	}
+
 	if cfg.PerPage != config.DefaultPerPage {
 		t.Errorf("PerPage = %d, want %d", cfg.PerPage, config.DefaultPerPage)
 	}
@@ -51,15 +53,19 @@ url = "http://from-file:8090"
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+
 	if cfg.Mode != "remote" {
 		t.Errorf("Mode = %q, want %q", cfg.Mode, "remote")
 	}
+
 	if cfg.Theme != "light" {
 		t.Errorf("Theme = %q, want %q", cfg.Theme, "light")
 	}
+
 	if cfg.PerPage != 11 {
 		t.Errorf("PerPage = %d, want 11", cfg.PerPage)
 	}
+
 	if cfg.Remote.URL != "http://from-file:8090" {
 		t.Errorf("Remote.URL = %q, want %q", cfg.Remote.URL, "http://from-file:8090")
 	}
@@ -73,12 +79,15 @@ url = "http://from-file:8090"
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+
 	if cfg.Mode != "embedded" {
 		t.Errorf("Mode = %q, want %q", cfg.Mode, "embedded")
 	}
+
 	if cfg.Theme != "dark" {
 		t.Errorf("Theme = %q, want %q", cfg.Theme, "dark")
 	}
+
 	if cfg.PerPage != 22 {
 		t.Errorf("PerPage = %d, want 22", cfg.PerPage)
 	}
@@ -92,12 +101,15 @@ url = "http://from-file:8090"
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
+
 	if cfg.Mode != "remote" {
 		t.Errorf("Mode = %q, want %q", cfg.Mode, "remote")
 	}
+
 	if cfg.Theme != "light" {
 		t.Errorf("Theme = %q, want %q", cfg.Theme, "light")
 	}
+
 	if cfg.PerPage != 33 {
 		t.Errorf("PerPage = %d, want 33", cfg.PerPage)
 	}
@@ -116,9 +128,11 @@ func TestLoadEnvCollections(t *testing.T) {
 	if len(cfg.Remote.Collections) != 3 {
 		t.Fatalf("Remote.Collections = %v, want 3 entries", cfg.Remote.Collections)
 	}
+
 	if cfg.Remote.Collections[1] != "b" {
 		t.Errorf("Remote.Collections[1] = %q, want %q", cfg.Remote.Collections[1], "b")
 	}
+
 	if len(cfg.Sync.Collections) != 2 {
 		t.Errorf("Sync.Collections = %v, want 2 entries", cfg.Sync.Collections)
 	}
@@ -175,6 +189,7 @@ func TestValidate(t *testing.T) {
 			if tt.wantErr && err == nil {
 				t.Error("Validate() returned no error")
 			}
+
 			if !tt.wantErr && err != nil {
 				t.Errorf("Validate() error = %v", err)
 			}
@@ -193,18 +208,23 @@ func TestParseFlags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseFlags() error = %v", err)
 	}
+
 	if len(args) != 0 {
 		t.Errorf("ParseFlags() returned %d positional arguments, want 0", len(args))
 	}
+
 	if flags.Mode != "remote" {
 		t.Errorf("Mode = %q, want %q", flags.Mode, "remote")
 	}
+
 	if flags.RemoteURL != "http://example.com:8090" {
 		t.Errorf("RemoteURL = %q", flags.RemoteURL)
 	}
+
 	if len(flags.RemoteCollections) != 2 {
 		t.Errorf("RemoteCollections = %v, want 2 entries", flags.RemoteCollections)
 	}
+
 	if flags.PerPage != 5 {
 		t.Errorf("PerPage = %d, want 5", flags.PerPage)
 	}
@@ -213,18 +233,21 @@ func TestParseFlags(t *testing.T) {
 // TestSettingsRows verifies that the settings rows are rendered.
 func TestSettingsRows(t *testing.T) {
 	cfg := config.Default()
+
 	rows := cfg.SettingsRows()
 	if len(rows) == 0 {
 		t.Fatal("SettingsRows() returned no rows")
 	}
 
 	found := false
+
 	for _, row := range rows {
 		if row[0] == "mode" && row[1] == cfg.Mode {
 			found = true
 			break
 		}
 	}
+
 	if !found {
 		t.Error("SettingsRows() did not contain the mode row")
 	}

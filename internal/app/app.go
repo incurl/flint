@@ -66,6 +66,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 	if cfg == nil {
 		cfg = config.Default()
 	}
+
 	if renderer == nil {
 		renderer = &components.DefaultRecordRenderer{}
 	}
@@ -128,6 +129,7 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case HealthMsg:
 		m.applyHealth(msg)
 		m.refreshStatusBar()
+
 		return m, nil
 
 	case CollectionsMsg:
@@ -136,28 +138,35 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			m.runtime.Collections = msg.Collections
 		}
+
 		m.refreshStatusBar()
+
 		return m, nil
 
 	case SyncStartedMsg:
 		m.runtime.Sync = state.SyncRunning
 		m.runtime.SyncProgress = msg.Collection
 		m.refreshStatusBar()
+
 		return m, nil
 
 	case SyncFinishedMsg:
 		m.runtime.Sync = state.SyncDone
+
 		m.runtime.SyncProgress = ""
 		if msg.Err != nil {
 			m.runtime.Sync = state.SyncFailed
 			m.runtime.SetError(msg.Err)
 			m.refreshStatusBar()
+
 			return m, tea.Batch(
 				m.toast.Show(components.ToastError, "sync failed: "+msg.Err.Error()),
 				m.reloadActivePage(),
 			)
 		}
+
 		m.refreshStatusBar()
+
 		return m, tea.Batch(
 			m.toast.Show(components.ToastSuccess, fmt.Sprintf(
 				"synced %d records (%d created, %d updated)",
@@ -173,14 +182,23 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The toast component owns its own expiry.
 		updated, cmd := m.toast.Update(msg)
 		m.toast = updated.(*components.Toast)
+
 		return m, cmd
 
 	case pages.RecordsMsg:
+		// Discard the response of a query that is no longer current, so
+		// that a slow response does not resurrect a stale error toast.
+		if msg.Page != m.runtime.PageNumber {
+			break
+		}
+
 		if msg.Err != nil {
 			m.runtime.SetError(msg.Err)
 			m.refreshStatusBar()
+
 			return m, m.toast.Show(components.ToastError, msg.Err.Error())
 		}
+
 		m.runtime.SetError(nil)
 	}
 
@@ -206,6 +224,7 @@ func (m *Model) View() string {
 	}
 
 	var body string
+
 	switch m.runtime.Page {
 	case state.PageRecords:
 		body = m.records.View()
@@ -259,6 +278,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 		case "6":
 			return m.navigate(state.PageSync), true
 		}
+
 		return nil, false
 	}
 
@@ -294,6 +314,7 @@ func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
 	case "esc":
 		m.runtime.GoBack()
 		m.refreshStatusBar()
+
 		return m.loadPage(m.runtime.Page), true
 	}
 
@@ -348,6 +369,7 @@ func (m *Model) loadPage(page state.Page) tea.Cmd {
 		if m.runtime.SelectedID == "" {
 			return nil
 		}
+
 		return m.detail.Refresh()
 	case state.PageSearch:
 		return m.search.Refresh()
@@ -366,26 +388,32 @@ func (m *Model) updateActivePage(msg tea.Msg) []tea.Cmd {
 	case state.PageRecords:
 		updated, cmd := m.records.Update(msg)
 		m.records = updated.(*pages.RecordsPage)
+
 		cmds = append(cmds, cmd)
 	case state.PageDetail:
 		updated, cmd := m.detail.Update(msg)
 		m.detail = updated.(*pages.DetailPage)
+
 		cmds = append(cmds, cmd)
 	case state.PageSearch:
 		updated, cmd := m.search.Update(msg)
 		m.search = updated.(*pages.SearchPage)
+
 		cmds = append(cmds, cmd)
 	case state.PageSettings:
 		updated, cmd := m.settingsPage.Update(msg)
 		m.settingsPage = updated.(*pages.SettingsPage)
+
 		cmds = append(cmds, cmd)
 	case state.PageSync:
 		updated, cmd := m.sync.Update(msg)
 		m.sync = updated.(*pages.SyncPage)
+
 		cmds = append(cmds, cmd)
 	default:
 		updated, cmd := m.home.Update(msg)
 		m.home = updated.(*pages.HomePage)
+
 		cmds = append(cmds, cmd)
 	}
 
@@ -411,6 +439,7 @@ func (m *Model) reloadActivePage() tea.Cmd {
 // checkHealth returns the command that verifies the store connectivity.
 func (m *Model) checkHealth() tea.Cmd {
 	store := m.store
+
 	return func() tea.Msg {
 		if store == nil {
 			return HealthMsg{Status: "no store", Err: fmt.Errorf("app: no store configured")}
@@ -422,6 +451,7 @@ func (m *Model) checkHealth() tea.Cmd {
 		if _, err := store.HealthCheck(ctx); err != nil {
 			return HealthMsg{Status: "unreachable", Err: err}
 		}
+
 		return HealthMsg{Status: "ok"}
 	}
 }
@@ -437,9 +467,11 @@ func (m *Model) triggerSync() tea.Cmd {
 	if store == nil {
 		return m.toast.Show(components.ToastError, "no store configured")
 	}
+
 	if store.Mode() != pbstore.ModeEmbedded {
 		return m.toast.Show(components.ToastWarning, "sync is only available in the embedded mode")
 	}
+
 	if collection == "" {
 		return m.toast.Show(components.ToastWarning, "select a collection first")
 	}
@@ -458,6 +490,7 @@ func (m *Model) triggerSync() tea.Cmd {
 		if err != nil {
 			return SyncFinishedMsg{Err: err}
 		}
+
 		return SyncFinishedMsg{Report: report}
 	}
 }
@@ -470,6 +503,7 @@ func (m *Model) applyHealth(msg HealthMsg) {
 		m.runtime.Connection = state.ConnectionError
 		m.runtime.ConnectionDetail = msg.Err.Error()
 		m.runtime.SetError(msg.Err)
+
 		return
 	}
 
@@ -491,6 +525,7 @@ func (m *Model) statusInfo() components.StatusInfo {
 		Error:            m.runtime.LastError,
 		Hints:            m.hints(),
 	}
+
 	return info
 }
 
@@ -532,11 +567,14 @@ func (m *Model) resize() {
 // joinLines renders a list of lines as a single block.
 func joinLines(lines []string) string {
 	out := ""
+
 	for i, l := range lines {
 		if i > 0 {
 			out += "\n"
 		}
+
 		out += l
 	}
+
 	return out
 }
