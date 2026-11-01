@@ -202,6 +202,26 @@ The scaffold is deliberately generic. It fits projects such as:
 - [`docs/EXAMPLE_WIKIDATA_ADAPTER.md`](docs/EXAMPLE_WIKIDATA_ADAPTER.md) —
   a complete adapter example.
 
+### 📖 The companion book
+
+**[`book/`](book/)** — *Building Terminal Applications with Bubble Tea and
+PocketBase*.
+
+Twenty chapters and five appendices (~61,000 words), from the terminal
+basics to shipping a production TUI:
+
+- **Part I — Bubble Tea**: the Elm architecture, messages and commands,
+  the key routing problem, rendering with lipgloss, the Bubbles
+  components, and the concurrency rules.
+- **Part II — PocketBase as a library**: the mental model, collections
+  and records, the native filter grammar, `App.Store()` (and what it
+  really is), hooks and validation, migrations, and embedded vs. server.
+- **Part III — Putting them together**: the layering, the `pbstore`
+  pattern, sync and offline-first caching, testing, performance, and
+  shipping.
+
+Start at [`book/README.md`](book/README.md).
+
 ## Development
 
 ```bash
