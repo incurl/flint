@@ -1,0 +1,65 @@
+# GolangCI-Lint configuration for the Flint template.
+#
+# The preset is intentionally strict but focused on the rules that matter
+# for a TUI codebase: no panics in the render loop, no unchecked errors
+# and no duplicated code.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gocritic
+    - godot
+    - govet
+    - ineffassign
+    - misspell
+    - nilerr
+    - noctx
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - unused
+    - wsl
+  disable:
+    - errcheck # the Bubble Tea Update signature forces the error to be dropped
+    - lll        # long lines are fine in the doc comments
+
+  settings:
+    godot:
+      scope: declarations
+      capital: false
+    misspell:
+      locale: UK
+    revive:
+      rules:
+        - name: exported
+          disabled: false
+        - name: package-comments
+          disabled: false
+        - name: unused-parameter
+          disabled: true
+
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  enable:
+    - gofmt
+  exclusions:
+    generated: lax

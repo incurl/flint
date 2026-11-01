@@ -31,3 +31,21 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Flint / PocketBase local data
+pb_data/
+pb_data*/
+*.db
+*.db-shm
+*.db-wal
+
+# Build artifacts
+bin/
+dist/
+
+# Local configuration (may contain a token)
+flint.local.toml
+config.local.toml
+
+# GoLand / IDE project files
+.idea/

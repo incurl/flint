@@ -1,0 +1,542 @@
+package app
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/incurl/flint/config"
+	"github.com/incurl/flint/internal/components"
+	"github.com/incurl/flint/internal/pages"
+	"github.com/incurl/flint/internal/pbstore"
+	"github.com/incurl/flint/internal/state"
+	"github.com/incurl/flint/internal/theme"
+)
+
+// Model is the root Bubble Tea model.
+//
+// It composes the page submodels and routes the messages between them:
+//
+//   - the global messages (store errors, sync events, toasts) are handled
+//     here;
+//   - the page local messages are forwarded to the active page only.
+type Model struct {
+	// store is the data layer.
+	store pbstore.Store
+	// runtime holds the shared runtime state.
+	runtime *state.Runtime
+	// theme is the shared style palette.
+	theme *theme.Theme
+	// settings holds the rendered configuration rows.
+	settings [][2]string
+
+	// home is the landing page.
+	home *pages.HomePage
+	// records is the record list page.
+	records *pages.RecordsPage
+	// detail is the record detail page.
+	detail *pages.DetailPage
+	// search is the search page.
+	search *pages.SearchPage
+	// settingsPage is the settings page.
+	settingsPage *pages.SettingsPage
+	// sync is the sync page.
+	sync *pages.SyncPage
+
+	// statusBar is the persistent bottom bar.
+	statusBar *components.StatusBar
+	// toast is the transient notification.
+	toast *components.Toast
+
+	// width is the terminal width.
+	width int
+	// height is the terminal height.
+	height int
+	// quitting reports whether the application is shutting down.
+	quitting bool
+}
+
+// New creates the root model.
+//
+// The renderer is the optional domain specific record renderer: when nil
+// the generic [components.DefaultRecordRenderer] is used.
+func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer) *Model {
+	if cfg == nil {
+		cfg = config.Default()
+	}
+	if renderer == nil {
+		renderer = &components.DefaultRecordRenderer{}
+	}
+
+	t := theme.New(theme.Variant(cfg.Theme))
+	runtime := state.NewRuntime()
+	runtime.PerPage = cfg.PerPage
+
+	m := &Model{
+		store:        store,
+		runtime:      runtime,
+		theme:        t,
+		settings:     cfg.SettingsRows(),
+		statusBar:    components.NewStatusBar(t),
+		toast:        components.NewToast(t),
+		home:         pages.NewHomePage(store, runtime, t),
+		records:      pages.NewRecordsPage(store, runtime, t, renderer),
+		detail:       pages.NewDetailPage(store, runtime, t, renderer),
+		search:       pages.NewSearchPage(store, runtime, t, renderer),
+		settingsPage: pages.NewSettingsPage(runtime, t, cfg.SettingsRows()),
+		sync:         pages.NewSyncPage(store, runtime, t),
+	}
+
+	return m
+}
+
+// Init implements [tea.Model].
+func (m *Model) Init() tea.Cmd {
+	return tea.Batch(
+		m.home.Init(),
+		m.checkHealth(),
+	)
+}
+
+// Update implements [tea.Model].
+func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m.resize()
+
+	case tea.KeyMsg:
+		// The global hotkey layer is only active when no page specific
+		// input has the focus.
+		if cmd, handled := m.handleGlobalKey(msg); handled {
+			m.refreshStatusBar()
+			return m, cmd
+		}
+
+	case pages.NavigateMsg:
+		return m, m.navigate(msg.Page)
+
+	case pages.OpenRecordMsg:
+		m.runtime.SelectedID = msg.ID
+		return m, m.navigate(state.PageDetail)
+
+	case HealthMsg:
+		m.applyHealth(msg)
+		m.refreshStatusBar()
+		return m, nil
+
+	case CollectionsMsg:
+		if msg.Err != nil {
+			m.runtime.SetError(msg.Err)
+		} else {
+			m.runtime.Collections = msg.Collections
+		}
+		m.refreshStatusBar()
+		return m, nil
+
+	case SyncStartedMsg:
+		m.runtime.Sync = state.SyncRunning
+		m.runtime.SyncProgress = msg.Collection
+		m.refreshStatusBar()
+		return m, nil
+
+	case SyncFinishedMsg:
+		m.runtime.Sync = state.SyncDone
+		m.runtime.SyncProgress = ""
+		if msg.Err != nil {
+			m.runtime.Sync = state.SyncFailed
+			m.runtime.SetError(msg.Err)
+			m.refreshStatusBar()
+			return m, tea.Batch(
+				m.toast.Show(components.ToastError, "sync failed: "+msg.Err.Error()),
+				m.reloadActivePage(),
+			)
+		}
+		m.refreshStatusBar()
+		return m, tea.Batch(
+			m.toast.Show(components.ToastSuccess, fmt.Sprintf(
+				"synced %d records (%d created, %d updated)",
+				msg.Report.Fetched, msg.Report.Created, msg.Report.Updated)),
+			m.reloadActivePage(),
+		)
+
+	case components.ToastMsg:
+		m.refreshStatusBar()
+		return m, m.toast.Show(msg.Level, msg.Text)
+
+	case components.ToastExpiredMsg:
+		// The toast component owns its own expiry.
+		updated, cmd := m.toast.Update(msg)
+		m.toast = updated.(*components.Toast)
+		return m, cmd
+
+	case pages.RecordsMsg:
+		if msg.Err != nil {
+			m.runtime.SetError(msg.Err)
+			m.refreshStatusBar()
+			return m, m.toast.Show(components.ToastError, msg.Err.Error())
+		}
+		m.runtime.SetError(nil)
+	}
+
+	// Forward the message to the active page.
+	cmds = append(cmds, m.updateActivePage(msg)...)
+
+	// The status bar reflects the shared runtime state, so it is refreshed
+	// on every update cycle.
+	m.refreshStatusBar()
+
+	return m, tea.Batch(cmds...)
+}
+
+// refreshStatusBar pushes the current runtime state to the status bar.
+func (m *Model) refreshStatusBar() {
+	m.statusBar.SetInfo(m.statusInfo())
+}
+
+// View implements [tea.Model].
+func (m *Model) View() string {
+	if m.quitting {
+		return ""
+	}
+
+	var body string
+	switch m.runtime.Page {
+	case state.PageRecords:
+		body = m.records.View()
+	case state.PageDetail:
+		body = m.detail.View()
+	case state.PageSearch:
+		body = m.search.View()
+	case state.PageSettings:
+		body = m.settingsPage.View()
+	case state.PageSync:
+		body = m.sync.View()
+	default:
+		body = m.home.View()
+	}
+
+	parts := []string{body}
+
+	if toast := m.toast.View(); toast != "" {
+		parts = append(parts, toast)
+	}
+
+	parts = append(parts, m.statusBar.View())
+
+	return joinLines(parts)
+}
+
+// handleGlobalKey processes the global hotkeys.
+//
+// It returns the command to run and whether the key was consumed. The
+// global layer is disabled while a text input has the focus, so that the
+// user can type freely.
+func (m *Model) handleGlobalKey(msg tea.KeyMsg) (tea.Cmd, bool) {
+	// While a text input has the focus the global layer only handles the
+	// interrupt key and the page switch digits, so that the user can type
+	// freely in the input while still being able to jump between pages.
+	if m.inputFocused() {
+		switch msg.String() {
+		case "ctrl+c":
+			m.quitting = true
+			return tea.Quit, true
+		case "1":
+			return m.navigate(state.PageHome), true
+		case "2":
+			return m.navigate(state.PageRecords), true
+		case "3":
+			return m.navigate(state.PageDetail), true
+		case "4":
+			return m.navigate(state.PageSearch), true
+		case "5":
+			return m.navigate(state.PageSettings), true
+		case "6":
+			return m.navigate(state.PageSync), true
+		}
+		return nil, false
+	}
+
+	switch msg.String() {
+	case "ctrl+c", "q":
+		m.quitting = true
+		return tea.Quit, true
+
+	case "1":
+		return m.navigate(state.PageHome), true
+
+	case "2":
+		return m.navigate(state.PageRecords), true
+
+	case "3":
+		return m.navigate(state.PageDetail), true
+
+	case "4":
+		return m.navigate(state.PageSearch), true
+
+	case "5":
+		return m.navigate(state.PageSettings), true
+
+	case "6":
+		return m.navigate(state.PageSync), true
+
+	case "s":
+		return m.checkHealth(), true
+
+	case "y":
+		return m.triggerSync(), true
+
+	case "esc":
+		m.runtime.GoBack()
+		m.refreshStatusBar()
+		return m.loadPage(m.runtime.Page), true
+	}
+
+	// The "r" hotkey refreshes the active page, but it is not available
+	// on the pages that use it for a local toggle (eg. the raw JSON view).
+	if msg.String() == "r" && !m.hasLocalRBinding() {
+		return m.reloadActivePage(), true
+	}
+
+	return nil, false
+}
+
+// hasLocalRBinding reports whether the active page uses the "r" key for a
+// page local action.
+//
+// The global layer must not shadow those bindings.
+func (m *Model) hasLocalRBinding() bool {
+	return m.runtime.Page == state.PageDetail
+}
+
+// inputFocused reports whether a page currently owns a focused text input.
+//
+// When it returns true the global hotkey layer is suspended.
+func (m *Model) inputFocused() bool {
+	switch m.runtime.Page {
+	case state.PageSearch:
+		return true
+	case state.PageRecords:
+		return m.records.FilterFocused()
+	default:
+		return false
+	}
+}
+
+// navigate switches the active page.
+//
+// It returns the command that loads the data of the target page, so that
+// every page shows fresh content as soon as it becomes visible.
+func (m *Model) navigate(page state.Page) tea.Cmd {
+	m.runtime.SetPage(page)
+	m.refreshStatusBar()
+
+	return m.loadPage(page)
+}
+
+// loadPage returns the command that loads the data of a page.
+func (m *Model) loadPage(page state.Page) tea.Cmd {
+	switch page {
+	case state.PageRecords:
+		return m.records.Refresh()
+	case state.PageDetail:
+		if m.runtime.SelectedID == "" {
+			return nil
+		}
+		return m.detail.Refresh()
+	case state.PageSearch:
+		return m.search.Refresh()
+	case state.PageHome:
+		return m.home.Refresh()
+	default:
+		return nil
+	}
+}
+
+// updateActivePage forwards a message to the active page.
+func (m *Model) updateActivePage(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	switch m.runtime.Page {
+	case state.PageRecords:
+		updated, cmd := m.records.Update(msg)
+		m.records = updated.(*pages.RecordsPage)
+		cmds = append(cmds, cmd)
+	case state.PageDetail:
+		updated, cmd := m.detail.Update(msg)
+		m.detail = updated.(*pages.DetailPage)
+		cmds = append(cmds, cmd)
+	case state.PageSearch:
+		updated, cmd := m.search.Update(msg)
+		m.search = updated.(*pages.SearchPage)
+		cmds = append(cmds, cmd)
+	case state.PageSettings:
+		updated, cmd := m.settingsPage.Update(msg)
+		m.settingsPage = updated.(*pages.SettingsPage)
+		cmds = append(cmds, cmd)
+	case state.PageSync:
+		updated, cmd := m.sync.Update(msg)
+		m.sync = updated.(*pages.SyncPage)
+		cmds = append(cmds, cmd)
+	default:
+		updated, cmd := m.home.Update(msg)
+		m.home = updated.(*pages.HomePage)
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds
+}
+
+// reloadActivePage refreshes the data of the active page.
+func (m *Model) reloadActivePage() tea.Cmd {
+	switch m.runtime.Page {
+	case state.PageRecords:
+		return m.records.Load()
+	case state.PageDetail:
+		return m.detail.Load()
+	case state.PageSearch:
+		return m.search.Search()
+	case state.PageHome:
+		return m.home.Load()
+	default:
+		return nil
+	}
+}
+
+// checkHealth returns the command that verifies the store connectivity.
+func (m *Model) checkHealth() tea.Cmd {
+	store := m.store
+	return func() tea.Msg {
+		if store == nil {
+			return HealthMsg{Status: "no store", Err: fmt.Errorf("app: no store configured")}
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if _, err := store.HealthCheck(ctx); err != nil {
+			return HealthMsg{Status: "unreachable", Err: err}
+		}
+		return HealthMsg{Status: "ok"}
+	}
+}
+
+// triggerSync returns the command that starts a synchronisation.
+//
+// The sync is always explicit: it is triggered by the user hotkey and
+// never runs in the background.
+func (m *Model) triggerSync() tea.Cmd {
+	store := m.store
+	collection := m.runtime.Collection
+
+	if store == nil {
+		return m.toast.Show(components.ToastError, "no store configured")
+	}
+	if store.Mode() != pbstore.ModeEmbedded {
+		return m.toast.Show(components.ToastWarning, "sync is only available in the embedded mode")
+	}
+	if collection == "" {
+		return m.toast.Show(components.ToastWarning, "select a collection first")
+	}
+
+	req := pbstore.SyncRequest{
+		RemoteCollection: collection,
+		LocalCollection:  collection,
+		BatchSize:        pbstore.DefaultSyncBatchSize,
+	}
+
+	return func() tea.Msg {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+
+		report, err := store.SyncCollection(ctx, req)
+		if err != nil {
+			return SyncFinishedMsg{Err: err}
+		}
+		return SyncFinishedMsg{Report: report}
+	}
+}
+
+// applyHealth updates the runtime state from a health check result.
+func (m *Model) applyHealth(msg HealthMsg) {
+	m.runtime.LastCheck = time.Now()
+
+	if msg.Err != nil {
+		m.runtime.Connection = state.ConnectionError
+		m.runtime.ConnectionDetail = msg.Err.Error()
+		m.runtime.SetError(msg.Err)
+		return
+	}
+
+	m.runtime.Connection = state.ConnectionOK
+	m.runtime.ConnectionDetail = msg.Status
+	m.runtime.SetError(nil)
+}
+
+// statusInfo builds the data rendered by the status bar.
+func (m *Model) statusInfo() components.StatusInfo {
+	info := components.StatusInfo{
+		Mode:             m.store.Mode().String(),
+		Connection:       string(m.runtime.Connection),
+		ConnectionDetail: m.runtime.ConnectionDetail,
+		Collection:       m.runtime.Collection,
+		Sync:             string(m.runtime.Sync),
+		SyncProgress:     m.runtime.SyncProgress,
+		Page:             m.runtime.Page.Title(),
+		Error:            m.runtime.LastError,
+		Hints:            m.hints(),
+	}
+	return info
+}
+
+// hints returns the contextual hotkey hints of the active page.
+func (m *Model) hints() []string {
+	switch m.runtime.Page {
+	case state.PageRecords:
+		return components.FormatHints([][2]string{
+			{"/", "filter"}, {"↑↓", "move"}, {"enter", "open"}, {"←→", "page"},
+		})
+	case state.PageDetail:
+		return components.FormatHints([][2]string{
+			{"j", "json"}, {"r", "raw"}, {"e", "edit"},
+		})
+	case state.PageSearch:
+		return components.FormatHints([][2]string{
+			{"enter", "run"}, {"esc", "clear"},
+		})
+	case state.PageSync:
+		return components.FormatHints([][2]string{
+			{"ctrl+r", "sync"}, {"tab", "next"},
+		})
+	case state.PageHome:
+		return components.FormatHints([][2]string{
+			{"enter", "open"}, {"↑↓", "move"},
+		})
+	default:
+		return components.FormatHints([][2]string{
+			{"s", "status"}, {"y", "sync"}, {"q", "quit"},
+		})
+	}
+}
+
+// resize adapts the components to the terminal size.
+func (m *Model) resize() {
+	m.statusBar.SetWidth(m.width)
+}
+
+// joinLines renders a list of lines as a single block.
+func joinLines(lines []string) string {
+	out := ""
+	for i, l := range lines {
+		if i > 0 {
+			out += "\n"
+		}
+		out += l
+	}
+	return out
+}
