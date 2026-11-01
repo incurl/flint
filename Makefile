@@ -87,6 +87,15 @@ fmt-check: ## Verify that the sources are formatted
 tidy: ## Tidy the go module
 	$(GO) mod tidy
 
+.PHONY: audit
+audit: ## Scan the dependencies for known vulnerabilities
+	@command -v govulncheck >/dev/null 2>&1 || { \
+		echo "govulncheck is not installed"; \
+		echo "install it with: go install golang.org/x/vuln/cmd/govulncheck@latest"; \
+		exit 1; \
+	}
+	govulncheck ./...
+
 .PHONY: pb-serve
 pb-serve: ## Run a local PocketBase server (requires the pocketbase CLI)
 	@command -v pocketbase >/dev/null 2>&1 || { \

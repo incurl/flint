@@ -257,7 +257,9 @@ type Store interface {
 	// Create inserts a new record with the provided field data.
 	Create(ctx context.Context, collection string, data map[string]any) (*Record, error)
 
-	// Update replaces the fields of an existing record.
+	// Update merges the provided field data into an existing record.
+	//
+	// The fields that are not present in data are left untouched.
 	Update(ctx context.Context, collection, id string, data map[string]any) (*Record, error)
 
 	// Delete removes a record.
