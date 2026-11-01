@@ -1,7 +1,0 @@
-# This file marks the repository as a GitHub template.
-#
-# The "Use this template" workflow (GitHub's own) creates the new
-# repository with this file removed. The template-cleanup.yml workflow
-# removes the remaining template specific files on the first push.
-#
-# Delete this file once your project no longer needs it.
