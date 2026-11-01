@@ -194,18 +194,24 @@ The scaffold is deliberately generic. It fits projects such as:
 - **Reference metadata lookup tools** — sync a remote reference dataset
   into the local database and browse it offline.
 - **Wikidata / RDF item and property browsers** — see
-  [`docs/EXAMPLE_WIKIDATA_ADAPTER.md`](docs/EXAMPLE_WIKIDATA_ADAPTER.md).
+  [`examples/wikidata/`](examples/wikidata/).
 - **Audit and annotation tools** over structured JSON records.
 
 ## Documentation
 
+- [`AGENTS.md`](AGENTS.md) — **for AI coding agents**: the architecture, the
+  invariants, the gotchas and the verification loop. Start here.
+- [`docs/agents/`](docs/agents/) — task recipes for agents: add a page, add a
+  collection, add a renderer, add a command, add a config option, add a sync,
+  debug a TUI, verify.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the TEA flow, the
   package boundaries, what you may modify.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — a guided tour.
 - [`docs/PBSTORE_GUIDE.md`](docs/PBSTORE_GUIDE.md) — how to use the store,
   compose the native params, build dictionaries and caches.
-- [`docs/EXAMPLE_WIKIDATA_ADAPTER.md`](docs/EXAMPLE_WIKIDATA_ADAPTER.md) —
-  a complete adapter example.
+- [`examples/wikidata/`](examples/wikidata/) — a complete domain adapter
+  example: a custom migration, a custom renderer, a label lookup cache and
+  a custom filter transform.
 
 ### 📖 The companion book
 

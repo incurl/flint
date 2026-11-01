@@ -207,7 +207,7 @@ Register it in the root model (`internal/app/app.go`):
 3. add a case to `updateActivePage` and to `View`;
 4. add the hotkey in `handleGlobalKey`.
 
-See [`EXAMPLE_WIKIDATA_ADAPTER.md`](EXAMPLE_WIKIDATA_ADAPTER.md) for a
+See the [`examples/wikidata/`](../examples/wikidata/) package for a
 complete example.
 
 ## 6. Work with a remote server
@@ -265,4 +265,4 @@ Then update:
 | ---------------------------- | ----------------------------------------------- |
 | The TEA flow, the boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md)            |
 | The store, the params        | [`PBSTORE_GUIDE.md`](PBSTORE_GUIDE.md)          |
-| A complete domain adapter    | [`EXAMPLE_WIKIDATA_ADAPTER.md`](EXAMPLE_WIKIDATA_ADAPTER.md) |
+| A complete domain adapter    | [`examples/wikidata/`](../examples/wikidata/)   |
