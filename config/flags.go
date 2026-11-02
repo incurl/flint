@@ -30,6 +30,12 @@ type Flags struct {
 	EncryptionEnv string
 	// Dev enables the verbose PocketBase logs.
 	Dev bool
+	// HooksDir overrides the JavaScript application hooks directory.
+	HooksDir string
+	// MigrationsDir overrides the JavaScript migrations directory.
+	MigrationsDir string
+	// JavaScript enables the PocketBase JavaScriptVM plugin.
+	JavaScript bool
 	// RemoteURL overrides the remote PocketBase server URL.
 	RemoteURL string
 	// RemoteToken overrides the remote API token.
@@ -72,6 +78,9 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.StringVar(&flags.DataDir, "data-dir", "", "embedded PocketBase data directory")
 	fs.StringVar(&flags.EncryptionEnv, "encryption-env", "", "env variable holding the 32 char settings encryption key")
 	fs.BoolVar(&flags.Dev, "dev", false, "enable the verbose PocketBase logs")
+	fs.StringVar(&flags.HooksDir, "hooks-dir", "", "directory of the JavaScript application hooks")
+	fs.StringVar(&flags.MigrationsDir, "migrations-dir", "", "directory of the JavaScript migrations")
+	fs.BoolVar(&flags.JavaScript, "javascript", false, "enable the PocketBase JavaScriptVM plugin")
 	fs.StringVar(&flags.RemoteURL, "remote-url", "", "base URL of the remote PocketBase server")
 	fs.StringVar(&flags.RemoteToken, "remote-token", "", "API token of the remote PocketBase server (prefer FLINT_REMOTE_TOKEN)")
 	fs.StringVar(&remoteList, "remote-collections", "", "comma separated allowlist of the remote collections")

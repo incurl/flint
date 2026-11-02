@@ -252,3 +252,92 @@ func TestSettingsRows(t *testing.T) {
 		t.Error("SettingsRows() did not contain the mode row")
 	}
 }
+
+// TestJavaScriptDefaults verifies the JavaScript defaults.
+//
+// The plugin is disabled by default: it embeds a JavaScript runtime and
+// adds about 10 MB to the binary, so it has to be an explicit choice.
+func TestJavaScriptDefaults(t *testing.T) {
+	cfg, err := config.Load("", config.Flags{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.Embedded.JavaScript {
+		t.Error("Embedded.JavaScript = true, want false by default")
+	}
+
+	// The directories follow the PocketBase convention: they sit next
+	// to the data directory.
+	wantHooks := filepath.Join(filepath.Dir(cfg.Embedded.DataDir), "pb_hooks")
+	if got := cfg.HooksDir(); got != wantHooks {
+		t.Errorf("HooksDir() = %q, want %q", got, wantHooks)
+	}
+
+	wantMigrations := filepath.Join(filepath.Dir(cfg.Embedded.DataDir), "pb_migrations")
+	if got := cfg.MigrationsDir(); got != wantMigrations {
+		t.Errorf("MigrationsDir() = %q, want %q", got, wantMigrations)
+	}
+}
+
+// TestJavaScriptDirectoriesAreOverridable verifies that the hooks and
+// migrations directories can be set explicitly.
+func TestJavaScriptDirectoriesAreOverridable(t *testing.T) {
+	cfg := config.Default()
+	cfg.Embedded.DataDir = "/data/pb_data"
+	cfg.Embedded.HooksDir = "/custom/hooks"
+	cfg.Embedded.MigrationsDir = "/custom/migrations"
+
+	if got := cfg.HooksDir(); got != "/custom/hooks" {
+		t.Errorf("HooksDir() = %q, want %q", got, "/custom/hooks")
+	}
+
+	if got := cfg.MigrationsDir(); got != "/custom/migrations" {
+		t.Errorf("MigrationsDir() = %q, want %q", got, "/custom/migrations")
+	}
+}
+
+// TestJavaScriptFlag verifies that the flag enables the plugin.
+func TestJavaScriptFlag(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "flint.toml")
+
+	content := []byte(`
+mode = "embedded"
+
+[embedded]
+data_dir = "/data/pb_data"
+`)
+	if err := os.WriteFile(path, content, 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	cfg, err := config.Load(path, config.Flags{JavaScript: true})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Embedded.JavaScript {
+		t.Error("Embedded.JavaScript = false, want true")
+	}
+
+	// The flag must not be lost when the directories are resolved.
+	if got := cfg.HooksDir(); got == "" {
+		t.Error("HooksDir() is empty")
+	}
+}
+
+// TestJavaScriptEnv verifies that the environment variable enables the
+// plugin.
+func TestJavaScriptEnv(t *testing.T) {
+	t.Setenv("FLINT_JAVASCRIPT", "true")
+
+	cfg, err := config.Load("", config.Flags{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Embedded.JavaScript {
+		t.Error("Embedded.JavaScript = false, want true")
+	}
+}

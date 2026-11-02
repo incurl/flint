@@ -74,6 +74,23 @@ type EmbeddedConfig struct {
 	EncryptionEnv string `toml:"encryption_env"`
 	// Dev enables the verbose PocketBase logs.
 	Dev bool `toml:"dev"`
+	// HooksDir is the directory holding the JavaScript application
+	// hooks.
+	//
+	// It defaults to a "pb_hooks" directory next to the data directory.
+	HooksDir string `toml:"hooks_dir"`
+	// MigrationsDir is the directory holding the JavaScript migrations.
+	//
+	// It defaults to a "pb_migrations" directory next to the data
+	// directory.
+	MigrationsDir string `toml:"migrations_dir"`
+	// JavaScript enables the PocketBase JavaScriptVM plugin.
+	//
+	// The plugin embeds a JavaScript runtime and loads the hooks and
+	// the migrations from the directories above. It is disabled by
+	// default: the plugin adds about 10 MB to the binary and the hooks
+	// are an application specific choice.
+	JavaScript bool `toml:"javascript"`
 }
 
 // RemoteConfig holds the remote store settings.
@@ -200,6 +217,14 @@ func (c *Config) SettingsRows() [][2]string {
 			[2]string{"embedded.data_dir", c.Embedded.DataDir},
 			[2]string{"embedded.dev", fmt.Sprintf("%t", c.Embedded.Dev)},
 		)
+
+		if c.Embedded.JavaScript {
+			rows = append(rows,
+				[2]string{"embedded.javascript", "enabled"},
+				[2]string{"embedded.hooks_dir", c.HooksDir()},
+				[2]string{"embedded.migrations_dir", c.MigrationsDir()},
+			)
+		}
 	}
 
 	rows = append(rows,
@@ -211,6 +236,31 @@ func (c *Config) SettingsRows() [][2]string {
 	)
 
 	return rows
+}
+
+// HooksDir returns the directory holding the JavaScript application
+// hooks.
+//
+// It defaults to a "pb_hooks" directory next to the data directory,
+// which is the PocketBase convention.
+func (c *Config) HooksDir() string {
+	if c.Embedded.HooksDir != "" {
+		return c.Embedded.HooksDir
+	}
+
+	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "pb_hooks")
+}
+
+// MigrationsDir returns the directory holding the JavaScript migrations.
+//
+// It defaults to a "pb_migrations" directory next to the data
+// directory, which is the PocketBase convention.
+func (c *Config) MigrationsDir() string {
+	if c.Embedded.MigrationsDir != "" {
+		return c.Embedded.MigrationsDir
+	}
+
+	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "pb_migrations")
 }
 
 // RemoteTimeout returns the configured remote timeout.
@@ -293,6 +343,18 @@ func applyEnv(cfg *Config) {
 		cfg.Embedded.DataDir = v
 	}
 
+	if v := os.Getenv(EnvPrefix + "HOOKS_DIR"); v != "" {
+		cfg.Embedded.HooksDir = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "MIGRATIONS_DIR"); v != "" {
+		cfg.Embedded.MigrationsDir = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "JAVASCRIPT"); v != "" {
+		cfg.Embedded.JavaScript = v == "1" || strings.EqualFold(v, "true")
+	}
+
 	if v := os.Getenv(EnvPrefix + "ENCRYPTION_ENV"); v != "" {
 		cfg.Embedded.EncryptionEnv = v
 	}
@@ -358,6 +420,18 @@ func applyFlags(cfg *Config, flags Flags) {
 
 	if flags.MaxLocalRecords > 0 {
 		cfg.MaxLocalRecords = flags.MaxLocalRecords
+	}
+
+	if flags.HooksDir != "" {
+		cfg.Embedded.HooksDir = flags.HooksDir
+	}
+
+	if flags.MigrationsDir != "" {
+		cfg.Embedded.MigrationsDir = flags.MigrationsDir
+	}
+
+	if flags.JavaScript {
+		cfg.Embedded.JavaScript = true
 	}
 
 	if flags.DataDir != "" {

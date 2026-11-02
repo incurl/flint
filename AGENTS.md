@@ -162,6 +162,11 @@ Three rules catch most mistakes:
 
 ## 5. Things that will trip you up
 
+- **The JavaScriptVM plugin is off by default.** `--javascript` (or
+  `embedded.javascript`) registers it in `cmd/tui/main.go`, **before**
+  `pbstore.OpenEmbedded`: the store bootstraps the app and runs the
+  migrations, and the plugin registers the JS migrations. A missing
+  hooks directory is not an error.
 - **The theme is shared by pointer and mutated in place.** Every page
   holds the same `*theme.Theme` and reads the styles when it renders, so
   a runtime change is one call: `m.theme.Apply(variant, scale)`. Never

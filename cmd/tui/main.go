@@ -14,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/pocketbase/pocketbase"
 	"github.com/pocketbase/pocketbase/core"
+	"github.com/pocketbase/pocketbase/plugins/jsvm"
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/app"
@@ -143,6 +144,18 @@ func newBackendStore(cfg *config.Config) (pbstore.Store, error) {
 			HideStartBanner:      true,
 		})
 
+		// The JavaScriptVM plugin must be registered BEFORE the store is
+		// opened: the store bootstraps the application and runs the
+		// migrations, and the JS migrations are registered by the plugin.
+		//
+		// The plugin is optional: it embeds a JavaScript runtime, so it
+		// is only registered when the application asks for it.
+		if cfg.Embedded.JavaScript {
+			if err := registerJavaScript(pb, cfg); err != nil {
+				return nil, err
+			}
+		}
+
 		return pbstore.OpenEmbedded(pb, pbstore.EmbeddedConfig{
 			DataDir:         cfg.Embedded.DataDir,
 			EncryptionEnv:   cfg.Embedded.EncryptionEnv,
@@ -156,6 +169,31 @@ func newBackendStore(cfg *config.Config) (pbstore.Store, error) {
 	default:
 		return nil, fmt.Errorf("unsupported mode %q", cfg.Mode)
 	}
+}
+
+// registerJavaScript registers the PocketBase JavaScriptVM plugin.
+//
+// The plugin loads the application hooks and the migrations from the
+// configured directories. A missing directory is not an error: the
+// plugin simply finds no file.
+//
+// The plugin must be registered before the application is bootstrapped,
+// because the JS migrations join the same registry as the Go ones and
+// are applied by the store when it opens.
+func registerJavaScript(app core.App, cfg *config.Config) error {
+	err := jsvm.Register(app, jsvm.Config{
+		HooksDir:      cfg.HooksDir(),
+		MigrationsDir: cfg.MigrationsDir(),
+		// The types file is the TypeScript declaration of the PocketBase
+		// API. It is written next to the data so that an editor can
+		// offer the completions.
+		TypesDir: cfg.Embedded.DataDir,
+	})
+	if err != nil {
+		return fmt.Errorf("register the jsvm plugin: %w", err)
+	}
+
+	return nil
 }
 
 // appMigrations returns the application migrations executed on startup.

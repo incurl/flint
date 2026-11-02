@@ -576,18 +576,37 @@ type Config struct {
 	Remote   RemoteConfig   `toml:"remote"`
 	Sync     SyncConfig     `toml:"sync"`
 }
+
+type EmbeddedConfig struct {
+	DataDir       string `toml:"data_dir"`
+	EncryptionEnv string `toml:"encryption_env"`
+	Dev           bool   `toml:"dev"`
+	// HooksDir holds the JavaScript application hooks.
+	HooksDir string `toml:"hooks_dir"`
+	// MigrationsDir holds the JavaScript migrations.
+	MigrationsDir string `toml:"migrations_dir"`
+	// JavaScript enables the PocketBase JavaScriptVM plugin.
+	JavaScript bool `toml:"javascript"`
+}
+
+// The resolved JavaScript directories. They default to a "pb_hooks"
+// and a "pb_migrations" directory next to the data directory.
+func (c *Config) HooksDir() string
+func (c *Config) MigrationsDir() string
 ```
 
 Environment variables are prefixed `FLINT_`: `FLINT_MODE`,
 `FLINT_THEME`, `FLINT_PER_PAGE`, `FLINT_LOG_LEVEL`,
-`FLINT_MAX_LOCAL_RECORDS`, `FLINT_DATA_DIR`,
+`FLINT_MAX_LOCAL_RECORDS`, `FLINT_DATA_DIR`, `FLINT_HOOKS_DIR`,
+`FLINT_MIGRATIONS_DIR`, `FLINT_JAVASCRIPT`,
 `FLINT_ENCRYPTION_ENV`, `FLINT_DEV`, `FLINT_REMOTE_URL`,
 `FLINT_REMOTE_TOKEN`, `FLINT_REMOTE_COLLECTIONS`, `FLINT_REMOTE_TIMEOUT`,
 `FLINT_SYNC_COLLECTIONS`, `FLINT_SYNC_BATCH_SIZE`,
 `FLINT_SYNC_MAX_RECORDS`.
 
 CLI flags: `--mode`, `--theme`, `--per-page`, `--log-level`,
-`--max-local-records`, `--data-dir`, `--encryption-env`, `--dev`,
+`--max-local-records`, `--data-dir`, `--hooks-dir`, `--migrations-dir`,
+`--javascript`, `--encryption-env`, `--dev`,
 `--remote-url`, `--remote-token`, `--remote-collections`, `--collections`,
 `--sync-collections`, `--sync-batch-size`, `--sync-max-records`,
 `--migrate-only`, `--config`.

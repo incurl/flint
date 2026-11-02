@@ -42,6 +42,15 @@ type Config struct {
     Remote   RemoteConfig   `toml:"remote"`
     Sync     SyncConfig     `toml:"sync"`
 }
+
+type EmbeddedConfig struct {
+    DataDir       string `toml:"data_dir"`
+    EncryptionEnv string `toml:"encryption_env"`
+    Dev           bool   `toml:"dev"`
+    HooksDir      string `toml:"hooks_dir"`
+    MigrationsDir string `toml:"migrations_dir"`
+    JavaScript    bool   `toml:"javascript"`
+}
 ```
 
 ⚠️ **Keep the config flat and the sections few.** A configuration with

@@ -54,6 +54,18 @@ The default locations are relative to the data directory:
 | What does it cost?                    | +10.8 MB of binary, ~2 ms of startup.     |
 | What does it add to `go.mod`?         | **Nothing** — see §26.5.                  |
 
+> **The template wires it up, but it is off by default.** The
+> application registers the plugin when `embedded.javascript` is true:
+>
+> ```bash
+> flint --mode embedded --data-dir /var/lib/flint/pb_data --javascript
+> ```
+>
+> The flag is off by default because the plugin embeds a JavaScript
+> runtime: it adds about 10 MB to the binary whether it is used or
+> not. The integration adds nothing to `go.mod` beyond the
+> `charm.land` module paths.
+
 The last row is the surprise, and the reason this chapter is worth
 reading.
 
@@ -110,17 +122,33 @@ case pbstore.ModeEmbedded:
 
     // The JSVM must be registered BEFORE the store is opened, because
     // the store bootstraps the app and runs the migrations.
-    if err := jsvm.Register(pb, jsvm.Config{
-        HooksDir:      filepath.Join(cfg.Embedded.DataDir, "../pb_hooks"),
-        MigrationsDir: filepath.Join(cfg.Embedded.DataDir, "../pb_migrations"),
-        TypesDir:      cfg.Embedded.DataDir,
-    }); err != nil {
-        return nil, fmt.Errorf("register the jsvm plugin: %w", err)
+    if cfg.Embedded.JavaScript {
+        if err := registerJavaScript(pb, cfg); err != nil {
+            return nil, err
+        }
     }
 
     return pbstore.OpenEmbedded(pb, pbstore.EmbeddedConfig{
         // ...
     })
+```
+
+The registration itself:
+
+```go
+// registerJavaScript registers the PocketBase JavaScriptVM plugin.
+func registerJavaScript(app core.App, cfg *config.Config) error {
+    err := jsvm.Register(app, jsvm.Config{
+        HooksDir:      cfg.HooksDir(),
+        MigrationsDir: cfg.MigrationsDir(),
+        TypesDir:      cfg.Embedded.DataDir,
+    })
+    if err != nil {
+        return fmt.Errorf("register the jsvm plugin: %w", err)
+    }
+
+    return nil
+}
 ```
 
 **The result**, verified:
@@ -583,23 +611,53 @@ source code.
     pb_migrations/    ← the migrations
 ```
 
-Set `HooksDir` and `MigrationsDir` explicitly rather than relying on
-the default, so that the paths do not depend on the data directory
-being where you expect.
+⚠️ **The default is relative to the data directory, not to the
+current directory.** With `--data-dir /var/lib/flint/pb_data`, the
+hooks are looked up in `/var/lib/flint/pb_hooks`. With a data
+directory that is not named `pb_data`, the hooks end up one level
+above it.
 
-### 3. Register the plugin before the store
+The directories can be set explicitly:
+
+```bash
+flint --mode embedded \
+    --data-dir /var/lib/flint/pb_data \
+    --hooks-dir /var/lib/flint/pb_hooks \
+    --migrations-dir /var/lib/flint/pb_migrations \
+    --javascript
+```
+
+or in the config file:
+
+```toml
+[embedded]
+data_dir = "/var/lib/flint/pb_data"
+hooks_dir = "/var/lib/flint/pb_hooks"
+migrations_dir = "/var/lib/flint/pb_migrations"
+javascript = true
+```
+
+### 3. Enable the plugin
+
+The plugin is **off by default**. Turn it on with `--javascript`, with
+`embedded.javascript = true`, or with `FLINT_JAVASCRIPT=1`.
+
+The registration is in `cmd/tui/main.go`, and it must happen **before**
+`pbstore.OpenEmbedded`. This is not optional: the store bootstraps the
+application and runs the migrations, and the JS migrations are
+registered by the plugin.
 
 ```go
-if err := jsvm.Register(pb, jsvm.Config{
-    HooksDir:      hooksDir,
-    MigrationsDir: migrationsDir,
-    TypesDir:      filepath.Join(cfg.Embedded.DataDir, "pb_types"),
-}); err != nil {
-    return nil, fmt.Errorf("register the jsvm plugin: %w", err)
+if cfg.Embedded.JavaScript {
+    if err := registerJavaScript(pb, cfg); err != nil {
+        return nil, err
+    }
 }
 ```
 
-**Before** `pbstore.OpenEmbedded`. This is not optional.
+A missing hooks directory is **not** an error: the plugin simply finds
+no file. The application starts normally with the plugin enabled and
+no hooks at all.
 
 ### 4. Write the hook
 
@@ -653,6 +711,26 @@ deployment, next to the binary — not in the data directory.
 /opt/flint/pb_migrations/   ← the migrations
 ```
 
+The systemd unit must point the application at both:
+
+```ini
+[Service]
+ExecStart=/opt/flint/flint \
+    --mode embedded \
+    --data-dir /var/lib/flint/pb_data \
+    --hooks-dir /opt/flint/pb_hooks \
+    --migrations-dir /opt/flint/pb_migrations \
+    --javascript
+```
+
+⚠️ **A broken hook panics the process at startup.** The application
+will not start. If it fails immediately after you deploy a hook, read
+the panic message: it names the file and the error.
+
+The types file is written to the data directory, so it is worth adding
+to the backup: it lets an editor offer the PocketBase API
+completions.
+
 ---
 
 ## 26.12 The recommendation
@@ -688,6 +766,9 @@ afternoon if nobody told you:
   dependency of PocketBase.
 - The plugin must be registered **before** the store is opened, because
   the store bootstraps the app and runs the migrations.
+- The template registers it **only when asked**: `--javascript`,
+  `embedded.javascript` or `FLINT_JAVASCRIPT=1`. The binary carries the
+  runtime either way.
 - Go and JS migrations **coexist**, ordered by filename.
 - The JS API is derived from the Go methods: `OnModelValidate` becomes
   `onModelValidate`, and the event carries `e.model`.
