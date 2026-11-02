@@ -547,6 +547,10 @@ validation and the hooks) is the real one.
   channel** (a buffer or `program.Send`); prefer the command's return
   value when you can.
 - **Validate locally for a good error, on the server for the truth.**
+- The hooks in this chapter are written in **Go**. They can also be
+  written in **JavaScript**, which has the advantage of running
+  unchanged on a PocketBase server — see
+  [Chapter 26](ch26-javascript-extensions.md).
 
 ## 12.12 Further reading
 

@@ -491,6 +491,10 @@ simply skips the rest of the startup.
   runtime conveniences.
 - A **data migration is not reversible**; that is fine.
 - Test the migrations with a **temporary data directory**.
+- The migrations in this chapter are written in **Go**. They can also be
+  written in **JavaScript**, which has the advantage of running
+  unchanged on a PocketBase server — see
+  [Chapter 26](ch26-javascript-extensions.md).
 
 ## 13.15 Further reading
 

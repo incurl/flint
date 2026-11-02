@@ -24,6 +24,7 @@ confidently.
 | A Go developer who has never embedded a DB    | Chapter 10             |
 | **Ready to build your own application**      | **Part IV**            |
 | **Looking for something to build**           | **Chapter 25**         |
+| **Want to run hooks on a PocketBase server**  | **Chapter 26**         |
 
 ## How to read it
 
@@ -128,6 +129,10 @@ make run        # start the TUI
 23. [Advanced Patterns](ch23-advanced-patterns.md)
 24. [Domain Patterns](ch24-domain-patterns.md)
 25. [Creative Ideas and Geek Playgrounds](ch25-creative-ideas.md)
+
+### Part V — The JavaScript Extension
+
+26. [The JavaScript Extension](ch26-javascript-extensions.md)
 
 ### Appendices
 
