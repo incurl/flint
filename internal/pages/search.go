@@ -272,6 +272,8 @@ func (p *SearchPage) Search() tea.Cmd {
 			return SearchResultMsg{Err: err}
 		}
 
+		components.Preload(p.renderer, result.Records)
+
 		return SearchResultMsg{Result: result}
 	}
 }

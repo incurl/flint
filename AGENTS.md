@@ -162,6 +162,11 @@ Three rules catch most mistakes:
 
 ## 5. Things that will trip you up
 
+- **A script renderer must never run in `View()`.** The record renderer
+  is called while a frame is drawn, so a JavaScript renderer precomputes
+  its output in a command ([components.Preload]) and the render methods
+  only read the cache. A renderer that evaluated the script in `View()`
+  would block the loop for as long as the script takes.
 - **The JavaScriptVM plugin is off by default.** `--javascript` (or
   `embedded.javascript`) registers it in `cmd/tui/main.go`, **before**
   `pbstore.OpenEmbedded`: the store bootstraps the app and runs the

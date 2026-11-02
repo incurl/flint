@@ -312,6 +312,10 @@ func (p *RecordsPage) Load() tea.Cmd {
 			return RecordsMsg{Err: err, Page: page}
 		}
 
+		// The script renderer computes its display data here, off the
+		// render loop, rather than while a frame is drawn.
+		components.Preload(p.renderer, result.Records)
+
 		return RecordsMsg{Result: result, Page: page}
 	}
 }

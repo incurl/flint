@@ -56,6 +56,17 @@ type Config struct {
 	//
 	// A value of 0 uses the default.
 	MaxLocalRecords int `toml:"max_local_records"`
+	// JSRenderer enables the JavaScript record renderer.
+	//
+	// The renderer overrides how a record is displayed. It is local to
+	// the application: unlike the PocketBase hooks, it does not run on
+	// a server.
+	JSRenderer bool `toml:"js_renderer"`
+	// RendererDir is the directory holding the renderer script.
+	//
+	// It defaults to a "flint_hooks" directory next to the data
+	// directory.
+	RendererDir string `toml:"renderer_dir"`
 
 	// Embedded holds the embedded store settings.
 	Embedded EmbeddedConfig `toml:"embedded"`
@@ -210,6 +221,11 @@ func (c *Config) SettingsRows() [][2]string {
 		{"per_page", fmt.Sprintf("%d", c.PerPage)},
 		{"log_level", c.LogLevel},
 		{"max_local_records", fmt.Sprintf("%d", c.MaxLocalRecords)},
+		{"js_renderer", fmt.Sprintf("%t", c.JSRenderer)},
+	}
+
+	if c.JSRenderer {
+		rows = append(rows, [2]string{"renderer_dir", c.RendererDirPath()})
 	}
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
@@ -261,6 +277,19 @@ func (c *Config) MigrationsDir() string {
 	}
 
 	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "pb_migrations")
+}
+
+// RendererDirPath returns the directory holding the renderer script.
+//
+// It defaults to a "flint_hooks" directory next to the data directory,
+// which keeps the script beside the data rather than in the working
+// directory.
+func (c *Config) RendererDirPath() string {
+	if c.RendererDir != "" {
+		return c.RendererDir
+	}
+
+	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "flint_hooks")
 }
 
 // RemoteTimeout returns the configured remote timeout.
@@ -355,6 +384,14 @@ func applyEnv(cfg *Config) {
 		cfg.Embedded.JavaScript = v == "1" || strings.EqualFold(v, "true")
 	}
 
+	if v := os.Getenv(EnvPrefix + "JS_RENDERER"); v != "" {
+		cfg.JSRenderer = v == "1" || strings.EqualFold(v, "true")
+	}
+
+	if v := os.Getenv(EnvPrefix + "RENDERER_DIR"); v != "" {
+		cfg.RendererDir = v
+	}
+
 	if v := os.Getenv(EnvPrefix + "ENCRYPTION_ENV"); v != "" {
 		cfg.Embedded.EncryptionEnv = v
 	}
@@ -432,6 +469,14 @@ func applyFlags(cfg *Config, flags Flags) {
 
 	if flags.JavaScript {
 		cfg.Embedded.JavaScript = true
+	}
+
+	if flags.JSRenderer {
+		cfg.JSRenderer = true
+	}
+
+	if flags.RendererDir != "" {
+		cfg.RendererDir = flags.RendererDir
 	}
 
 	if flags.DataDir != "" {

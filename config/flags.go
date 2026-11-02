@@ -36,6 +36,10 @@ type Flags struct {
 	MigrationsDir string
 	// JavaScript enables the PocketBase JavaScriptVM plugin.
 	JavaScript bool
+	// JSRenderer enables the JavaScript record renderer.
+	JSRenderer bool
+	// RendererDir overrides the renderer script directory.
+	RendererDir string
 	// RemoteURL overrides the remote PocketBase server URL.
 	RemoteURL string
 	// RemoteToken overrides the remote API token.
@@ -81,6 +85,8 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.StringVar(&flags.HooksDir, "hooks-dir", "", "directory of the JavaScript application hooks")
 	fs.StringVar(&flags.MigrationsDir, "migrations-dir", "", "directory of the JavaScript migrations")
 	fs.BoolVar(&flags.JavaScript, "javascript", false, "enable the PocketBase JavaScriptVM plugin")
+	fs.BoolVar(&flags.JSRenderer, "js-renderer", false, "enable the JavaScript record renderer")
+	fs.StringVar(&flags.RendererDir, "renderer-dir", "", "directory of the JavaScript record renderer")
 	fs.StringVar(&flags.RemoteURL, "remote-url", "", "base URL of the remote PocketBase server")
 	fs.StringVar(&flags.RemoteToken, "remote-token", "", "API token of the remote PocketBase server (prefer FLINT_REMOTE_TOKEN)")
 	fs.StringVar(&remoteList, "remote-collections", "", "comma separated allowlist of the remote collections")

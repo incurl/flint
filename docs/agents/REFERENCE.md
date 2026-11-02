@@ -438,6 +438,80 @@ type DefaultRecordRenderer struct {
 search results at once. Implement it to change how records look
 everywhere.
 
+### The JavaScript renderer
+
+A script can **override** the Go renderer without recompiling:
+
+```go
+// The script is loaded from the directory, then validated.
+script, err := components.LoadScript(cfg.RendererDirPath())
+
+renderer := components.NewCachedRenderer(script, nil)
+if err := renderer.Validate(); err != nil {
+	return err   // a broken script fails at startup
+}
+```
+
+The script defines one function:
+
+```js
+function flintRender(record) {
+    return {
+        title:   record.label || record.id,
+        summary: record.description || "",
+        fields:  [{ name: "Key", value: String(record.key) }],
+    }
+}
+```
+
+`record` carries the record fields plus `id`, `collectionId`,
+`collectionName`, `created` and `updated`.
+
+**`CachedRenderer.Title/Summary/Fields` never evaluate the script.**
+They read a cache, because they are called from `View()`. The script
+runs only in `Preload`, which the pages call from the commands that
+fetch the records:
+
+```go
+components.Preload(p.renderer, result.Records)
+```
+
+A record that is not cached falls back to the Go renderer, which means
+the first frame of a new record shows the Go rendering and the next
+frame shows the script rendering.
+
+```go
+// The preload hook.
+type Preloader interface {
+	RecordRenderer
+	Preload(records []*pbstore.Record) int
+}
+
+func Preload(renderer RecordRenderer, records []*pbstore.Record) int
+
+// The cached renderer.
+func NewCachedRenderer(script string, fallback RecordRenderer) *CachedRenderer
+func (r *CachedRenderer) Validate() error
+func (r *CachedRenderer) Invalidate(id string)
+func (r *CachedRenderer) InvalidateAll()
+func (r *CachedRenderer) Len() int
+
+// The script files.
+const ScriptExtension = ".pb.js"
+func LoadScript(dir string) (string, error)
+
+// The per-evaluation bound.
+const ScriptTimeout = 2 * time.Second
+```
+
+Configure it with `--js-renderer`, `FLINT_JS_RENDERER=1` or
+`js_renderer = true`, and the directory with `--renderer-dir`,
+`FLINT_RENDERER_DIR` or `renderer_dir`. The default directory is a
+`flint_hooks` directory next to the data directory.
+
+⚠️ **The script runs in its own goja runtime, not the PocketBase one.**
+It has no `$app` binding: it cannot read or write the database.
+
 ### Widgets
 
 ```go

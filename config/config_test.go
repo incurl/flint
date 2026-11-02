@@ -341,3 +341,58 @@ func TestJavaScriptEnv(t *testing.T) {
 		t.Error("Embedded.JavaScript = false, want true")
 	}
 }
+
+// TestJSRendererDefaults verifies the JavaScript renderer defaults.
+func TestJSRendererDefaults(t *testing.T) {
+	cfg, err := config.Load("", config.Flags{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if cfg.JSRenderer {
+		t.Error("JSRenderer = true, want false by default")
+	}
+
+	// The directory sits next to the data directory.
+	want := filepath.Join(filepath.Dir(cfg.Embedded.DataDir), "flint_hooks")
+	if got := cfg.RendererDirPath(); got != want {
+		t.Errorf("RendererDirPath() = %q, want %q", got, want)
+	}
+}
+
+// TestJSRendererOverrides verifies the flag, the env var and the
+// explicit directory.
+func TestJSRendererOverrides(t *testing.T) {
+	t.Run("flag", func(t *testing.T) {
+		cfg, err := config.Load("", config.Flags{JSRenderer: true, RendererDir: "/custom"})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if !cfg.JSRenderer {
+			t.Error("JSRenderer = false, want true")
+		}
+
+		if got := cfg.RendererDirPath(); got != "/custom" {
+			t.Errorf("RendererDirPath() = %q, want /custom", got)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("FLINT_JS_RENDERER", "1")
+		t.Setenv("FLINT_RENDERER_DIR", "/from-env")
+
+		cfg, err := config.Load("", config.Flags{})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if !cfg.JSRenderer {
+			t.Error("JSRenderer = false, want true")
+		}
+
+		if got := cfg.RendererDirPath(); got != "/from-env" {
+			t.Errorf("RendererDirPath() = %q, want /from-env", got)
+		}
+	})
+}

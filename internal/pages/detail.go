@@ -189,6 +189,8 @@ func (p *DetailPage) Load() tea.Cmd {
 			return DetailMsg{Err: err}
 		}
 
+		components.Preload(p.renderer, []*pbstore.Record{rec})
+
 		return DetailMsg{Record: rec}
 	}
 }

@@ -18,6 +18,7 @@ import (
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/app"
+	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
 )
 
@@ -90,7 +91,12 @@ func run() error {
 		return nil
 	}
 
-	model := app.New(store, cfg, nil)
+	renderer, err := newRenderer(cfg)
+	if err != nil {
+		return err
+	}
+
+	model := app.New(store, cfg, renderer)
 
 	// In Bubble Tea v2 the alternate screen and the mouse mode are
 	// properties of the rendered view, not of the program: the root
@@ -169,6 +175,39 @@ func newBackendStore(cfg *config.Config) (pbstore.Store, error) {
 	default:
 		return nil, fmt.Errorf("unsupported mode %q", cfg.Mode)
 	}
+}
+
+// newRenderer builds the record renderer from the configuration.
+//
+// It returns nil when the JavaScript renderer is disabled or when there
+// is no script: the application then uses its default renderer.
+//
+// A script that does not compile is an error at startup rather than a
+// silent fallback on every record: a typo in the renderer must be
+// reported once, not hidden.
+func newRenderer(cfg *config.Config) (components.RecordRenderer, error) {
+	if !cfg.JSRenderer {
+		return nil, nil
+	}
+
+	script, err := components.LoadScript(cfg.RendererDirPath())
+	if err != nil {
+		return nil, err
+	}
+
+	if script == "" {
+		// The directory holds no script: the JavaScript renderer was
+		// asked for but there is nothing to run.
+		return nil, nil
+	}
+
+	renderer := components.NewCachedRenderer(script, nil)
+
+	if err := renderer.Validate(); err != nil {
+		return nil, fmt.Errorf("the renderer script %q: %w", cfg.RendererDirPath(), err)
+	}
+
+	return renderer, nil
 }
 
 // registerJavaScript registers the PocketBase JavaScriptVM plugin.
