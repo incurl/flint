@@ -251,7 +251,7 @@ unknown field.
 If you need to query inside a JSON field, the practical options are:
 
 1. **Materialise the value into a schema field** (the `label_en`
-   column from Chapter 24) — the fastest and the most reliable;
+   column from Chapter 25) — the fastest and the most reliable;
 2. **Use the `SimpleFieldResolver`** with an explicit field list, and
    accept that you lose the relation resolution;
 3. **Add a computed field** to the collection that extracts the value.

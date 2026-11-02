@@ -363,7 +363,7 @@ will do the work, and it can use an index.
 rt.Set("remote:"+id, record)
 ```
 
-Use a collection and the sync mechanism (Chapter 17). That gives you
+Use a collection and the sync mechanism (Chapter 18). That gives you
 persistence, an incremental sync, and a merge strategy.
 
 ### As a schema

@@ -23,26 +23,26 @@ confidently.
 | Comfortable with PocketBase as a server      | Part II, Chapter 11    |
 | A Go developer who has never embedded a DB    | Chapter 10             |
 | **Ready to build your own application**      | **Part IV**            |
-| **Looking for something to build**           | **Chapter 25**         |
-| **Want to run hooks on a PocketBase server**  | **Chapter 26**         |
+| **Looking for something to build**           | **Chapter 26**         |
+| **Want to run hooks on a PocketBase server**  | **Chapter 15**         |
 
 ## How to read it
 
 The book is **linear** but each chapter stands alone. If you already know
 Bubble Tea, skim Part I and start at Part II. If you already know
-PocketBase, read Chapters 1–7 and 16–20.
+PocketBase, read Chapters 1–7 and 17–21.
 
 **Part IV is the "now what?" part.** It is for the moment when you have
 read the rest and want to build *your* application:
 
-- **Chapter 21** catalogues the extension points, with their costs.
-- **Chapter 22** is the pattern library — the recurring problems and
+- **Chapter 22** catalogues the extension points, with their costs.
+- **Chapter 23** is the pattern library — the recurring problems and
   their solutions.
-- **Chapter 23** covers the advanced patterns: background workers,
+- **Chapter 24** covers the advanced patterns: background workers,
   modals, command palettes, undo, virtualised lists, imports.
-- **Chapter 24** is about the *data*: the four domain shapes and how to
+- **Chapter 25** is about the *data*: the four domain shapes and how to
   model them.
-- **Chapter 25** is the playground: twenty-odd ideas you could build on
+- **Chapter 26** is the playground: twenty-odd ideas you could build on
   top of the template, from a diff viewer to a graph explorer.
 
 Every chapter ends with:
@@ -112,27 +112,24 @@ make run        # start the TUI
 12. [Hooks, Validation, and the Record Life Cycle](ch12-hooks-and-validation.md)
 13. [Migrations](ch13-migrations.md)
 14. [Embedded or Server: One Library, Two Deployments](ch14-embedded-vs-server.md)
+15. [The JavaScript Extension](ch15-javascript-extensions.md)
 
 ### Part III — Putting Them Together
 
-15. [Architecture for TUI + Database Applications](ch15-architecture.md)
-16. [The pbstore Pattern: One Interface, Two Backends](ch16-pbstore-pattern.md)
-17. [Sync, Caching, and the Offline-First Problem](ch17-sync-and-caching.md)
-18. [Testing Terminal Applications](ch18-testing.md)
-19. [Performance](ch19-performance.md)
-20. [Shipping: Configuration, Shutdown, Packaging](ch20-shipping.md)
+16. [Architecture for TUI + Database Applications](ch16-architecture.md)
+17. [The pbstore Pattern: One Interface, Two Backends](ch17-pbstore-pattern.md)
+18. [Sync, Caching, and the Offline-First Problem](ch18-sync-and-caching.md)
+19. [Testing Terminal Applications](ch19-testing.md)
+20. [Performance](ch20-performance.md)
+21. [Shipping: Configuration, Shutdown, Packaging](ch21-shipping.md)
 
 ### Part IV — Extending the Template
 
-21. [Extension Points: A Catalogue](ch21-extension-points.md)
-22. [Patterns and Practices](ch22-patterns-and-practices.md)
-23. [Advanced Patterns](ch23-advanced-patterns.md)
-24. [Domain Patterns](ch24-domain-patterns.md)
-25. [Creative Ideas and Geek Playgrounds](ch25-creative-ideas.md)
-
-### Part V — The JavaScript Extension
-
-26. [The JavaScript Extension](ch26-javascript-extensions.md)
+22. [Extension Points: A Catalogue](ch22-extension-points.md)
+23. [Patterns and Practices](ch23-patterns-and-practices.md)
+24. [Advanced Patterns](ch24-advanced-patterns.md)
+25. [Domain Patterns](ch25-domain-patterns.md)
+26. [Creative Ideas and Geek Playgrounds](ch26-creative-ideas.md)
 
 ### Appendices
 

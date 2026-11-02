@@ -414,7 +414,7 @@ This gives you:
 - **fast queries** (no network hop for the common case);
 - **explicit refresh** (the user triggers the sync).
 
-The sync is the subject of Chapter 17.
+The sync is the subject of Chapter 18.
 
 ## 14.10 Choosing
 
@@ -605,4 +605,4 @@ would go unnoticed if the mock server ignores the query.
 - `config/config.go` — the mode resolution.
 - `cmd/tui/main.go` — `openStore`.
 
-Next: [Chapter 15 — Architecture for TUI + Database Applications](ch15-architecture.md).
+Next: [Chapter 15 — The JavaScript Extension](ch15-javascript-extensions.md).

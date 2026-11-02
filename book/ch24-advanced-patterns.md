@@ -1,6 +1,6 @@
-# Chapter 23 — Advanced Patterns
+# Chapter 24 — Advanced Patterns
 
-The patterns in Chapter 22 cover the common cases. This chapter covers
+The patterns in Chapter 23 cover the common cases. This chapter covers
 the ones you hit when the application grows past a single-screen
 browser.
 
@@ -955,4 +955,4 @@ schema so that one record holds the aggregate.
 - `bubbles/list` — the filtering that powers the command palette.
 - `core/base.go` — `RunInTransaction`.
 
-Next: [Chapter 24 — Domain Patterns](ch24-domain-patterns.md).
+Next: [Chapter 25 — Domain Patterns](ch25-domain-patterns.md).

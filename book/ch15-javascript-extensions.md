@@ -1,4 +1,4 @@
-# Chapter 26 — The JavaScript Extension
+# Chapter 15 — The JavaScript Extension
 
 The PocketBase **JSVM** plugin lets you write hooks and migrations in
 JavaScript instead of Go. This chapter answers a narrow question: *is it
@@ -13,7 +13,7 @@ Go 1.27.
 
 ---
 
-## 26.1 What the JSVM actually is
+## 15.1 What the JSVM actually is
 
 Since PocketBase v0.23 the JavaScript support is no longer built into
 the main binary. It lives in a **plugin**:
@@ -44,15 +44,15 @@ The default locations are relative to the data directory:
 
 ---
 
-## 26.2 The verdict
+## 15.2 The verdict
 
 | Question                              | Answer                                    |
 | ------------------------------------- | ----------------------------------------- |
 | Does it still exist?                  | Yes — `plugins/jsvm`, still maintained.   |
 | Does it work with the embedded store? | **Yes** — verified below.                  |
-| Does it work with the remote store?   | **No** — see §26.7.                       |
+| Does it work with the remote store?   | **No** — see §15.7.                       |
 | What does it cost?                    | +10.8 MB of binary, ~2 ms of startup.     |
-| What does it add to `go.mod`?         | **Nothing** — see §26.5.                  |
+| What does it add to `go.mod`?         | **Nothing** — see §15.5.                  |
 
 > **The template wires it up, but it is off by default.** The
 > application registers the plugin when `embedded.javascript` is true:
@@ -71,7 +71,7 @@ reading.
 
 ---
 
-## 26.3 The proof
+## 15.3 The proof
 
 Here is a complete, working example. Both halves are exercised: a JS
 migration creates a collection, and a JS hook normalises a field.
@@ -163,7 +163,7 @@ The record was created with `"  spaced  "` and the hook trimmed it to
 
 ---
 
-## 26.4 The API that actually works
+## 15.4 The API that actually works
 
 The JS API is not the one the PocketBase documentation shows, because
 the documentation describes the *server* API. The names come from the
@@ -237,7 +237,7 @@ goes through it and is committed together, or rolled back as a whole.
 
 ---
 
-## 26.5 The cost
+## 15.5 The cost
 
 ### The dependency cost: none
 
@@ -296,7 +296,7 @@ jsvm.Config{
 
 ---
 
-## 26.6 The ordering constraint
+## 15.6 The ordering constraint
 
 This is the part that will bite you.
 
@@ -342,7 +342,7 @@ pb_migrations/
 
 ---
 
-## 26.7 The remote backend cannot carry hooks
+## 15.7 The remote backend cannot carry hooks
 
 This is the caveat, and it is not a small one.
 
@@ -400,7 +400,7 @@ later, the hooks you write in Flint will have to move to the server.
 
 ---
 
-## 26.8 When to use JavaScript at all
+## 15.8 When to use JavaScript at all
 
 The honest comparison is not "JS versus Go". It is:
 
@@ -440,7 +440,7 @@ The honest comparison is not "JS versus Go". It is:
 
 ---
 
-## 26.9 The failure modes
+## 15.9 The failure modes
 
 The JSVM fails **loudly**, which is its main operational virtue.
 
@@ -489,7 +489,7 @@ production the app should be restarted by its supervisor.
 
 ---
 
-## 26.10 Testing the JavaScript extensions
+## 15.10 Testing the JavaScript extensions
 
 A JS hook is a test artefact like any other. The test creates the hook
 files in a temporary directory, registers the plugin, and asserts the
@@ -584,7 +584,7 @@ pbstore: resolve collection "jsitems": sql: no rows in result set
 
 ---
 
-## 26.11 The procedure, step by step
+## 15.11 The procedure, step by step
 
 If you have decided to use the JavaScript extensions, this is the
 procedure.
@@ -685,7 +685,7 @@ Name the file with a sortable prefix: `20240102_my_change.js`.
 ### 6. Test it
 
 Write a test that creates the files in a temporary directory, as in
-§26.10. Do not test the JavaScript by hand — the failure modes are
+§15.10. Do not test the JavaScript by hand — the failure modes are
 silent.
 
 ### 7. Verify the migration runs
@@ -733,7 +733,7 @@ completions.
 
 ---
 
-## 26.12 The recommendation
+## 15.12 The recommendation
 
 **Keep the Go hooks and migrations as the default.** They are typed,
 they are tested by the Go toolchain, and they cost nothing.
@@ -753,7 +753,7 @@ afternoon if nobody told you:
 
 ---
 
-## 26.13 What you learned
+## 15.13 What you learned
 
 - The JSVM is a **plugin** (`plugins/jsvm`), not a built-in feature.
   It survived the move out of the PocketBase binary because it is a
@@ -779,7 +779,7 @@ afternoon if nobody told you:
 
 ---
 
-## 26.14 Exercises
+## 15.14 Exercises
 
 1. **Measure the cost yourself.** Build the app with and without the
    plugin and compare the binary sizes. Then confirm that `go.mod` is
@@ -789,7 +789,7 @@ afternoon if nobody told you:
    start the app. Read the panic message. Then fix it.
 
 3. **Write the wrong event field.** Use `e.record` in an
-   `onModelValidate` hook and read the error. Find the table in §26.4
+   `onModelValidate` hook and read the error. Find the table in §15.4
    that tells you which field each hook carries.
 
 4. **Prove the ordering matters.** Register the plugin *after*
@@ -806,7 +806,7 @@ afternoon if nobody told you:
 
 ---
 
-## 26.15 Further reading
+## 15.15 Further reading
 
 | What                              | Where                                                     |
 | --------------------------------- | --------------------------------------------------------- |
@@ -815,3 +815,5 @@ afternoon if nobody told you:
 | The JS API reference              | <https://pocketbase.io/docs/js-sdk/>                       |
 | The goja runtime                   | <https://github.com/dop251/goja>                           |
 | The app migrations registry       | `core.AppMigrations` in the PocketBase module              |
+
+Next: [Chapter 16 — Architecture for TUI + Database Applications](ch16-architecture.md).

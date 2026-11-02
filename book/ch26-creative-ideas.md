@@ -1,4 +1,4 @@
-# Chapter 25 — Creative Ideas and Geek Playgrounds
+# Chapter 26 — Creative Ideas and Geek Playgrounds
 
 This chapter is deliberately different. The previous chapters were
 about building things correctly. This one is about **what you could
@@ -13,7 +13,7 @@ one new package; some need a new page; none need to modify the core.
 **The idea.** A tool that shows you how a dataset *changes over time*.
 
 Every PocketBase record has an `updated` timestamp. If you keep the
-history (the `term_history` collection from Chapter 24), you can
+history (the `term_history` collection from Chapter 25), you can
 render a diff between any two points in time.
 
 ```
@@ -98,13 +98,13 @@ unchanged. It reads instantly.
 
 **The extension.** A page that diffs the *remote* copy against the
 *local* copy — so you can see what the sync is about to do before you
-do it. That is the "preview" mode from Chapter 23.
+do it. That is the "preview" mode from Chapter 24.
 
 ## 25.3 The graph explorer
 
 **The idea.** A TUI for exploring a knowledge graph.
 
-The knowledge graph shape from Chapter 24 gives you the edges. Now
+The knowledge graph shape from Chapter 25 gives you the edges. Now
 render them.
 
 ```
@@ -301,7 +301,7 @@ func (p *SchemaPage) View() tea.View {
 ```
 
 ⚠️ **This needs a `FindCollection` on the `Store` interface** — or an
-optional interface, as in Chapter 21:
+optional interface, as in Chapter 22:
 
 ```go
 // SchemaInspector is an optional interface for the stores that can
@@ -401,7 +401,7 @@ embedded app directly.
 
 **The idea.** Let the user define *how* a record is rendered.
 
-The renderer interface (Chapter 21) is a Go interface. But a user
+The renderer interface (Chapter 22) is a Go interface. But a user
 might want to change the layout without recompiling. A tiny template
 language does it:
 
@@ -767,7 +767,7 @@ the whole edit session. With the per-cell writes, a half-finished edit
 leaves the data half-updated.
 
 ⚠️ **For a real spreadsheet, you need a batch update.** Add it as an
-optional interface (Chapter 23, §23.13):
+optional interface (Chapter 24, §23.13):
 
 ```go
 type BulkStore interface {

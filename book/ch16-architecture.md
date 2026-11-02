@@ -1,4 +1,4 @@
-# Chapter 15 — Architecture for TUI + Database Applications
+# Chapter 16 — Architecture for TUI + Database Applications
 
 ## 15.1 The shape of the problem
 
@@ -681,4 +681,4 @@ store.
 - `internal/pages/common.go` — the cross-layer messages.
 - `internal/pbstore/store.go` — the contract.
 
-Next: [Chapter 16 — The pbstore Pattern: One Interface, Two Backends](ch16-pbstore-pattern.md).
+Next: [Chapter 17 — The pbstore Pattern: One Interface, Two Backends](ch17-pbstore-pattern.md).

@@ -1,6 +1,6 @@
-# Chapter 24 — Domain Patterns
+# Chapter 25 — Domain Patterns
 
-Chapter 15 explained the *architecture*. This chapter explains the
+Chapter 16 explained the *architecture*. This chapter explains the
 *data modelling* decisions that the architecture enables, using the
 four domains the template targets.
 
@@ -697,4 +697,4 @@ The TUI is a *client* of the domain, not the other way around.
 - `internal/pbstore/embedded.go` — the sync and the dictionary.
 - Chapter 10 — the filter grammar, for the query patterns above.
 
-Next: [Chapter 25 — Creative Ideas and Geek Playgrounds](ch25-creative-ideas.md).
+Next: [Chapter 26 — Creative Ideas and Geek Playgrounds](ch26-creative-ideas.md).

@@ -1,4 +1,4 @@
-# Chapter 17 — Sync, Caching, and the Offline-First Problem
+# Chapter 18 — Sync, Caching, and the Offline-First Problem
 
 ## 17.1 The scenario
 
@@ -958,4 +958,4 @@ exercised the real code path.
   handler.
 - `internal/pbstore/embedded_test.go` — the sync test.
 
-Next: [Chapter 18 — Testing Terminal Applications](ch18-testing.md).
+Next: [Chapter 19 — Testing Terminal Applications](ch19-testing.md).

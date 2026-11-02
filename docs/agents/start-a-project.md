@@ -151,7 +151,7 @@ Update:
 
 ## Step 9 — the book
 
-The `book/` directory is a 25-chapter guide to the architecture. It is
+The `book/` directory is a 26-chapter guide to the architecture. It is
 excellent onboarding material for a new maintainer, and it stays
 accurate because it is checked against the code.
 

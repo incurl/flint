@@ -1,4 +1,4 @@
-# Chapter 21 — Extension Points: A Catalogue
+# Chapter 22 — Extension Points: A Catalogue
 
 ## 21.1 What an extension point is
 
@@ -937,4 +937,4 @@ func TestRenderer(t *testing.T) {
 - `examples/wikidata/` — a complete worked extension.
 - `internal/pbstore/store.go` — the `Store` contract.
 
-Next: [Chapter 22 — Patterns and Practices](ch22-patterns-and-practices.md).
+Next: [Chapter 23 — Patterns and Practices](ch23-patterns-and-practices.md).

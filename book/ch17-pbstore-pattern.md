@@ -1,4 +1,4 @@
-# Chapter 16 — The `pbstore` Pattern: One Interface, Two Backends
+# Chapter 17 — The `pbstore` Pattern: One Interface, Two Backends
 
 ## 16.1 The problem
 
@@ -689,4 +689,4 @@ depends on". Treat additions carefully.
 - `internal/pbstore/remote.go` — the remote implementation.
 - `internal/pbstore/embedded_test.go` and `remote_test.go` — the tests.
 
-Next: [Chapter 17 — Sync, Caching, and the Offline-First Problem](ch17-sync-and-caching.md).
+Next: [Chapter 18 — Sync, Caching, and the Offline-First Problem](ch18-sync-and-caching.md).

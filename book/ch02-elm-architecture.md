@@ -277,7 +277,7 @@ timestamp, a user preference — it belongs in one of two places:
 - a **PocketBase collection** (for data), or
 - a **config file** (for preferences).
 
-Chapter 17 covers the sync-timestamp case, which is the interesting one.
+Chapter 18 covers the sync-timestamp case, which is the interesting one.
 
 ## 2.5 Composing pages
 

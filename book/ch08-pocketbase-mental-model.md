@@ -624,7 +624,7 @@ This is the template's design, and it is the most flexible option:
 ```
 
 The `pbstore.Store` interface makes all three look the same to the
-application code (Chapter 16).
+application code (Chapter 17).
 
 ## 8.14 Exercises
 

@@ -1,4 +1,4 @@
-# Chapter 22 — Patterns and Practices
+# Chapter 23 — Patterns and Practices
 
 This chapter is the "what I wish I had known" chapter. Each pattern
 describes a recurring problem, the naive solution, the better one, and
@@ -628,4 +628,4 @@ Before you commit a change, run through this:
 - `internal/components/jsonviewer.go` — the path-based tree key.
 - `internal/pbstore/embedded.go` — the wrapped errors and the contexts.
 
-Next: [Chapter 23 — Advanced Patterns](ch23-advanced-patterns.md).
+Next: [Chapter 24 — Advanced Patterns](ch24-advanced-patterns.md).

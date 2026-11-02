@@ -1,4 +1,4 @@
-# Chapter 18 — Testing Terminal Applications
+# Chapter 19 — Testing Terminal Applications
 
 ## 18.1 The testing problem
 
@@ -554,7 +554,7 @@ The second is cleaner and keeps the test in the external test package.
 
 ### Testing the sync end to end
 
-Covered in Chapter 17. The mock server returns a fixed payload, and
+Covered in Chapter 18. The mock server returns a fixed payload, and
 the test asserts on the local state afterwards.
 
 ## 18.9 Testability as a design constraint
@@ -687,4 +687,4 @@ appears in production is the worst kind of bug.
 - `internal/pbstore/remote_test.go` — the HTTP tests.
 - `internal/components/components_test.go` — the component tests.
 
-Next: [Chapter 19 — Performance](ch19-performance.md).
+Next: [Chapter 20 — Performance](ch20-performance.md).

@@ -547,7 +547,7 @@ final `m.refreshStatusBar()` call, so the status bar only updated when
 the user changed page. The symptom was a status bar that showed
 "unknown" for the connection state until you navigated somewhere.
 
-The fix was to make every path refresh it. Chapter 15 develops the
+The fix was to make every path refresh it. Chapter 16 develops the
 final structure, where the refresh is factored into a helper called
 from each branch.
 

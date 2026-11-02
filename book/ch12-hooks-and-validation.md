@@ -550,7 +550,7 @@ validation and the hooks) is the real one.
 - The hooks in this chapter are written in **Go**. They can also be
   written in **JavaScript**, which has the advantage of running
   unchanged on a PocketBase server — see
-  [Chapter 26](ch26-javascript-extensions.md).
+  [Chapter 15](ch15-javascript-extensions.md).
 
 ## 12.12 Further reading
 

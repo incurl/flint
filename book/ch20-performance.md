@@ -1,4 +1,4 @@
-# Chapter 19 — Performance
+# Chapter 20 — Performance
 
 ## 19.1 The three clocks
 
@@ -553,4 +553,4 @@ Run through this when the application feels slow:
 - `internal/pbstore/embedded.go` — the query construction.
 - `internal/pbstore/queries.go` — `QueryParams` and `SkipTotal`.
 
-Next: [Chapter 20 — Shipping: Configuration, Shutdown, Packaging](ch20-shipping.md).
+Next: [Chapter 21 — Shipping: Configuration, Shutdown, Packaging](ch21-shipping.md).

@@ -193,7 +193,7 @@ the second page's spinner never starts.
 
 The fix, used throughout the Flint template, is to give every page an
 explicit `Refresh()` that starts the spinner and loads the data, and to
-call it when the page becomes visible. Chapter 15 shows the pattern.
+call it when the page becomes visible. Chapter 16 shows the pattern.
 
 ### `Update(msg tea.Msg) (tea.Model, tea.Cmd)`
 

@@ -1,4 +1,4 @@
-# Chapter 20 — Shipping: Configuration, Shutdown, Packaging
+# Chapter 21 — Shipping: Configuration, Shutdown, Packaging
 
 ## 20.1 The shape of a shipped application
 

@@ -243,9 +243,9 @@ This repository is a template. When you start a new project from it:
 5. **Wire your renderer** into `app.New(store, cfg, renderer)`.
 6. **Set the module path** so `go get` works for your users.
 
-The `book/` directory is a 25-chapter companion guide. It is the deepest
-reference in the repository: chapters 21–25 cover the extension points in
-detail, and chapter 16 explains the `pbstore` pattern.
+The `book/` directory is a 26-chapter companion guide. It is the deepest
+reference in the repository: chapters 22–26 cover the extension points in
+detail, and chapter 17 explains the `pbstore` pattern.
 
 ---
 
@@ -257,6 +257,6 @@ detail, and chapter 16 explains the `pbstore` pattern.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)   | How the pieces fit, and what is safe to change. |
 | [`docs/PBSTORE_GUIDE.md`](docs/PBSTORE_GUIDE.md) | The data layer in depth.              |
 | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) | First run, first change.           |
-| [`book/ch21-extension-points.md`](book/ch21-extension-points.md) | The extension catalogue.   |
-| [`book/ch22-patterns-and-practices.md`](book/ch22-patterns-and-practices.md) | Idiomatic patterns.  |
+| [`book/ch22-extension-points.md`](book/ch22-extension-points.md) | The extension catalogue.   |
+| [`book/ch23-patterns-and-practices.md`](book/ch23-patterns-and-practices.md) | Idiomatic patterns.  |
 | [`book/appendix-d-troubleshooting.md`](book/appendix-d-troubleshooting.md) | Symptom → cause → fix. |
