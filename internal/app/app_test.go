@@ -57,6 +57,12 @@ func (s *stubStore) FindFirst(ctx context.Context, collection, filter string) (*
 }
 
 func (s *stubStore) Create(ctx context.Context, collection string, data map[string]any) (*pbstore.Record, error) {
+	// The preferences are stored in the collection, so the stub accepts
+	// them instead of failing like a missing collection would.
+	if collection == pbstore.PreferencesCollection {
+		return &pbstore.Record{ID: "prefs", Fields: data}, nil
+	}
+
 	return nil, pbstore.ErrNotFound
 }
 

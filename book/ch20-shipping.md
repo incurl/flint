@@ -47,6 +47,22 @@ type Config struct {
 ⚠️ **Keep the config flat and the sections few.** A configuration with
 nested sections three deep is a configuration nobody changes.
 
+⚠️ **The config file is not the place for every setting.** The config
+file holds the **deployment configuration**: where the data lives, which
+server to talk to. It cannot hold the **user preferences** — the theme,
+the UI scale, the page size — because those describe the person using
+the application, not the machine it runs on. The preferences live in the
+PocketBase store, and the template loads them at startup.
+
+The distinction is worth stating because it decides where a new setting
+goes:
+
+| State                                      | Where it lives |
+| ------------------------------------------ | -------------- |
+| Deployment configuration (mode, data dir)  | The TOML file  |
+| User preferences (theme, scale, page size) | The store      |
+| Runtime state (page, collection, filter)   | Memory only    |
+
 ### The loader
 
 ```go

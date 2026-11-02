@@ -22,7 +22,7 @@ func TestNewResolvesVariants(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := theme.New(tt.variant)
+			got := theme.New(tt.variant, theme.ScaleDefault)
 			if got.Variant != tt.want {
 				t.Errorf("New(%q).Variant = %q, want %q", tt.variant, got.Variant, tt.want)
 			}

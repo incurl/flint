@@ -116,6 +116,12 @@ type Runtime struct {
 	PageNumber int
 	// PerPage is the page size used by the record list.
 	PerPage int
+	// Compact renders the record list without the blank separator
+	// lines.
+	//
+	// It is a user preference, so it is restored from the store at
+	// startup.
+	Compact bool
 	// SelectedID is the id of the record opened in the detail page.
 	SelectedID string
 	// Connection describes the health of the backend.

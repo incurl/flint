@@ -253,13 +253,20 @@ func (p *RecordsPage) View() tea.View {
 
 	b = append(b, header)
 	b = append(b, p.filter.View())
-	b = append(b, "")
+
+	if !p.runtime.Compact {
+		b = append(b, "")
+	}
 
 	if p.loading {
 		b = append(b, p.spinner.View()+" "+p.theme.Muted.Render("loading records…"))
 	} else {
 		b = append(b, p.table.View())
-		b = append(b, "")
+
+		if !p.runtime.Compact {
+			b = append(b, "")
+		}
+
 		b = append(b, p.pagination.View().Content)
 	}
 

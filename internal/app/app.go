@@ -31,6 +31,8 @@ type Model struct {
 	theme *theme.Theme
 	// settings holds the rendered configuration rows.
 	settings [][2]string
+	// prefs holds the user preferences that survive a restart.
+	prefs pbstore.Preferences
 
 	// home is the landing page.
 	home *pages.HomePage
@@ -71,13 +73,37 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		renderer = &components.DefaultRecordRenderer{}
 	}
 
-	t := theme.New(theme.Variant(cfg.Theme))
+	// The user preferences override the deployment configuration: they
+	// describe how the application looks to the person using it.
+	prefs := pbstore.Preferences{
+		Theme:   cfg.Theme,
+		Scale:   int(theme.ScaleDefault),
+		PerPage: cfg.PerPage,
+	}
+
+	if stored, err := pbstore.LoadPreferences(context.Background(), store); err == nil {
+		if stored.Theme != "" {
+			prefs.Theme = stored.Theme
+		}
+
+		if stored.Scale > 0 {
+			prefs.Scale = stored.Scale
+		}
+
+		if stored.PerPage > 0 {
+			prefs.PerPage = stored.PerPage
+		}
+	}
+
+	t := theme.New(theme.Variant(prefs.Theme), theme.Scale(prefs.Scale))
 	runtime := state.NewRuntime()
-	runtime.PerPage = cfg.PerPage
+	runtime.PerPage = prefs.PerPage
+	runtime.Compact = prefs.Compact
 
 	m := &Model{
 		store:        store,
 		runtime:      runtime,
+		prefs:        prefs,
 		theme:        t,
 		settings:     cfg.SettingsRows(),
 		statusBar:    components.NewStatusBar(t),
@@ -89,6 +115,10 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		settingsPage: pages.NewSettingsPage(runtime, t, cfg.SettingsRows()),
 		sync:         pages.NewSyncPage(store, runtime, t),
 	}
+
+	// The settings page shows the effective values, so the stored
+	// preferences must be reflected in it from the start.
+	m.refreshSettings()
 
 	return m
 }
@@ -294,6 +324,18 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "ctrl+c", "q":
 		m.quitting = true
 		return tea.Quit, true
+
+	case "+", "=":
+		return m.zoom(theme.ScaleZoomIn), true
+
+	case "-", "_":
+		return m.zoom(theme.ScaleZoomOut), true
+
+	case "T":
+		return m.toggleTheme(), true
+
+	case "c":
+		return m.toggleCompact(), true
 
 	case "1":
 		return m.navigate(state.PageHome), true
@@ -558,11 +600,12 @@ func (m *Model) hints() []string {
 		})
 	case state.PageHome:
 		return components.FormatHints([][2]string{
-			{"enter", "open"}, {"↑↓", "move"},
+			{"enter", "open"}, {"↑↓", "move"}, {"+/-", "zoom"}, {"T", "theme"},
 		})
 	default:
 		return components.FormatHints([][2]string{
-			{"s", "status"}, {"y", "sync"}, {"q", "quit"},
+			{"s", "status"}, {"y", "sync"}, {"+/-", "zoom"}, {"T", "theme"},
+			{"c", "compact"}, {"q", "quit"},
 		})
 	}
 }

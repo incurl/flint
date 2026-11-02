@@ -511,8 +511,40 @@ one cannot express, or a sync that is not record-oriented.
 ### The interface
 
 ```go
-func New(variant Variant) *Theme
+func New(variant Variant, scale Scale) *Theme
+func (t *Theme) Apply(variant Variant, scale Scale)
 ```
+
+### The theme is mutated in place
+
+Every page holds the **same** `*theme.Theme` pointer and reads the styles
+when it renders. That is what makes a runtime change possible:
+
+```go
+m.theme.Apply(theme.VariantLight, theme.Scale(120))
+```
+
+Every page picks the change up on the next frame, without being
+rebuilt. **Never replace the pointer** — the pages would keep the old
+theme and nothing would change on screen.
+
+### The scale
+
+The `Scale` is a percentage between 50 and 200. It multiplies the sizes
+the theme controls: the padding of the panels and the status bar. The
+colours are not affected.
+
+```go
+const (
+    ScaleMin     Scale = 50
+    ScaleMax     Scale = 200
+    ScaleDefault Scale = 100
+    ScaleStep    Scale = 10
+)
+```
+
+The `+` and `-` hotkeys change it by one step, and the value is
+persisted with the other user preferences.
 
 ### Adding a variant
 
@@ -543,8 +575,11 @@ func SolarizedPalette() Palette {
 }
 ```
 
+The styles are built in `Apply`, so a new variant only needs a palette
+and a case in the switch:
+
 ```go
-func New(variant Variant) *Theme {
+func (t *Theme) Apply(variant Variant, scale Scale) {
     if !variant.Valid() {
         variant = VariantDark
     }
@@ -556,7 +591,10 @@ func New(variant Variant) *Theme {
     case VariantSolarized:
         palette = SolarizedPalette()
     }
-    // ...
+
+    t.Variant = variant
+    t.Palette = palette
+    // ... the styles
 }
 ```
 

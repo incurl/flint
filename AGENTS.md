@@ -53,7 +53,7 @@ message instead. See skill `add-a-page.md`.
 
 ```
 keypress → app.Model.Update
-              ├─ global key layer (ctrl+c, q, 1-6 digits)
+              ├─ global key layer (ctrl+c, q, 1-6 digits, +/- zoom, T theme, c compact)
               └─ updateActivePage(msg) → the active page's Update
                                             ├─ may return a tea.Cmd
                                             └─ the cmd runs off the render loop
@@ -162,6 +162,15 @@ Three rules catch most mistakes:
 
 ## 5. Things that will trip you up
 
+- **The theme is shared by pointer and mutated in place.** Every page
+  holds the same `*theme.Theme` and reads the styles when it renders, so
+  a runtime change is one call: `m.theme.Apply(variant, scale)`. Never
+  swap the pointer — the pages would keep the old one.
+- **The UI scale is a percentage between 50 and 200.** `+`/`-` change it
+  by 10, `T` switches the palette, `c` toggles the compact rows. All
+  are persisted in the embedded store (the `_flint_preferences`
+  collection) and restored at startup. The remote backend cannot hold
+  them.
 - **`tea.ErrInterrupted`, not a custom sentinel.** On `ctrl+c`,
   `Program.Run` returns `tea.ErrInterrupted`. If you invent your own
   `errInterrupted`, the check never matches and the program exits with

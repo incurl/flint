@@ -47,6 +47,12 @@ func NewSettingsPage(runtime *state.Runtime, t *theme.Theme, settings [][2]strin
 	}
 }
 
+// SetRows replaces the displayed rows.
+//
+// The root model calls it when a value it displays changes, such as the
+// UI scale after a zoom.
+func (p *SettingsPage) SetRows(rows [][2]string) { p.settings = rows }
+
 // Init implements [tea.Model].
 func (p *SettingsPage) Init() tea.Cmd { return nil }
 

@@ -105,6 +105,8 @@ func LightPalette() Palette {
 type Theme struct {
 	// Variant identifies the palette in use.
 	Variant Variant
+	// Scale is the UI scale factor.
+	Scale Scale
 	// Palette holds the raw colours.
 	Palette Palette
 
@@ -164,94 +166,133 @@ type Theme struct {
 //
 // An unknown variant falls back to [VariantDark] so that a typo in the
 // configuration never crashes the application.
-func New(variant Variant) *Theme {
+// New creates a theme with the provided variant and scale.
+//
+// The scale defaults to [ScaleDefault] when it is out of the accepted
+// range.
+func New(variant Variant, scale Scale) *Theme {
 	if !variant.Valid() {
 		variant = VariantDark
 	}
+
+	t := &Theme{}
+	t.Apply(variant, scale)
+
+	return t
+}
+
+// Default returns the default theme.
+func Default() *Theme { return New(VariantDark, ScaleDefault) }
+
+// Apply rebuilds the theme in place with the provided variant and scale.
+//
+// The styles are replaced in place rather than returning a new theme, so
+// that every component holding a pointer to the theme sees the change
+// immediately. This is what makes a runtime theme switch possible: the
+// pages read the styles when they render, not when they are created.
+//
+// The scale is clamped to the accepted range.
+func (t *Theme) Apply(variant Variant, scale Scale) {
+	if t == nil {
+		return
+	}
+
+	if !variant.Valid() {
+		variant = VariantDark
+	}
+
+	scale = scale.Clamp()
 
 	palette := DarkPalette()
 	if variant == VariantLight {
 		palette = LightPalette()
 	}
 
-	return &Theme{
-		Variant: variant,
-		Palette: palette,
+	t.Variant = variant
+	t.Palette = palette
+	t.Scale = scale
 
-		Base: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Foreground)),
-		Muted: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Muted)),
-		Title: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(palette.Primary)),
-		Subtitle: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(palette.Secondary)),
-		Accent: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Accent)),
-		Success: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Success)),
-		Warning: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Warning)),
-		Error: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Error)),
-		Selected: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.SelectionText)).
-			Background(lipgloss.Color(palette.Selection)),
-		Normal: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Foreground)),
-		Help: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Muted)),
-		StatusBar: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Foreground)).
-			Background(lipgloss.Color(palette.Background)).
-			Padding(0, 1),
-		StatusMode: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(palette.Primary)),
-		Panel: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(palette.Border)).
-			Padding(0, 1),
-		PanelFocused: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(palette.BorderFocus)).
-			Padding(0, 1),
-		Label: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(palette.Muted)),
-		Value: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Foreground)),
-		Toast: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(palette.Border)).
-			Padding(0, 1),
-		TableHeader: lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color(palette.Secondary)),
-		TableCell: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.Foreground)),
-		TableSelected: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.SelectionText)).
-			Background(lipgloss.Color(palette.Selection)),
-		ListSelectedTitle: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.SelectionText)).
-			Background(lipgloss.Color(palette.Selection)),
-		ListSelectedDesc: lipgloss.NewStyle().
-			Foreground(lipgloss.Color(palette.SelectionText)).
-			Background(lipgloss.Color(palette.Selection)),
-		TableHeaderBorder: lipgloss.NewStyle().
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color(palette.Border)).
-			BorderBottom(true),
-		ListSelectedBorder: lipgloss.NewStyle().
-			BorderForeground(lipgloss.Color(palette.Selection)),
-	}
+	// The padding follows the scale. The border width does not: lipgloss
+	// renders a border in a single cell, whatever the scale.
+	padding := scale.Padding()
+
+	t.Base = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Foreground))
+	t.Muted = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Muted))
+	t.Title = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(palette.Primary))
+	t.Subtitle = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(palette.Secondary))
+	t.Accent = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Accent))
+	t.Success = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Success))
+	t.Warning = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Warning))
+	t.Error = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Error))
+	t.Selected = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.SelectionText)).
+		Background(lipgloss.Color(palette.Selection))
+	t.Normal = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Foreground))
+	t.Help = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Muted))
+	t.StatusBar = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Foreground)).
+		Background(lipgloss.Color(palette.Background)).
+		Padding(0, padding)
+	t.StatusMode = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(palette.Primary))
+	t.Panel = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(palette.Border)).
+		Padding(0, padding)
+	t.PanelFocused = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(palette.BorderFocus)).
+		Padding(0, padding)
+	t.Label = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(palette.Muted))
+	t.Value = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Foreground))
+	t.Toast = lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(palette.Border)).
+		Padding(0, padding)
+	t.TableHeader = lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(palette.Secondary))
+	t.TableCell = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.Foreground))
+	t.TableSelected = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.SelectionText)).
+		Background(lipgloss.Color(palette.Selection))
+	t.ListSelectedTitle = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.SelectionText)).
+		Background(lipgloss.Color(palette.Selection))
+	t.ListSelectedDesc = lipgloss.NewStyle().
+		Foreground(lipgloss.Color(palette.SelectionText)).
+		Background(lipgloss.Color(palette.Selection))
+	t.TableHeaderBorder = lipgloss.NewStyle().
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(palette.Border)).
+		BorderBottom(true)
+	t.ListSelectedBorder = lipgloss.NewStyle().
+		BorderForeground(lipgloss.Color(palette.Selection))
 }
 
-// Default returns the default theme.
-func Default() *Theme { return New(VariantDark) }
+// Padding returns the horizontal padding of the panels, for the scale.
+//
+// A scale of 100 keeps the default padding of one cell.
+func (s Scale) Padding() int {
+	return int(float64(s) / 100)
+}
 
 // StatusColor returns the style associated with a connection status.
 //

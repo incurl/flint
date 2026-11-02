@@ -69,6 +69,41 @@ return pbstore.NewHybrid(store, pbstore.HybridConfig{
 `Hybrid.Unwrap()` returns the wrapped store, which is useful in tests
 to compare the two paths.
 
+### The preferences
+
+The user preferences — the theme, the UI scale and the page size —
+survive a restart. They live in the embedded store, in the
+`_flint_preferences` collection, which holds a single record.
+
+```go
+// The preferences of the current user.
+type Preferences struct {
+	Theme   string // "dark" or "light"
+	Scale   int    // the UI scale, as a percentage
+	PerPage int    // 0 means the deployment default
+	Compact bool   // render the record list without the separators
+}
+
+func LoadPreferences(ctx context.Context, store Store) (Preferences, error)
+func SavePreferences(ctx context.Context, store Store, prefs Preferences) error
+```
+
+`SavePreferences` is idempotent: it updates the single record rather
+than creating a second one.
+
+The **remote backend cannot hold the preferences**: it cannot create a
+collection, so `SavePreferences` returns
+`ErrPreferencesUnavailable` and the change is not persisted. The
+application treats that as a normal outcome and stays silent.
+
+The distinction matters:
+
+| State                                       | Where it lives    |
+| ------------------------------------------- | ----------------- |
+| Deployment configuration (mode, data dir)   | The TOML file     |
+| User preferences (theme, scale, page size)  | The PocketBase    |
+| Runtime state (page, collection, filter)    | Memory only       |
+
 ### Modes and errors
 
 ```go
@@ -308,10 +343,27 @@ const (
 	VariantLight Variant = "light"
 )
 
-func New(variant Variant) *Theme
-func Default() *Theme                    // dark
+// Scale is the UI scale factor, as a percentage.
+type Scale int
+const (
+	ScaleMin     Scale = 50
+	ScaleMax     Scale = 200
+	ScaleDefault Scale = 100
+	ScaleStep    Scale = 10
+)
+
+func New(variant Variant, scale Scale) *Theme
+func Default() *Theme                    // dark, 100%
 func (v Variant) Valid() bool
 func (t *Theme) StatusColor(status string) lipgloss.Style
+
+// Apply rebuilds the styles in place.
+func (t *Theme) Apply(variant Variant, scale Scale)
+
+// The scale helpers.
+func ParseScale(value string) (Scale, error)
+func ScaleZoomIn(s Scale) Scale
+func ScaleZoomOut(s Scale) Scale
 ```
 
 `Theme` carries the styles: `Title`, `Subtitle`, `Muted`, `Label`,
@@ -320,6 +372,30 @@ func (t *Theme) StatusColor(status string) lipgloss.Style
 the `Help` style.
 
 **Add a style to `Theme`, never build a `lipgloss.Style` inline.**
+
+### The theme is mutated in place
+
+Every page holds the **same** `*theme.Theme` pointer and reads the
+styles when it renders. A runtime change is therefore one call:
+
+```go
+m.theme.Apply(theme.VariantLight, theme.Scale(120))
+```
+
+Every page picks it up on the next frame. **Never replace the
+pointer** — the pages would keep the old theme.
+
+### The runtime hotkeys
+
+| Key   | Effect                                    |
+| ----- | ----------------------------------------- |
+| `+`   | Zoom in (the scale grows by 10)           |
+| `-`   | Zoom out                                  |
+| `T`   | Switch between the dark and light palette |
+| `c`   | Toggle the compact record list            |
+
+The zoom is bounded to 50%..200%. The hotkeys are in the global key
+layer, so they are suspended while a text input has the focus.
 
 `internal/theme/layout.go` has width helpers:
 
