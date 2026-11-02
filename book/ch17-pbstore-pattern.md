@@ -1,6 +1,6 @@
 # Chapter 17 — The `pbstore` Pattern: One Interface, Two Backends
 
-## 16.1 The problem
+## 17.1 The problem
 
 You want your application to work in two situations:
 
@@ -25,7 +25,7 @@ you have a mess.
 
 The interface approach is the fix.
 
-## 16.2 The interface
+## 17.2 The interface
 
 ```go
 type Store interface {
@@ -56,7 +56,7 @@ result, err := store.List(ctx, pbstore.Query{
 
 No branch. No flag. The store is chosen once, at startup.
 
-## 16.3 The record view
+## 17.3 The record view
 
 The interface returns a backend-agnostic record:
 
@@ -148,7 +148,7 @@ But if a record has a *custom* field called `id`, the custom value
 overwrites the system one. This is an edge case; if it matters, read the
 system fields from a dedicated key.
 
-## 16.4 The query: the symmetry trick
+## 17.4 The query: the symmetry trick
 
 Here is the trick that makes the two backends behave identically.
 
@@ -229,7 +229,7 @@ func NormalizePerPage(perPage int) int {
 
 Applied in `QueryParams`, so both backends clamp identically.
 
-## 16.5 The embedded implementation
+## 17.5 The embedded implementation
 
 ```go
 type Embedded struct {
@@ -307,7 +307,7 @@ func (s *Embedded) Create(ctx context.Context, collection string, data map[strin
 ⚠️ **`Save` runs the validation and the hooks.** The remote backend's
 `POST` also runs them (on the server). So the semantics match.
 
-## 16.6 The remote implementation
+## 17.6 The remote implementation
 
 ```go
 type Remote struct {
@@ -399,7 +399,7 @@ func (s *Remote) List(ctx context.Context, q Query) (*PageResult, error) {
 }
 ```
 
-## 16.7 The operations the remote backend cannot do
+## 17.7 The operations the remote backend cannot do
 
 Two methods of the interface are **not supported** by the remote
 backend, and they say so explicitly:
@@ -475,7 +475,7 @@ if local, ok := store.(pbstore.LocalStore); ok {
 The second reason is decisive for a template. Keep the interface
 small, even if a method is occasionally unsupported.
 
-## 16.8 The error mapping
+## 17.8 The error mapping
 
 Each backend maps its native errors to the domain sentinels.
 
@@ -503,7 +503,7 @@ if resp.StatusCode == http.StatusNotFound {
 `errors.Is(err, pbstore.ErrNotFound)` works, and the message keeps the
 context ("get vocab/rec1: sql: no rows in result set").
 
-## 16.9 The allowlist
+## 17.9 The allowlist
 
 ```go
 // toSet converts a slice of names into a lower-cased lookup set.
@@ -536,7 +536,7 @@ func (s *Embedded) isAllowed(collection string) bool {
 the listing. Otherwise a user could bypass it by guessing an id and
 calling `Get`.
 
-## 16.10 Testing the pattern
+## 17.10 Testing the pattern
 
 The strongest test of the pattern is a **contract test** that runs
 against every implementation.
@@ -598,7 +598,7 @@ wire format against the *actual* semantics.
 ⚠️ **Do not hand-write a mock that ignores the query string.** You
 will write a test that passes while the filter is broken on the wire.
 
-## 16.11 Extending the interface
+## 17.11 Extending the interface
 
 When you need a new operation, here is the procedure.
 
@@ -641,13 +641,13 @@ downstream project that implements `Store`. The template's `Store`
 interface is documented as "the stable contract every downstream project
 depends on". Treat additions carefully.
 
-## 16.12 Exercises
+## 17.12 Exercises
 
-1. Write the contract test from §16.10 and run it against both
+1. Write the contract test from §17.10 and run it against both
    backends. Fix whatever breaks — it is probably a real asymmetry.
 
 2. Split the `Store` interface into `Store` and `LocalStore` as
-   described in §16.7. Measure how the call sites change.
+   described in §17.7. Measure how the call sites change.
 
 3. Implement a third backend: a pure in-memory one for tests. Verify
    that every page works with it unchanged.
@@ -661,7 +661,7 @@ depends on". Treat additions carefully.
 
 6. Benchmark the two backends for a listing of 100 records.
 
-## 16.13 What you learned
+## 17.13 What you learned
 
 - The interface **eliminates the mode branch** from the domain code.
 - The record view is **deliberately less rich** than `core.Record`, so
@@ -681,7 +681,7 @@ depends on". Treat additions carefully.
 - The **contract test** is how you prove the two backends are
   equivalent.
 
-## 16.14 Further reading
+## 17.14 Further reading
 
 - `internal/pbstore/store.go` — the interface and the types.
 - `internal/pbstore/queries.go` — `QueryParams` and the helpers.

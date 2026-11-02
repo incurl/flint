@@ -8,7 +8,7 @@ it.
 Every idea here is buildable with the template as it stands. Some need
 one new package; some need a new page; none need to modify the core.
 
-## 25.1 The time machine
+## 26.1 The time machine
 
 **The idea.** A tool that shows you how a dataset *changes over time*.
 
@@ -45,7 +45,7 @@ Then a page that takes two timestamps and renders the diff with
 machine* for the data. For a vocabulary that is being curated, it shows
 exactly what the curators changed and when.
 
-## 25.2 The diff viewer
+## 26.2 The diff viewer
 
 **The idea.** Two records side by side, with the differences
 highlighted.
@@ -100,7 +100,7 @@ unchanged. It reads instantly.
 *local* copy — so you can see what the sync is about to do before you
 do it. That is the "preview" mode from Chapter 24.
 
-## 25.3 The graph explorer
+## 26.3 The graph explorer
 
 **The idea.** A TUI for exploring a knowledge graph.
 
@@ -181,7 +181,7 @@ are one column each, but a label may contain wide CJK characters.
 **The interaction.** `enter` on a node expands it. `/` searches the
 graph for an entity. `esc` collapses.
 
-## 25.4 The REPL
+## 26.4 The REPL
 
 **The idea.** Give the user a query language, live.
 
@@ -236,7 +236,7 @@ output of the REPL:
 That is a small command language on top of the filter grammar. It is
 the same idea as `psql` or `sqlite3`, but for a domain.
 
-## 25.5 The database inspector
+## 26.5 The database inspector
 
 **The idea.** A `sqlite3`-style tool for PocketBase, in the terminal.
 
@@ -311,7 +311,7 @@ type SchemaInspector interface {
 }
 ```
 
-## 25.6 The TUI dashboard
+## 26.6 The TUI dashboard
 
 **The idea.** A live dashboard of a PocketBase instance, in the
 terminal.
@@ -352,7 +352,7 @@ for _, c := range collections {
 ```
 
 ⚠️ **The counts are expensive.** One query per collection. Cache them
-and refresh on a timer (§23.10).
+and refresh on a timer (§24.10).
 
 **The extension.** A `sparkline` of the record count over time, using
 the Unicode block characters:
@@ -361,7 +361,7 @@ the Unicode block characters:
 ▁▂▃▅▆▇█▇▆▅▃▂▁
 ```
 
-## 25.7 The TUI log viewer
+## 26.7 The TUI log viewer
 
 **The idea.** `less`, but for a PocketBase instance.
 
@@ -397,7 +397,7 @@ embedded app directly.
 ⚠️ **The logs grow.** PocketBase has a cron job that cleans them up
 (`__pbLogsCleanup__`, every 6 hours). Do not re-implement it.
 
-## 25.8 The template engine
+## 26.8 The template engine
 
 **The idea.** Let the user define *how* a record is rendered.
 
@@ -439,7 +439,7 @@ templates come from an untrusted source.
 **The real use.** It lets a *user* customise the display without a
 developer. For a team tool, that is sometimes exactly what is needed.
 
-## 25.9 The keyboard-driven interface
+## 26.9 The keyboard-driven interface
 
 **The idea.** Hide the mouse entirely; make the keyboard the whole
 interface.
@@ -504,7 +504,7 @@ case prefixExpiredMsg:
 **The payoff.** A tool that a power user never needs the mouse for is
 a tool they use ten times faster.
 
-## 25.10 The multi-pane layout
+## 26.10 The multi-pane layout
 
 **The idea.** The screen is split; each pane has its own focus; the
 keys are routed to the focused pane.
@@ -573,7 +573,7 @@ func (p *RecordsPane) Keys() []string {
 *explicit* modes, toggled by a key. `tab` switches the focus. The
 detail pane is read-only, so it only handles `j`/`k` for scrolling.
 
-## 25.11 The themable status bar
+## 26.11 The themable status bar
 
 **The idea.** The status bar is the most valuable real estate in the
 application. Make it configurable.
@@ -631,7 +631,7 @@ type StatusBarConfig struct {
 }
 ```
 
-## 25.12 The self-documenting UI
+## 26.12 The self-documenting UI
 
 **The idea.** The application explains itself.
 
@@ -688,7 +688,7 @@ func (s *Embedded) Describe(ctx context.Context, collection string) (string, err
 }
 ```
 
-## 25.13 The live preview
+## 26.13 The live preview
 
 **The idea.** As you type a filter, show the matching records
 *without* waiting for a round trip — by evaluating the filter against
@@ -717,7 +717,7 @@ query completes.
 The value: the UI responds instantly, and the user gets a feel for
 the filter before committing.
 
-## 25.14 The terminal as a spreadsheet
+## 26.14 The terminal as a spreadsheet
 
 **The idea.** A grid that behaves like a spreadsheet: arrow keys move
 between cells, `enter` edits, and the changes are written back.
@@ -767,7 +767,7 @@ the whole edit session. With the per-cell writes, a half-finished edit
 leaves the data half-updated.
 
 ⚠️ **For a real spreadsheet, you need a batch update.** Add it as an
-optional interface (Chapter 24, §23.13):
+optional interface (Chapter 24, §24.13):
 
 ```go
 type BulkStore interface {
@@ -777,7 +777,7 @@ type BulkStore interface {
 
 ⚠️ **The UI is the easy part; the transaction is the hard part.**
 
-## 25.15 The offline-first PWA in a terminal
+## 26.15 The offline-first PWA in a terminal
 
 **The idea.** The ultimate version of the template: a terminal
 application that is *also* a web application, with the same codebase.
@@ -821,7 +821,7 @@ database. Do not bind it to a public interface.
 dashboard for the occasional administrator. The same data, the same
 schema, the same migrations.
 
-## 25.16 The plugin system
+## 26.16 The plugin system
 
 **The idea.** Let the user extend the application with their own code,
 at runtime, without recompiling.
@@ -877,7 +877,7 @@ compile error.
 ⚠️ **A plugin is arbitrary code.** Loading one is equivalent to
 running a binary. Only load plugins from a directory you trust.
 
-**The pragmatic alternative.** Use the **command palette** (§23.4) with
+**The pragmatic alternative.** Use the **command palette** (§24.4) with
 the commands registered by the *application*, and let the user add
 their own commands through a **configuration file**:
 
@@ -890,7 +890,7 @@ url = "https://example.org/records/{{ .id }}"
 
 That gives 80% of the value with 0% of the risk.
 
-## 25.17 The build-your-own-UI generator
+## 26.17 The build-your-own-UI generator
 
 **The idea.** Generate a TUI from a schema.
 
@@ -922,7 +922,7 @@ them immediately.
 data. That means the page cannot use a static `table.Columns` list —
 it must rebuild it when the collection changes.
 
-## 25.18 The TUI that explains itself
+## 26.18 The TUI that explains itself
 
 **The idea.** A `--debug` mode that shows the message flow.
 
@@ -975,7 +975,7 @@ message is not free. Only do it when the debug mode is on.
 behaves unexpectedly. "What messages actually arrived?" is the
 question you always end up asking.
 
-## 25.19 The idea list
+## 26.19 The idea list
 
 Here is a grab-bag of smaller ideas, for inspiration.
 
@@ -983,8 +983,8 @@ Here is a grab-bag of smaller ideas, for inspiration.
 | ------------------- | --------------------------------------------------- |
 | **Fuzzy jump**      | `g` then a fuzzy search over the records            |
 | **Bulk edit**       | A multi-select mode with a batch update              |
-| **Undo history**    | The undo stack (§23.6)                              |
-| **Export/import**   | CSV and JSON round trips (§23.8, §23.9)              |
+| **Undo history**    | The undo stack (§24.6)                              |
+| **Export/import**   | CSV and JSON round trips (§24.8, §24.9)              |
 | **Watch mode**      | Re-run the query when the data changes               |
 | **Query history**   | The `↑` in the filter recalls the previous query     |
 | **Snippets**        | Saved filters as named, reusable snippets            |
@@ -996,12 +996,12 @@ Here is a grab-bag of smaller ideas, for inspiration.
 | **Tag cloud**       | The most-used tags, rendered as a cloud              |
 | **Heatmap**         | The record activity over the last year                |
 | **Fuzzy finder**    | A `fzf`-like search over the whole database          |
-| **TUI + web**       | The embedded mode with the dashboard enabled (§25.15) |
-| **Plugin**          | The runtime-loaded extensions (§25.16)                |
-| **Schema-driven**   | The generated pages (§25.17)                         |
-| **Debug overlay**   | The message stream (§25.18)                          |
+| **TUI + web**       | The embedded mode with the dashboard enabled (§26.15) |
+| **Plugin**          | The runtime-loaded extensions (§26.16)                |
+| **Schema-driven**   | The generated pages (§26.17)                         |
+| **Debug overlay**   | The message stream (§26.18)                          |
 
-## 25.20 How to pick one
+## 26.20 How to pick one
 
 ⚠️ **Do not start with the geek ideas.** They are the *last* thing you
 build, not the first.
@@ -1019,20 +1019,20 @@ The order:
 An application with a beautiful command palette and a broken filter is
 worse than an application with a plain interface that works.
 
-## 25.21 Exercises
+## 26.21 Exercises
 
-1. Build the **diff viewer** (§25.2). It is about fifty lines and it
+1. Build the **diff viewer** (§26.2). It is about fifty lines and it
    is immediately useful.
-2. Build the **REPL** (§25.4). It teaches the filter grammar.
-3. Build the **schema inspector** (§25.5).
-4. Build the **TUI dashboard** (§25.6).
-5. Build the **graph explorer** (§25.3) on top of the Wikidata example.
-6. Build the **debug overlay** (§25.18). You will use it the next time
+2. Build the **REPL** (§26.4). It teaches the filter grammar.
+3. Build the **schema inspector** (§26.5).
+4. Build the **TUI dashboard** (§26.6).
+5. Build the **graph explorer** (§26.3) on top of the Wikidata example.
+6. Build the **debug overlay** (§26.18). You will use it the next time
    something misbehaves.
-7. Build the **self-documenting `--describe`** (§25.12).
-8. Pick three ideas from §25.19 and implement them.
+7. Build the **self-documenting `--describe`** (§26.12).
+8. Pick three ideas from §26.19 and implement them.
 
-## 25.22 What you learned
+## 26.22 What you learned
 
 - The **time machine**: the history collection turns a browser into a
   time machine.
@@ -1055,7 +1055,7 @@ worse than an application with a plain interface that works.
   is safer and nearly as good.
 - **Build the core first, the geek ideas last.**
 
-## 25.23 Further reading
+## 26.23 Further reading
 
 - `charmbracelet/gum` — the "tunable" helpers for lists and tables.
 - `charm.land/lipgloss/v2` — the layout and the borders.

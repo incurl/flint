@@ -1,6 +1,6 @@
 # Chapter 18 — Sync, Caching, and the Offline-First Problem
 
-## 17.1 The scenario
+## 18.1 The scenario
 
 You have built a beautiful TUI for browsing a reference dataset — a
 controlled vocabulary, a label table, a Wikidata dump. The data lives
@@ -16,7 +16,7 @@ Now the requirements change:
 
 This chapter is about solving that.
 
-## 17.2 The three architectures
+## 18.2 The three architectures
 
 ### A — Proxy: always remote
 
@@ -47,9 +47,9 @@ The local database is the read path; the server is the write path. The
 sync is explicit and user-triggered.
 
 ⚠️ **The template implements C.** And the choice of "explicit" is
-deliberate, for reasons we will examine in §17.8.
+deliberate, for reasons we will examine in §18.8.
 
-## 17.3 The sync model
+## 18.3 The sync model
 
 ### Full sync
 
@@ -99,7 +99,7 @@ report, err := store.SyncCollection(ctx, pbstore.SyncRequest{
 })
 ```
 
-## 17.4 The filter construction
+## 18.4 The filter construction
 
 The incremental filter is built for you:
 
@@ -153,7 +153,7 @@ Without it, a timestamp containing a quote would break the filter. The
 timestamps come from `time.Format`, so in practice they are safe — but
 the escaping makes the helper correct for any input.
 
-## 17.5 The sync implementation
+## 18.5 The sync implementation
 
 ```go
 func (s *Embedded) SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error) {
@@ -352,7 +352,7 @@ This is what the user sees:
 ✓ vocab: 3 fetched · 3 created · 0 updated · 4ms
 ```
 
-## 17.6 The upsert
+## 18.6 The upsert
 
 ```go
 func (s *Embedded) upsertSynced(ctx context.Context, collection string, rec *Record) (bool, error) {
@@ -485,7 +485,7 @@ if report.Updated != 1 {
 }
 ```
 
-## 17.7 Tracking the sync state
+## 18.7 Tracking the sync state
 
 For an incremental sync you need to remember when the last successful
 sync happened. ⚠️ **Not in a Go map** — it must survive a restart.
@@ -573,7 +573,7 @@ uses `2006-01-02 15:04:05.000Z` and the state uses the same. If they
 diverge, the incremental filter silently matches nothing (or
 everything).
 
-## 17.8 Why the sync is explicit
+## 18.8 Why the sync is explicit
 
 The brief that produced the template said:
 
@@ -655,7 +655,7 @@ func (m *Model) triggerSync() tea.Cmd {
 `tea.Tick` in the root model that calls `triggerSync` periodically. The
 extension point exists; the default is conservative.
 
-## 17.9 The sync in the UI
+## 18.9 The sync in the UI
 
 ### The sync page
 
@@ -713,7 +713,7 @@ handler does that.
 Without it, the user syncs, sees the toast, and the record list still
 shows the old data — a very confusing bug.
 
-## 17.10 Conflict resolution
+## 18.10 Conflict resolution
 
 What happens when a record was modified in both places?
 
@@ -751,7 +751,7 @@ update it if the remote is newer.
 ⚠️ **Do not build a general merge engine.** Decide the policy for your
 domain and implement that one.
 
-## 17.11 Deletions
+## 18.11 Deletions
 
 The sync does not propagate deletions. A record deleted on the server
 stays in the local cache.
@@ -776,7 +776,7 @@ local copies of the tombstoned records.
 
 ⚠️ **Option 3 is the cleanest** if you control the remote schema.
 
-## 17.12 The progress reporting
+## 18.12 The progress reporting
 
 A sync of 100,000 records takes a while. The user needs feedback.
 
@@ -837,7 +837,7 @@ described in Chapter 3. The callback runs on the command goroutine, so
 it must not touch the model — `program.Send` is the safe way to
 communicate.
 
-## 17.13 Testing the sync
+## 18.13 Testing the sync
 
 The test uses an `httptest` server that mimics the records endpoint:
 
@@ -906,7 +906,7 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 collection and the id length. Both were invisible until the test
 exercised the real code path.
 
-## 17.14 Exercises
+## 18.14 Exercises
 
 1. Implement the incremental sync end to end: the state collection, the
    `LastSync`/`SetLastSync` methods, and the filter construction. Test
@@ -930,7 +930,7 @@ exercised the real code path.
 7. Add a "sync all the configured collections" button, using the
    `sync.collections` config value.
 
-## 17.15 What you learned
+## 18.15 What you learned
 
 - The **replica** architecture — a local cache with an explicit sync —
   gives you both offline operation and shared data.
@@ -949,7 +949,7 @@ exercised the real code path.
 - The sync **changes the data**, so the visible pages must be
   reloaded.
 
-## 17.16 Further reading
+## 18.16 Further reading
 
 - `internal/pbstore/embedded.go` — `SyncCollection` and `upsertSynced`.
 - `internal/pbstore/queries.go` — `SyncFilter` and `escapeFilterValue`.

@@ -1,6 +1,6 @@
 # Chapter 16 — Architecture for TUI + Database Applications
 
-## 15.1 The shape of the problem
+## 16.1 The shape of the problem
 
 You now have two libraries that each impose a discipline:
 
@@ -24,7 +24,7 @@ Put them together and you get a specific set of problems:
 The Flint template answers these with a specific layering, and this
 chapter explains the reasoning behind each layer.
 
-## 15.2 The layers
+## 16.2 The layers
 
 ```
 ┌───────────────────────────────────────────────────────────────┐
@@ -66,7 +66,7 @@ that pages exist. `pages` does not know that `app` exists.
 ⚠️ **This is the single most important structural decision.** It is
 what lets you replace any layer without touching the others.
 
-## 15.3 The data layer: one interface
+## 16.3 The data layer: one interface
 
 The `pbstore` package exposes exactly one contract:
 
@@ -173,7 +173,7 @@ collection the operator did not intend to expose.
 reasonable default for an embedded application (the user owns the
 database) but a risky one for a remote server.
 
-## 15.4 The runtime state
+## 16.4 The runtime state
 
 ```go
 type Runtime struct {
@@ -221,7 +221,7 @@ differently, it would move into the detail page.
 is a claim that two pages care about it. When that claim is wrong, the
 field belongs in a page.
 
-## 15.5 The page model
+## 16.5 The page model
 
 Each page is a self-contained `tea.Model`:
 
@@ -316,7 +316,7 @@ Read it as a checklist:
 - ✅ includes the request parameters, so the handler can discard a
   stale response.
 
-## 15.6 The root model
+## 16.6 The root model
 
 The root model is the coordinator. It does four things:
 
@@ -431,9 +431,9 @@ func (m *Model) loadPage(page state.Page) tea.Cmd {
 ```
 
 ⚠️ **Navigation must trigger the load.** Otherwise the user arrives at
-an empty page. This is the `Refresh` convention from §15.5.
+an empty page. This is the `Refresh` convention from §16.5.
 
-## 15.7 The global chrome
+## 16.7 The global chrome
 
 ### The status bar
 
@@ -495,7 +495,7 @@ func (m *Model) View() tea.View {
 }
 ```
 
-## 15.8 The extension points
+## 16.8 The extension points
 
 The template's value is that it is *extensible without being modified*.
 There are five extension points.
@@ -546,7 +546,7 @@ point; it is a patch. The renderer is a good example: it lives in
 `internal/components`, is passed through `app.New`, and requires no
 core change.
 
-## 15.9 The layering rules
+## 16.9 The layering rules
 
 Let us state the rules explicitly, because they are what makes the
 architecture work.
@@ -594,7 +594,7 @@ model.
 Anything that must survive a restart is in a collection or a config
 file.
 
-## 15.10 A worked flow
+## 16.10 A worked flow
 
 Let us trace the "open a record" flow through every layer.
 
@@ -633,7 +633,7 @@ Every step is a message. There is no direct call from the records page
 to the detail page, and no direct call from the detail page to the
 store.
 
-## 15.11 Exercises
+## 16.11 Exercises
 
 1. Draw the dependency graph of your own application and check that
    every arrow points down.
@@ -654,7 +654,7 @@ store.
 6. Trace the "trigger a sync" flow. Write down every message and
    every command.
 
-## 15.12 What you learned
+## 16.12 What you learned
 
 - The layering is **app → pages → components → pbstore**, and the
   arrows point **downward only**.
@@ -673,7 +673,7 @@ store.
 - The five extension points let you specialise the template **without
   modifying the core**.
 
-## 15.13 Further reading
+## 16.13 Further reading
 
 - `internal/app/app.go` — the root model.
 - `internal/state/state.go` — the runtime.

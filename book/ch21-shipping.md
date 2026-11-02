@@ -1,6 +1,6 @@
 # Chapter 21 — Shipping: Configuration, Shutdown, Packaging
 
-## 20.1 The shape of a shipped application
+## 21.1 The shape of a shipped application
 
 A program you run locally is not a finished product. A finished product
 has:
@@ -12,7 +12,7 @@ has:
 
 Let us work through each.
 
-## 20.2 The configuration
+## 21.2 The configuration
 
 ### The precedence rule
 
@@ -228,7 +228,7 @@ come from three sources; the validation must see the final value.
 mode requires a URL" is a cross-field rule that only makes sense after
 the merge.
 
-## 20.3 The secrets
+## 21.3 The secrets
 
 The remote token is the only secret.
 
@@ -279,7 +279,7 @@ func (f *Flags) String() string {
 }
 ```
 
-## 20.4 The shutdown
+## 21.4 The shutdown
 
 The shutdown sequence has an order, and every step depends on the
 previous one.
@@ -437,7 +437,7 @@ $ echo $?
 A non-zero status here breaks every shell script and CI job that wraps
 the TUI.
 
-## 20.5 The logging
+## 21.5 The logging
 
 ### Structured logs to the stderr
 
@@ -501,9 +501,9 @@ logger.Info("store opened",
 ⚠️ **Log the *filter*, not the *result*.** The filter is what the user
 typed; it is useful for diagnosing. The result is potentially large.
 
-⚠️ **Never log the token.** See §20.3.
+⚠️ **Never log the token.** See §21.3.
 
-## 20.6 The Makefile
+## 21.6 The Makefile
 
 ```make
 BINARY   := flint
@@ -578,7 +578,7 @@ golangci-lint:
 skips gracefully if the tool is not installed, so `make lint` works on
 a fresh checkout.
 
-## 20.7 The CI
+## 21.7 The CI
 
 ```yaml
 jobs:
@@ -666,7 +666,7 @@ env:
 a floating `go-version: stable` would break the moment the CI image
 changes.
 
-## 20.8 The release
+## 21.8 The release
 
 ### The version
 
@@ -726,7 +726,7 @@ jobs:
 ⚠️ **Build the binaries in CI, not locally.** The CI has every
 platform; your machine does not.
 
-## 20.9 The distribution
+## 21.9 The distribution
 
 ### The binary
 
@@ -793,7 +793,7 @@ WantedBy=multi-user.target
 need `StandardInput=tty` and a `TTYPath`, or you run it in a
 `tmux`/`screen` session.
 
-## 20.10 The template hygiene
+## 21.10 The template hygiene
 
 If you are distributing this as a **GitHub template**, there are a few
 extra steps.
@@ -849,7 +849,7 @@ jobs:
 - [ ] Update the CI (the Go version, the build matrix).
 - [ ] Update the Makefile (the binary name, the data dir).
 
-## 20.11 The checklist for any application
+## 21.11 The checklist for any application
 
 ### The code
 
@@ -883,7 +883,7 @@ jobs:
 - [ ] The CI builds on every target platform.
 - [ ] The CI runs a smoke test.
 
-## 20.12 Exercises
+## 21.12 Exercises
 
 1. Add the `--migrate-only` flag to the CI: run it before the smoke
    test, so that a broken migration fails the build.
@@ -894,9 +894,9 @@ jobs:
 5. Add a token file support (`FLINT_REMOTE_TOKEN_FILE`) so the token
    never appears in the environment of a process listing.
 6. Write a systemd unit that runs the TUI in a `tmux` session.
-7. Audit the whole project against the §20.11 checklist.
+7. Audit the whole project against the §21.11 checklist.
 
-## 20.13 What you learned
+## 21.13 What you learned
 
 - The configuration precedence is **flags > env > TOML > defaults**, and
   it is implemented by the *order* of three applications.
@@ -914,7 +914,7 @@ jobs:
   smoke test)**.
 - A GitHub template needs a **marker file** and a **cleanup workflow**.
 
-## 20.14 Further reading
+## 21.14 Further reading
 
 - `config/config.go` — the loader.
 - `config/flags.go` — the flags.

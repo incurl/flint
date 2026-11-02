@@ -4,7 +4,7 @@ The patterns in Chapter 23 cover the common cases. This chapter covers
 the ones you hit when the application grows past a single-screen
 browser.
 
-## 23.1 The background worker
+## 24.1 The background worker
 
 **The situation.** Something must happen periodically: refresh a
 counter, check for updates, re-index something.
@@ -109,7 +109,7 @@ is not.
 ⚠️ **Use `tea.Tick` unless you need a repeating schedule or a real
 goroutine.** It is simpler and it cannot leak.
 
-## 23.2 The repeating tick
+## 24.2 The repeating tick
 
 **The situation.** The spinner, a clock, a progress indicator.
 
@@ -159,7 +159,7 @@ return m, tea.Every(time.Second, func(t time.Time) tea.Msg {
 
 But `tea.Every` never stops. Both approaches need a guard.
 
-## 23.3 The modal overlay
+## 24.3 The modal overlay
 
 **The situation.** A confirmation dialog, a help screen, a quick
 "jump to" prompt that appears over the current page.
@@ -261,7 +261,7 @@ usually correct — a modal should be modal — but it means the *global*
 hotkeys are also blocked. If the user must be able to quit, handle
 `ctrl+c` before the modal.
 
-## 23.4 The command palette
+## 24.4 The command palette
 
 **The situation.** A single key (`ctrl+p`) opens a fuzzy search over
 every action the application can perform.
@@ -348,7 +348,7 @@ case "esc":
 that it reflects the current state (the active collection, the
 connection status).
 
-## 23.5 The two-phase load
+## 24.5 The two-phase load
 
 **The situation.** A query takes two seconds. You want to show a
 progress indicator with a percentage.
@@ -423,7 +423,7 @@ the final message.
 ⚠️ **`program.Send` for the progress.** The progress messages go
 straight to the event loop, bypassing the normal return path.
 
-## 23.6 The undo stack
+## 24.6 The undo stack
 
 **The situation.** The user edits a record and wants to undo.
 
@@ -515,7 +515,7 @@ case "u":
 the whole record state. If a write triggers side effects (a hook that
 sends an email), the undo does not undo them.
 
-## 23.7 The virtualised list
+## 24.7 The virtualised list
 
 **The situation.** A collection with a million records. The table
 cannot hold them all.
@@ -580,7 +580,7 @@ Sort:   "id",
 the trade-off. For a lookup tool, sequential scrolling is usually the
 right model anyway.
 
-## 23.8 The export
+## 24.8 The export
 
 **The situation.** The user wants the current results as CSV or JSON.
 
@@ -642,12 +642,12 @@ func (p *RecordsPage) exportCSV() tea.Cmd {
 everything when the user filtered is a data-leak surprise.
 
 ⚠️ **The export is a long operation.** It belongs in a command, with a
-progress indicator (see §23.5).
+progress indicator (see §24.5).
 
 ⚠️ **Do not export to the terminal.** A thousand CSV rows would
 destroy the TUI. Write to a file and tell the user where it is.
 
-## 23.9 The import
+## 24.9 The import
 
 **The situation.** The user wants to bulk-load a CSV.
 
@@ -709,7 +709,7 @@ understand.
 not expose one, so you need the embedded app directly — or add a
 `BulkCreate` method to your own `Store` implementation.
 
-## 23.10 The status poller
+## 24.10 The status poller
 
 **The situation.** The status bar shows the connection health, but the
 health should be checked periodically, not just at startup.
@@ -743,7 +743,7 @@ wasteful.
 such thing as a background TUI, but there *is* a suspend/resume
 concept for some terminals. Ignore it unless you need it.
 
-## 23.11 The connection indicator
+## 24.11 The connection indicator
 
 **The situation.** The remote server goes away. The user should know.
 
@@ -795,7 +795,7 @@ default:
 network hiccup should not turn the status bar red. The counter makes
 the indicator robust.
 
-## 23.12 The graceful degradation
+## 24.12 The graceful degradation
 
 **The situation.** The remote server is unreachable. The application
 should still work with the local cache.
@@ -844,7 +844,7 @@ if result.Stale {
 }
 ```
 
-## 23.13 The transaction across the boundary
+## 24.13 The transaction across the boundary
 
 **The situation.** You want to write to two collections atomically.
 
@@ -915,9 +915,9 @@ endpoint, but it is not transactionally equivalent across collections.
 For the remote mode, accept the partial-failure risk, or design the
 schema so that one record holds the aggregate.
 
-## 23.14 Exercises
+## 24.14 Exercises
 
-1. Implement the background poller from §23.1 and verify that the
+1. Implement the background poller from §24.1 and verify that the
    goroutine stops when the program quits.
 2. Implement a modal overlay and a command palette.
 3. Implement the two-phase load with a progress bar.
@@ -927,7 +927,7 @@ schema so that one record holds the aggregate.
 7. Implement the connection indicator with the error counter.
 8. Implement the stale-data fallback, with the `Stale` flag.
 
-## 23.15 What you learned
+## 24.15 What you learned
 
 - A **background worker** owns its state and uses `program.Send`; it
   must be cancellable.
@@ -948,7 +948,7 @@ schema so that one record holds the aggregate.
 - Optional capabilities go in **optional interfaces**, not in the
   published contract.
 
-## 23.16 Further reading
+## 24.16 Further reading
 
 - `tea.go` — `Send`, `Kill`, `ReleaseTerminal`.
 - `commands.go` — `Tick`, `Every`.

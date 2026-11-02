@@ -15,7 +15,7 @@ Each is a different *shape* of data, and each shape suggests different
 modelling choices. The point of this chapter is that you can pick the
 shape that fits, and the template's architecture does not change.
 
-## 24.1 The vocabulary shape
+## 25.1 The vocabulary shape
 
 **The domain.** A list of terms: `go`, `rust`, `zig`, each with a
 label, a definition, and maybe a category.
@@ -148,7 +148,7 @@ If "category" is only ever displayed, keep it as a field. If you need
 still be a field — but the moment you want "the categories themselves,
 with descriptions", it becomes a collection.
 
-## 24.2 The lookup cache shape
+## 25.2 The lookup cache shape
 
 **The domain.** A local replica of a remote reference dataset —
 labels, ISO codes, country lists.
@@ -329,7 +329,7 @@ func (p *CachePage) staleness() string {
 }
 ```
 
-## 24.3 The knowledge graph shape
+## 25.3 The knowledge graph shape
 
 **The domain.** Wikidata-style items with claims and properties.
 
@@ -465,7 +465,7 @@ labels.en.value = "Douglas Adams"
 
 Measure before deciding.
 
-## 24.4 The annotation shape
+## 25.4 The annotation shape
 
 **The domain.** Users attach notes, tags and corrections to records.
 
@@ -576,7 +576,7 @@ annotations.Fields.Add(
 the authentication machinery, the tokens, the password handling. For a
 single-user local tool, a plain `author` text field is simpler.
 
-## 24.5 Choosing the shape
+## 25.5 Choosing the shape
 
 A decision table:
 
@@ -588,11 +588,11 @@ A decision table:
 | A history you never mutate               | A history collection                             |
 | Many-to-many                             | A join collection                                 |
 | Per-user data                            | A separate collection, never a field              |
-| A remote source you mirror               | The cache shape (§24.2)                           |
+| A remote source you mirror               | The cache shape (§25.2)                           |
 | Nested structure you read as a whole     | A JSON field                                      |
 | Nested structure you query into          | Relations + a JSON field for the remainder        |
 
-## 24.6 The naming convention
+## 25.6 The naming convention
 
 ⚠️ **Name the collections so that the role is obvious.**
 
@@ -614,7 +614,7 @@ The `_` prefix for the internal PocketBase collections (`_collections`,
 migration waiting to happen. The schema evolves through migrations; the
 name stays.
 
-## 24.7 The domain package layout
+## 25.7 The domain package layout
 
 ```
 internal/domain/
@@ -661,7 +661,7 @@ func (s *Service) Lookup(ctx context.Context, code string) (*pbstore.Record, err
 ⚠️ **This separation is what makes the domain testable and reusable.**
 The TUI is a *client* of the domain, not the other way around.
 
-## 24.8 Exercises
+## 25.8 Exercises
 
 1. Model a **library catalogue** with the vocabulary shape: the books,
    the authors (many-to-many), the subjects, and the loans.
@@ -674,7 +674,7 @@ The TUI is a *client* of the domain, not the other way around.
    collections against it.
 6. Move a domain's service out of the TUI and write a CLI that uses it.
 
-## 24.9 What you learned
+## 25.9 What you learned
 
 - The four domains the template targets, and the **shape** each one
   suggests.
@@ -691,7 +691,7 @@ The TUI is a *client* of the domain, not the other way around.
 - The **domain package is UI-free**: the TUI is a client of the
   service, not the other way around.
 
-## 24.10 Further reading
+## 25.10 Further reading
 
 - `examples/wikidata/` — the graph shape, in code.
 - `internal/pbstore/embedded.go` — the sync and the dictionary.

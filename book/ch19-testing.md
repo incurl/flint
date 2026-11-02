@@ -1,6 +1,6 @@
 # Chapter 19 — Testing Terminal Applications
 
-## 18.1 The testing problem
+## 19.1 The testing problem
 
 A TUI is harder to test than a web application. The web has a DOM you
 can inspect; the TUI has a terminal.
@@ -17,7 +17,7 @@ You do not need a terminal to test a Bubble Tea application. You need
 one only for the *golden* tests — the ones that check the exact
 rendering.
 
-## 18.2 The three layers of testing
+## 19.2 The three layers of testing
 
 | Layer              | What it covers                        | How                       |
 | ------------------ | ------------------------------------- | ------------------------- |
@@ -27,7 +27,7 @@ rendering.
 
 The first two are the vast majority of the value, and both are easy.
 
-## 18.3 Testing the model
+## 19.3 Testing the model
 
 ### The basic shape
 
@@ -163,7 +163,7 @@ func TestRecordsPageFilter(t *testing.T) {
 }
 ```
 
-## 18.4 The stub store
+## 19.4 The stub store
 
 To test the pages without a database, you need a stub store:
 
@@ -227,7 +227,7 @@ reasonable trade; for a small one, implement everything.
 
 The template implements every method explicitly, which is safer.
 
-## 18.5 Testing the store
+## 19.5 Testing the store
 
 ### Against a real embedded database
 
@@ -396,7 +396,7 @@ func TestRemoteList(t *testing.T) {
 query and the headers. A mock that ignores the query would let a broken
 filter pass the test.
 
-## 18.6 Golden tests
+## 19.6 Golden tests
 
 A golden test compares the rendered output against a stored file.
 
@@ -464,7 +464,7 @@ if strings.Contains(view, "goroutine") {
 property assertions for most things, and golden tests for the few
 places where the exact output is the point.
 
-## 18.7 The race detector
+## 19.7 The race detector
 
 The most valuable tool for a Bubble Tea application:
 
@@ -501,7 +501,7 @@ func TestModelReadRace(t *testing.T) {
 Run it with `-race` and the violation is reported with both stack
 traces.
 
-## 18.8 Integration tests
+## 19.8 Integration tests
 
 ### The full stack
 
@@ -557,7 +557,7 @@ The second is cleaner and keeps the test in the external test package.
 Covered in Chapter 18. The mock server returns a fixed payload, and
 the test asserts on the local state afterwards.
 
-## 18.9 Testability as a design constraint
+## 19.9 Testability as a design constraint
 
 The techniques above are not just test tricks; they are design
 constraints that produce better code.
@@ -599,7 +599,7 @@ type RecordsMsg struct {
 
 The `Page` field makes the staleness check possible *and* testable.
 
-## 18.10 What to test
+## 19.10 What to test
 
 A useful priority list:
 
@@ -629,7 +629,7 @@ func TestModelErrorHandling(t *testing.T) {
 }
 ```
 
-## 18.11 CI
+## 19.11 CI
 
 The template's CI runs:
 
@@ -641,7 +641,7 @@ The template's CI runs:
 ⚠️ **Always run the tests with `-race` in CI.** A race that only
 appears in production is the worst kind of bug.
 
-## 18.12 Exercises
+## 19.12 Exercises
 
 1. Write a test for every page that covers: the initial render, a
    message handled, and an error.
@@ -662,7 +662,7 @@ appears in production is the worst kind of bug.
 6. Measure the test coverage of your application. Identify the
    uncovered branches. Are they the important ones?
 
-## 18.13 What you learned
+## 19.13 What you learned
 
 - Bubble Tea's architecture makes the model **testable without a
   terminal**.
@@ -679,7 +679,7 @@ appears in production is the worst kind of bug.
 - Dependency injection is not a test trick — it is what makes the code
   testable.
 
-## 18.14 Further reading
+## 19.14 Further reading
 
 - `internal/app/app_test.go` — the root model tests.
 - `internal/pages/pages_test.go` — the page tests with a stub store.

@@ -1,6 +1,6 @@
 # Chapter 20 — Performance
 
-## 19.1 The three clocks
+## 20.1 The three clocks
 
 A TUI has three performance budgets, and they are different:
 
@@ -19,7 +19,7 @@ path.** If a query takes 500 ms and it happens inside `Update`, the UI
 freezes for half a second. Move it to a command and the problem
 disappears.
 
-## 19.2 Measuring
+## 20.2 Measuring
 
 ### The render
 
@@ -84,7 +84,7 @@ func (m *Model) View() tea.View {
 ⚠️ **Remove the instrumentation before committing.** Or make it
 conditional on a debug flag.
 
-## 19.3 The render budget
+## 20.3 The render budget
 
 ### What is expensive in a render
 
@@ -178,7 +178,7 @@ func (v *JSONViewer) toggleCurrent() {
 }
 ```
 
-## 19.4 The update budget
+## 20.4 The update budget
 
 ### The cost of a message
 
@@ -235,7 +235,7 @@ The `resize()` propagates to every page and component. That is
 normally cheap, but if a component does something expensive (rebuilding
 a large table), the storm is visible.
 
-## 19.5 The query budget
+## 20.5 The query budget
 
 ### The count query
 
@@ -339,7 +339,7 @@ result, err := store.List(ctx, pbstore.Query{
 The expansion is resolved in one query (or a small number of them),
 not one per record.
 
-## 19.6 The sync budget
+## 20.6 The sync budget
 
 A sync of 100,000 records involves:
 - 500 HTTP requests (at 200 per batch);
@@ -381,7 +381,7 @@ and the hooks.
 validated the data yourself. A malformed record would corrupt the
 cache.
 
-## 19.7 The embedded database
+## 20.7 The embedded database
 
 ### SQLite pragmas
 
@@ -420,7 +420,7 @@ busy timeout is a different thing.
 ⚠️ **Do not set a very long busy timeout.** A TUI that blocks for 30
 seconds on a lock is worse than one that reports the error.
 
-## 19.8 The remote backend
+## 20.8 The remote backend
 
 ### The connection pool
 
@@ -460,7 +460,7 @@ can always retry.
 ⚠️ **A timeout that is too long makes the UI feel broken.** 30 seconds
 is already generous. Consider 10.
 
-## 19.9 Profiling
+## 20.9 Profiling
 
 ### The CPU profile
 
@@ -499,7 +499,7 @@ go tool trace trace.out
 The trace shows the goroutine interactions — which is exactly what you
 need for a concurrency bug.
 
-## 19.10 A performance checklist
+## 20.10 A performance checklist
 
 Run through this when the application feels slow:
 
@@ -516,7 +516,7 @@ Run through this when the application feels slow:
 10. **Is it the terminal?** A slow terminal (SSH over a slow link)
     makes everything look slow. Test locally.
 
-## 19.11 Exercises
+## 20.11 Exercises
 
 1. Write a benchmark for `View()` of your root model. Find the hot
    spot.
@@ -533,7 +533,7 @@ Run through this when the application feels slow:
 7. Enable the mouse in your application and measure the CPU usage while
    dragging.
 
-## 19.12 What you learned
+## 20.12 What you learned
 
 - Three budgets: **key latency**, **render**, **query**.
 - **I/O in `Update` or `View` is the #1 performance bug.**
@@ -547,7 +547,7 @@ Run through this when the application feels slow:
 - The **WAL mode** lets the TUI read while a sync writes.
 - Measure with `pprof` and `go tool trace`.
 
-## 19.13 Further reading
+## 20.13 Further reading
 
 - `internal/components/jsonviewer.go` — the rendering hot path.
 - `internal/pbstore/embedded.go` — the query construction.

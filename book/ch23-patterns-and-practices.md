@@ -4,7 +4,7 @@ This chapter is the "what I wish I had known" chapter. Each pattern
 describes a recurring problem, the naive solution, the better one, and
 the trap in between.
 
-## 22.1 The command closure capture
+## 23.1 The command closure capture
 
 **The problem.** A command needs some data from the model. The obvious
 way is to reach into it.
@@ -51,7 +51,7 @@ func (m *Model) load() tea.Cmd {
 This is the single most important rule in Bubble Tea programming, and
 the race detector is the only reliable guard against breaking it.
 
-## 22.2 The staleness guard
+## 23.2 The staleness guard
 
 **The problem.** The user types fast; the queries finish out of order.
 
@@ -123,7 +123,7 @@ func (p *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 because it also handles the case where the user re-runs the *same*
 query.
 
-## 22.3 The debounce
+## 23.3 The debounce
 
 **The problem.** A query per keystroke hammers the database.
 
@@ -162,7 +162,7 @@ simpler than a cancellation scheme.
 ⚠️ **250 ms is a good default.** Below 150 ms the user perceives a lag;
 above 400 ms it feels unresponsive.
 
-## 22.4 The refresh convention
+## 23.4 The refresh convention
 
 **The problem.** `Init()` runs once. A page the user navigates to later
 never loads its data.
@@ -221,7 +221,7 @@ func (p *SearchPage) Refresh() tea.Cmd {
 }
 ```
 
-## 22.5 The focused-input guard
+## 23.5 The focused-input guard
 
 **The problem.** The global hotkey layer steals the keys the user is
 typing.
@@ -260,7 +260,7 @@ func (m *Model) inputFocused() bool {
 add a page.** Then the new page silently loses the guard, and the bug
 only shows up when someone types "q".
 
-## 22.6 The explicit-render cache
+## 23.6 The explicit-render cache
 
 **The problem.** `View()` is called on every message. If it does
 something expensive, the UI stutters.
@@ -301,7 +301,7 @@ func (m *Model) View() tea.View {
 simplest correct approach is to compute it in the same place you
 compute the state.
 
-## 22.7 The map iteration rule
+## 23.7 The map iteration rule
 
 **The problem.** Go randomises the map iteration order. Rendering a map
 directly produces a different order on every frame — a flickering
@@ -334,7 +334,7 @@ for _, key := range keys {
 serialised to JSON with the standard encoder is sorted (the encoder
 sorts the map keys), but a map rendered by hand is not.
 
-## 22.8 The path-based tree key
+## 23.8 The path-based tree key
 
 **The problem.** A tree keyed by the node's own label collides when
 siblings share a label.
@@ -362,7 +362,7 @@ func buildJSONNode(key string, value any, depth int, parentPath string) *JSONNod
 ⚠️ **The same rule applies to any hierarchical structure** — a file
 tree, a category tree, a dependency graph.
 
-## 22.9 The idempotent ensure
+## 23.9 The idempotent ensure
 
 **The problem.** You need a collection to exist. Where do you create
 it?
@@ -395,7 +395,7 @@ collection := core.NewBaseCollection(name)
 This applies to migrations too (they are tracked by the database), to
 the dictionary creation, and to the seed data.
 
-## 22.10 The error-to-message conversion
+## 23.10 The error-to-message conversion
 
 **The problem.** A command can fail. The error must reach the user.
 
@@ -438,7 +438,7 @@ differently, the user sees a mix of toasts, status bar entries and
 silent failures. The root model is the right place: one place, one
 behaviour.
 
-## 22.11 The wrapped error
+## 23.11 The wrapped error
 
 **The problem.** You want `errors.Is` to work, and you want the message
 to say what failed.
@@ -461,7 +461,7 @@ return nil, fmt.Errorf("pbstore: list %q: %w", q.Collection, err)
 `map[string]error`, you cannot wrap it directly — you must join the
 values first (the template's `joinErrors`).
 
-## 22.12 The one-line rule
+## 23.12 The one-line rule
 
 **The problem.** A long function with a long switch.
 
@@ -488,7 +488,7 @@ bug where the early `return`s skipped the `refreshStatusBar()` call.
 Extracting the switch made the bug impossible: there is now exactly one
 place where the refresh happens.
 
-## 22.13 The message per concern
+## 23.13 The message per concern
 
 **The problem.** One message type with many optional fields.
 
@@ -517,7 +517,7 @@ error field invites `if msg.err != nil` checks in two places. Separate
 types route them through the type switch, where they cannot be
 confused.
 
-## 22.14 The context everywhere
+## 23.14 The context everywhere
 
 **The pattern.** Every blocking call takes a `context.Context`.
 
@@ -548,7 +548,7 @@ defer cancel()
 avoid starting work that is already cancelled. It is worth the two
 lines.
 
-## 22.15 The interface seam
+## 23.15 The interface seam
 
 **The pattern.** Define the interface where it is *used*, not where it
 is *implemented*.
@@ -568,7 +568,7 @@ is a *published contract* that downstream projects implement. That is
 the exception, not the rule. For an internal interface, define it in
 the consumer package.
 
-## 22.16 The checklist
+## 23.16 The checklist
 
 Before you commit a change, run through this:
 
@@ -585,7 +585,7 @@ Before you commit a change, run through this:
 | The new components handle their own messages | Check the root model forwards them    |
 | The new hotkeys do not collide               | Read `handleGlobalKey`                |
 
-## 22.17 Exercises
+## 23.17 Exercises
 
 1. Implement the generation-counter staleness guard in the search
    page, replacing the page-number guard.
@@ -593,7 +593,7 @@ Before you commit a change, run through this:
 2. Add a debounce to the records page filter.
 
 3. Refactor the root model's `Update` with the one-line rule from
-   §22.12, and verify that the status bar refresh can no longer be
+   §23.12, and verify that the status bar refresh can no longer be
    skipped.
 
 4. Find every `range` over a map in your code and sort the keys.
@@ -601,9 +601,9 @@ Before you commit a change, run through this:
 5. Write a test that fails if a command reads the model. (Hint: use
    the race detector.)
 
-6. Audit your code with the §22.16 checklist.
+6. Audit your code with the §23.16 checklist.
 
-## 22.18 What you learned
+## 23.18 What you learned
 
 - **Commands capture values, never the model.** The rule and the trap.
 - The **staleness guard** and the **debounce** are the two halves of a
@@ -621,7 +621,7 @@ Before you commit a change, run through this:
   forget.
 - **One message type per result**, with the error as its own type.
 
-## 22.19 Further reading
+## 23.19 Further reading
 
 - `internal/app/app.go` — the root model, as the pattern library.
 - `internal/pages/records.go` — the staleness guard and the `Refresh`.

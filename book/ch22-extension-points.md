@@ -1,6 +1,6 @@
 # Chapter 22 — Extension Points: A Catalogue
 
-## 21.1 What an extension point is
+## 22.1 What an extension point is
 
 An extension point is a **seam** in the architecture where a downstream
 project can substitute its own behaviour without modifying the core.
@@ -15,7 +15,7 @@ it is a patch that happens to be called a hook.
 The Flint template has five. This chapter catalogues them, shows what
 each one costs, and explains when to use which.
 
-## 21.2 The five extension points
+## 22.2 The five extension points
 
 | # | Extension point          | Lives in                    | Reached by                    |
 | - | ------------------------ | --------------------------- | ----------------------------- |
@@ -23,7 +23,7 @@ each one costs, and explains when to use which.
 | 2 | The **pages**            | `internal/pages`            | Registering in `internal/app`  |
 | 3 | The **migrations**       | `cmd/tui`                   | `appMigrations()`             |
 | 4 | The **sync strategy**    | `internal/pbstore`          | Implementing `Store`           |
-| 5 | The **theme**            | `internal/theme`            | `theme.New(variant)`          |
+| 5 | The **theme**            | `internal/theme`            | `theme.New(variant, scale)`   |
 
 There is a sixth, unofficial one that turns out to matter a lot:
 
@@ -31,9 +31,13 @@ There is a sixth, unofficial one that turns out to matter a lot:
 | - | ------------------------ | --------------------------- | ----------------------------- |
 | 6 | The **store**           | `internal/pbstore`          | `openStore(cfg)`              |
 
+The first one has a runtime variant worth calling out: the record
+renderer can also be **overridden by a script** in `flint_hooks/`,
+without a Go rebuild. See §22.3.
+
 Let us examine each.
 
-## 21.3 The record renderer
+## 22.3 The record renderer
 
 ### The interface
 
@@ -178,7 +182,82 @@ if sr, ok := c.renderer.(components.SectionedRenderer); ok {
 additive: the existing renderers keep working, and the new capability
 is opt-in.
 
-## 21.4 The pages
+### Overriding it from JavaScript
+
+There is a third way, and it does not need a Go rebuild at all: a
+script in `flint_hooks/` can **override** the renderer.
+
+```js
+// <data-dir>/../flint_hooks/1_render.pb.js
+function flintRender(record) {
+    return {
+        title:   record.label || record.id,
+        summary: record.description || "",
+        fields:  [{ name: "Key", value: String(record.key) }],
+    }
+}
+```
+
+Enabled with `--js-renderer`. It **overrides** rather than replaces:
+when the script returns a value, that value is used, and the Go
+renderer is the fallback. A missing, broken or slow script degrades to
+the default rendering instead of breaking the screen.
+
+Three things make it safe.
+
+**1. It is a separate directory from `pb_hooks/`.** The PocketBase hooks
+extend the data layer and can run unchanged on a server. The renderer
+is local to the application: the server has no TUI to render. Keeping
+the directories apart keeps that portability honest.
+
+**2. The script cannot reach the database.** It runs in its own goja
+runtime, not the PocketBase one, so there is no `$app`, no `$dbx`, no
+`$os`. A renderer is display logic; it must not be able to write.
+
+**3. The script never runs while a frame is drawn.** This is the part
+that matters for the `RecordRenderer` contract above.
+
+The render methods are called from `View`. Evaluating a script there
+would block the render loop for as long as the script takes — on every
+keystroke. So the render methods are pure cache lookups, and the script
+runs only in a preload that the pages call from the commands that fetch
+the records:
+
+```go
+// internal/pages/records.go, inside the load command
+components.Preload(p.renderer, result.Records)
+```
+
+```go
+// The hook the pages call.
+type Preloader interface {
+    RecordRenderer
+    Preload(records []*pbstore.Record) int
+}
+```
+
+The consequence is visible: the **first frame of a new record shows the
+Go rendering**, and the next frame shows the script rendering. That is
+the price of keeping `View` pure, and it is the same reason the card
+renderer must be cheap.
+
+A single evaluation is bounded to two seconds and is interrupted with
+`Runtime.Interrupt`, so a script that loops forever cannot leave the
+runtime holding the lock.
+
+| Property | Go renderer | JavaScript override |
+| -------- | ----------- | ------------------- |
+| Changes need a rebuild | yes | no |
+| Type checked | yes | no |
+| Runs in `View` | yes | **no** (preloaded) |
+| Can reach the database | yes | no |
+| Runs on a server | no | no |
+
+The last row is the one to keep in mind: **neither** renderer is
+portable to a server, because rendering is a client concern. Only the
+data hooks in `pb_hooks/` are.
+
+## 22.4 The pages
 
 ### What a page is
 
@@ -342,7 +421,7 @@ discoverable: a reader of `internal/app` no longer sees the list of
 pages. For a template whose *purpose* is to be extended, that trade is
 worth making. But it is a change to the core, so it is your call.
 
-## 21.5 The migrations
+## 22.5 The migrations
 
 ### The interface
 
@@ -429,7 +508,7 @@ func Migrations() []core.Migration {
 ⚠️ **The migration filenames must sort after the system ones.** Use a
 timestamp prefix (Chapter 13).
 
-## 21.6 The sync strategy
+## 22.6 The sync strategy
 
 ### The interface
 
@@ -506,7 +585,7 @@ Reach for a custom `Store` only when you need a fundamentally
 different data flow — a different backend, a merge policy the built-in
 one cannot express, or a sync that is not record-oriented.
 
-## 21.7 The theme
+## 22.7 The theme
 
 ### The interface
 
@@ -645,7 +724,7 @@ type Theme struct {
 This is the mechanism for adding a *new kind of content* to the
 application without touching the components that render it.
 
-## 21.8 The store
+## 22.8 The store
 
 ### The interface
 
@@ -698,7 +777,7 @@ implementing twelve methods, with the right semantics (the contexts,
 the error wrapping, the allowlist). Read the interface documentation
 carefully.
 
-## 21.9 The extension matrix
+## 22.9 The extension matrix
 
 | Extension point | Cost  | Touches the core? | Reversible? |
 | --------------- | ----- | ----------------- | ----------- |
@@ -709,7 +788,7 @@ carefully.
 | The sync        | High  | No (implement)    | Yes         |
 | The store       | High  | No (implement)    | Yes         |
 
-## 21.10 The order to extend in
+## 22.10 The order to extend in
 
 ⚠️ **Do not start with the store.** The temptation is to build the
 data layer first, because it feels like the "real" work. But the store
@@ -731,7 +810,7 @@ expensive**, because every page that touches it has to be revisited.
 Rebuilding the renderer is cheap, because it is a single injected
 object.
 
-## 21.11 A worked example: adding a domain
+## 22.11 A worked example: adding a domain
 
 Let us walk through adding a "measurement units" domain to the
 template, in the order above.
@@ -894,12 +973,12 @@ func TestRenderer(t *testing.T) {
 }
 ```
 
-## 21.12 Exercises
+## 22.12 Exercises
 
-1. Implement the `SectionedRenderer` optional interface from §21.3 and
+1. Implement the `SectionedRenderer` optional interface from §22.3 and
    render grouped sections in the record card.
 
-2. Implement the page registry from §21.4 and move the existing pages
+2. Implement the page registry from §22.4 and move the existing pages
    into it. Measure how many lines of `internal/app/app.go` you
    removed.
 
@@ -914,9 +993,9 @@ func TestRenderer(t *testing.T) {
    configuration validation accepts it.
 
 6. Extend the template with a domain of your own, following the
-   six-step procedure in §21.11.
+   six-step procedure in §22.11.
 
-## 21.13 What you learned
+## 22.13 What you learned
 
 - An extension point must be **reachable without editing the core**.
 - The template has **six**: the renderer, the migrations, the theme,
@@ -930,7 +1009,7 @@ func TestRenderer(t *testing.T) {
 - Add capabilities with **optional interfaces** (type assertions), not
   by breaking the published ones.
 
-## 21.14 Further reading
+## 22.14 Further reading
 
 - `internal/components/recordcard.go` — the `RecordRenderer` interface.
 - `internal/app/app.go` — the injection points.
