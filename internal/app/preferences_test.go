@@ -6,7 +6,9 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 
+	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/app"
+	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/theme"
 )
 
@@ -136,6 +138,43 @@ func TestToggleCompact(t *testing.T) {
 
 	if m.Preferences().Compact != before {
 		t.Error("the compact flag did not switch back")
+	}
+}
+
+// TestEveryStoredPreferenceIsRestored verifies that every preference
+// survives a restart.
+//
+// The regression this guards against is a preference that is stored
+// but never read back at startup: the value is written to the store
+// and then silently ignored.
+func TestEveryStoredPreferenceIsRestored(t *testing.T) {
+	// The stub store returns the stored preferences.
+	store := &stubStore{
+		hasPreferences: true,
+		preferences: pbstore.Preferences{
+			Theme:   "light",
+			Scale:   120,
+			PerPage: 50,
+			Compact: true,
+		},
+	}
+
+	m := app.New(store, config.Default(), nil)
+
+	if got := m.Theme().Variant; got != theme.VariantLight {
+		t.Errorf("the variant = %q, want %q", got, theme.VariantLight)
+	}
+
+	if got := m.Theme().Scale; got != 120 {
+		t.Errorf("the scale = %d, want 120", int(got))
+	}
+
+	if got := m.Preferences().PerPage; got != 50 {
+		t.Errorf("the page size = %d, want 50", got)
+	}
+
+	if got := m.Preferences().Compact; !got {
+		t.Error("the compact flag was not restored")
 	}
 }
 

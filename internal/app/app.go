@@ -93,6 +93,8 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		if stored.PerPage > 0 {
 			prefs.PerPage = stored.PerPage
 		}
+
+		prefs.Compact = stored.Compact
 	}
 
 	t := theme.New(theme.Variant(prefs.Theme), theme.Scale(prefs.Scale))

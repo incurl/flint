@@ -26,6 +26,11 @@ type stubStore struct {
 	collections []pbstore.Collection
 	records     []*pbstore.Record
 	closed      bool
+	// preferences are the stored user preferences, when the test sets
+	// them.
+	preferences pbstore.Preferences
+	// hasPreferences reports whether the preferences were stored.
+	hasPreferences bool
 }
 
 func (s *stubStore) Mode() pbstore.Mode { return s.mode }
@@ -53,6 +58,19 @@ func (s *stubStore) Get(ctx context.Context, collection, id string) (*pbstore.Re
 }
 
 func (s *stubStore) FindFirst(ctx context.Context, collection, filter string) (*pbstore.Record, error) {
+	// The preferences are stored in their own collection.
+	if collection == pbstore.PreferencesCollection && s.hasPreferences {
+		return &pbstore.Record{
+			ID: "prefs",
+			Fields: map[string]any{
+				"theme":    s.preferences.Theme,
+				"scale":    s.preferences.Scale,
+				"per_page": s.preferences.PerPage,
+				"compact":  s.preferences.Compact,
+			},
+		}, nil
+	}
+
 	return nil, pbstore.ErrNotFound
 }
 
