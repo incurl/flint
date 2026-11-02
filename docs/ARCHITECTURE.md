@@ -246,6 +246,8 @@ lookup caches belong in a PocketBase collection**, reached through
 | `internal/pbstore/store.go`   | ⚠️    | Extend carefully — the interface is the contract |
 | `internal/pbstore/embedded.go`| ⚠️    | Keep the `Store` contract intact               |
 | `internal/pbstore/remote.go`  | ⚠️    | Keep the `Store` contract intact               |
+| `internal/hybridstore/`       | ✅    | The JSON filter wrapper — it sits above `pbstore`, not inside it |
+| `internal/jsonfilter/`        | ✅    | The local evaluator; pure functions, no state  |
 | `internal/app/app.go`         | ⚠️    | Extend the routing, keep the global layer consistent |
 
 ## What to leave alone

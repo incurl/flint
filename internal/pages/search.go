@@ -1,10 +1,8 @@
 package pages
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"charm.land/bubbles/v2/list"
 	"charm.land/bubbles/v2/spinner"
@@ -246,7 +244,10 @@ func (p *SearchPage) resize() {
 // instead of crashing the TUI.
 func (p *SearchPage) Search() tea.Cmd {
 	store := p.store
+	renderer := p.renderer
 	collection := p.runtime.Collection
+	sortExpr := p.runtime.Sort
+	perPage := p.runtime.PerPage
 	filter := strings.TrimSpace(p.input.Value())
 
 	return func() tea.Msg {
@@ -258,21 +259,16 @@ func (p *SearchPage) Search() tea.Cmd {
 			return SearchResultMsg{Err: fmt.Errorf("pages: select a collection on the home page first")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		result, err := store.List(ctx, pbstore.Query{
+		result, err := listRecords(store, renderer, pbstore.Query{
 			Collection: collection,
 			Filter:     filter,
-			Sort:       p.runtime.Sort,
+			Sort:       sortExpr,
 			Page:       1,
-			PerPage:    p.runtime.PerPage,
+			PerPage:    perPage,
 		})
 		if err != nil {
 			return SearchResultMsg{Err: err}
 		}
-
-		components.Preload(p.renderer, result.Records)
 
 		return SearchResultMsg{Result: result}
 	}

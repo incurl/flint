@@ -1,4 +1,4 @@
-package pbstore_test
+package hybridstore_test
 
 import (
 	"context"
@@ -7,12 +7,13 @@ import (
 
 	"github.com/pocketbase/pocketbase"
 
+	"github.com/incurl/flint/internal/hybridstore"
 	"github.com/incurl/flint/internal/pbstore"
 )
 
 // newHybridStore creates a hybrid store over an embedded backend with a
 // JSON field and a few records in it.
-func newHybridStore(t *testing.T, maxLocalRecords int) *pbstore.Hybrid {
+func newHybridStore(t *testing.T, maxLocalRecords int) *hybridstore.Hybrid {
 	t.Helper()
 
 	dir := filepath.Join(t.TempDir(), "pb_data")
@@ -26,7 +27,7 @@ func newHybridStore(t *testing.T, maxLocalRecords int) *pbstore.Hybrid {
 		t.Fatalf("OpenEmbedded() error = %v", err)
 	}
 
-	store := pbstore.NewHybrid(inner, pbstore.HybridConfig{MaxLocalRecords: maxLocalRecords})
+	store := hybridstore.NewHybrid(inner, hybridstore.HybridConfig{MaxLocalRecords: maxLocalRecords})
 
 	ctx := context.Background()
 	if _, err := store.EnsureDictionaryCollection(ctx, "jf", []pbstore.DictionaryField{

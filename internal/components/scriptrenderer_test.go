@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -216,37 +217,6 @@ function flintRender(record) {
 	}
 }
 
-func TestCachedRendererInvalidate(t *testing.T) {
-	t.Parallel()
-
-	script := `
-function flintRender(record) {
-    return { title: record.label, summary: "", fields: [] }
-}
-`
-	renderer := components.NewCachedRenderer(script, nil)
-	rec := newScriptRecord("r1", map[string]any{"label": "Hello"})
-
-	renderer.Preload([]*pbstore.Record{rec})
-
-	if renderer.Len() != 1 {
-		t.Errorf("Len() = %d, want 1", renderer.Len())
-	}
-
-	renderer.Invalidate("r1")
-
-	if renderer.Len() != 0 {
-		t.Errorf("Len() = %d after Invalidate, want 0", renderer.Len())
-	}
-
-	renderer.Preload([]*pbstore.Record{rec})
-	renderer.InvalidateAll()
-
-	if renderer.Len() != 0 {
-		t.Errorf("Len() = %d after InvalidateAll, want 0", renderer.Len())
-	}
-}
-
 func TestLoadScript(t *testing.T) {
 	t.Parallel()
 
@@ -290,5 +260,47 @@ func TestLoadScriptMissingDirectory(t *testing.T) {
 
 	if script != "" {
 		t.Errorf("LoadScript() = %q, want an empty script", script)
+	}
+}
+
+// TestScriptRendererLogsAFailure verifies that a script that throws at
+// runtime is reported.
+//
+// The rendering falls back to the Go renderer, which looks exactly like
+// a script that chose to render nothing: without a log line, the user
+// has no way to tell that their script is broken.
+func TestScriptRendererLogsAFailure(t *testing.T) {
+	script := `
+function flintRender(record) {
+    throw new Error("boom")
+}
+`
+
+	renderer := components.NewCachedRenderer(script, nil)
+	rec := newScriptRecord("r1", map[string]any{"label": "Hello"})
+
+	var buf strings.Builder
+
+	previous := slog.Default()
+
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+
+	defer slog.SetDefault(previous)
+
+	renderer.Preload([]*pbstore.Record{rec})
+
+	// A failure is cached, so a second preload must not log it again.
+	renderer.Preload([]*pbstore.Record{rec})
+
+	if !strings.Contains(buf.String(), "falling back") {
+		t.Errorf("log = %q, want it to mention the fallback", buf.String())
+	}
+
+	if got := strings.Count(buf.String(), "falling back"); got != 1 {
+		t.Errorf("the failure was logged %d times, want 1", got)
+	}
+
+	if !strings.Contains(buf.String(), "r1") {
+		t.Errorf("log = %q, want it to name the record", buf.String())
 	}
 }

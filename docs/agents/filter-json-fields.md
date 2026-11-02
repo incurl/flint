@@ -27,7 +27,7 @@ like a filter that matched no records.
 
 ## The solution
 
-The `pbstore.Hybrid` wrapper routes the expressions the native grammar
+The `hybridstore.Hybrid` wrapper routes the expressions the native grammar
 cannot evaluate to a local evaluation:
 
 ```

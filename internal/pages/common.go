@@ -1,10 +1,14 @@
 package pages
 
 import (
+	"context"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/table"
 
+	"github.com/incurl/flint/internal/components"
+	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/state"
 	"github.com/incurl/flint/internal/theme"
 )
@@ -16,6 +20,24 @@ import (
 // so the table needs a usable default from the start. The value matches
 // the sum of the default column widths.
 const defaultTableWidth = 88
+
+// The timeouts bound the store calls that the pages run in a command.
+//
+// They are deliberately different: a single read is expected to be
+// quick, a list query may scan many records, and a synchronisation
+// copies a whole collection over the network.
+const (
+	// readTimeout bounds a single read: one record, or the list of
+	// collections.
+	readTimeout = 15 * time.Second
+	// listTimeout bounds a list query.
+	listTimeout = 30 * time.Second
+	// writeTimeout bounds a mutation of a single record.
+	writeTimeout = 15 * time.Second
+	// syncTimeout bounds a full synchronisation, which copies a whole
+	// collection.
+	syncTimeout = 10 * time.Minute
+)
 
 // defaultColumns returns the columns of the record table.
 //
@@ -64,4 +86,32 @@ type NavigateMsg struct {
 type OpenRecordMsg struct {
 	// ID is the identifier of the record to open.
 	ID string
+}
+
+// listRecords runs a timed list query and preloads the script renderer.
+//
+// It is the shared body of the list commands: the pages differ only in
+// the query they build and in the message they return, so the plumbing
+// lives here once rather than in each of them.
+//
+// It must be called from a command. It blocks for the duration of the
+// query, and the preload blocks for as long as the script takes.
+func listRecords(
+	store pbstore.Store,
+	renderer components.RecordRenderer,
+	query pbstore.Query,
+) (*pbstore.PageResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), listTimeout)
+	defer cancel()
+
+	result, err := store.List(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	// The script renderer computes its display data here, off the render
+	// loop, rather than while a frame is drawn.
+	components.Preload(renderer, result.Records)
+
+	return result, nil
 }

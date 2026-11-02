@@ -430,6 +430,12 @@ func (s *Embedded) Count(ctx context.Context, collection, filter string) (int, e
 // The collection is created with the native PocketBase collection model, so
 // it behaves like any hand-crafted collection created through the admin UI:
 // it has system fields, indexes and validation.
+//
+// Unlike every other method, this one does **not** enforce the collection
+// allowlist. That asymmetry is deliberate: the allowlist constrains access,
+// not provisioning. A collection is created here because the application
+// needs it to exist, and it is [Embedded.SyncCollection] that then fills it;
+// reading it back still goes through the allowlist like any other read.
 func (s *Embedded) EnsureDictionaryCollection(ctx context.Context, name string, fields []DictionaryField) (Collection, error) {
 	if err := ctx.Err(); err != nil {
 		return Collection{}, err

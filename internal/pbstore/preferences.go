@@ -42,11 +42,6 @@ type Preferences struct {
 	Compact bool
 }
 
-// Clone returns a copy of the preferences.
-func (p Preferences) Clone() Preferences {
-	return p
-}
-
 // LoadPreferences reads the preferences of the current user.
 //
 // It returns the zero preferences when none were stored yet, which is

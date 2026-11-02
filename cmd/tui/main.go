@@ -19,6 +19,7 @@ import (
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/app"
 	"github.com/incurl/flint/internal/components"
+	"github.com/incurl/flint/internal/hybridstore"
 	"github.com/incurl/flint/internal/pbstore"
 )
 
@@ -116,7 +117,7 @@ func run() error {
 
 // openStore creates the store described by the configuration.
 //
-// The store is wrapped in a [pbstore.Hybrid], which evaluates the JSON
+// The store is wrapped in a [hybridstore.Hybrid], which evaluates the JSON
 // filters that the native PocketBase grammar cannot express, such as
 // the ones that reach into an array.
 func openStore(cfg *config.Config) (pbstore.Store, error) {
@@ -125,7 +126,7 @@ func openStore(cfg *config.Config) (pbstore.Store, error) {
 		return nil, err
 	}
 
-	return pbstore.NewHybrid(store, pbstore.HybridConfig{
+	return hybridstore.NewHybrid(store, hybridstore.HybridConfig{
 		MaxLocalRecords: cfg.MaxLocalRecords,
 	}), nil
 }

@@ -141,6 +141,13 @@ go test ./internal/pages/ -run TestRecordsPageDiscardsStaleResponse
 go test ./internal/pages/ -run TestRecordsPageDiscardsStaleResponse
 ```
 
+The same guard exists for the detail page, where the identity is the
+record id:
+
+```bash
+go test ./internal/pages/ -run TestDetailPageDiscardsStaleResponse
+```
+
 A test that passes both ways proves nothing.
 
 ### Test conventions in this repository

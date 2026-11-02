@@ -234,7 +234,7 @@ func (p *SyncPage) Sync() tea.Cmd {
 			return SyncMsg{Err: fmt.Errorf("pages: the remote collection is required")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 		defer cancel()
 
 		report, err := store.SyncCollection(ctx, req)

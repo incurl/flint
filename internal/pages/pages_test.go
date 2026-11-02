@@ -239,7 +239,7 @@ func TestDetailPage(t *testing.T) {
 
 	page := pages.NewDetailPage(store, runtime, theme.Default(), nil)
 
-	updated, _ := page.Update(pages.DetailMsg{Record: store.records[0]})
+	updated, _ := page.Update(pages.DetailMsg{Record: store.records[0], ID: "rec1"})
 	page = updated.(*pages.DetailPage)
 
 	view := page.View().Content
@@ -413,5 +413,39 @@ func TestRecordsPageRendersRows(t *testing.T) {
 	view := page.View().Content
 	if !strings.Contains(view, "Go") {
 		t.Errorf("View() = %q, want it to contain the record title", view)
+	}
+}
+
+// TestDetailPageDiscardsStaleResponse verifies that a slow response for
+// a record the user has already left does not replace the one they are
+// looking at.
+//
+// The requests are asynchronous, so the response for the record opened
+// first can arrive last.
+func TestDetailPageDiscardsStaleResponse(t *testing.T) {
+	first := &pbstore.Record{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "First"}}
+	second := &pbstore.Record{ID: "rec2", CollectionName: "vocab", Fields: map[string]any{"label": "Second"}}
+
+	store := &stubStore{records: []*pbstore.Record{first, second}}
+
+	runtime := newRuntime()
+	runtime.SelectedID = "rec2"
+
+	page := pages.NewDetailPage(store, runtime, theme.Default(), nil)
+
+	// The response for the record the user already left arrives late.
+	updated, _ := page.Update(pages.DetailMsg{Record: first, ID: "rec1"})
+	page = updated.(*pages.DetailPage)
+
+	if strings.Contains(page.View().Content, "First") {
+		t.Error("the stale response replaced the displayed record")
+	}
+
+	// The response for the selected record is applied.
+	updated, _ = page.Update(pages.DetailMsg{Record: second, ID: "rec2"})
+	page = updated.(*pages.DetailPage)
+
+	if !strings.Contains(page.View().Content, "Second") {
+		t.Error("the current response was discarded")
 	}
 }

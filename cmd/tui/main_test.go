@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/pocketbase/pocketbase"
 
 	"github.com/incurl/flint/config"
+	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
 )
 
@@ -207,5 +211,110 @@ migrate((app) => {
 		if c.Name == "off" {
 			t.Error("the JS migration ran even though the plugin is disabled")
 		}
+	}
+}
+
+// TestNewRendererDisabled verifies that the JavaScript renderer is off
+// unless it was asked for.
+func TestNewRendererDisabled(t *testing.T) {
+	cfg := &config.Config{JSRenderer: false}
+
+	renderer, err := newRenderer(cfg)
+	if err != nil {
+		t.Fatalf("newRenderer() error = %v", err)
+	}
+
+	if renderer != nil {
+		t.Errorf("newRenderer() = %T, want nil", renderer)
+	}
+}
+
+// TestNewRendererLoadsTheScript verifies that a valid script produces a
+// renderer.
+func TestNewRendererLoadsTheScript(t *testing.T) {
+	dir := t.TempDir()
+
+	script := `function flintRender(record) { return { title: "x", summary: "", fields: [] } }`
+	if err := os.WriteFile(filepath.Join(dir, "render.pb.js"), []byte(script), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	renderer, err := newRenderer(&config.Config{JSRenderer: true, RendererDir: dir})
+	if err != nil {
+		t.Fatalf("newRenderer() error = %v", err)
+	}
+
+	if renderer == nil {
+		t.Fatal("newRenderer() = nil, want a renderer")
+	}
+
+	if _, ok := renderer.(*components.CachedRenderer); !ok {
+		t.Errorf("newRenderer() = %T, want a *components.CachedRenderer", renderer)
+	}
+}
+
+// TestNewRendererRejectsABrokenScript verifies that a script which does
+// not compile is reported at startup.
+//
+// The alternative — falling back to the Go renderer on every record —
+// would hide the typo entirely.
+func TestNewRendererRejectsABrokenScript(t *testing.T) {
+	dir := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(dir, "render.pb.js"), []byte("function flintRender( {"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	_, err := newRenderer(&config.Config{JSRenderer: true, RendererDir: dir})
+	if err == nil {
+		t.Fatal("newRenderer() returned no error for a broken script")
+	}
+
+	if !strings.Contains(err.Error(), dir) {
+		t.Errorf("error = %v, want it to name %q", err, dir)
+	}
+}
+
+// TestNewRendererWithoutScript verifies that an empty directory yields
+// no renderer rather than an error.
+func TestNewRendererWithoutScript(t *testing.T) {
+	renderer, err := newRenderer(&config.Config{JSRenderer: true, RendererDir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("newRenderer() error = %v", err)
+	}
+
+	if renderer != nil {
+		t.Errorf("newRenderer() = %T, want nil", renderer)
+	}
+}
+
+// TestIsBenignShutdown verifies the shutdown classification.
+func TestIsBenignShutdown(t *testing.T) {
+	if !isBenignShutdown(tea.ErrInterrupted) {
+		t.Error("isBenignShutdown(tea.ErrInterrupted) = false, want true")
+	}
+
+	if isBenignShutdown(errors.New("boom")) {
+		t.Error("isBenignShutdown(boom) = true, want false")
+	}
+
+	if isBenignShutdown(nil) {
+		t.Error("isBenignShutdown(nil) = true, want false")
+	}
+}
+
+// TestNewLoggerLevels verifies that every level name maps to a logger.
+func TestNewLoggerLevels(t *testing.T) {
+	for _, level := range []string{"debug", "info", "warn", "error", "nonsense"} {
+		if got := newLogger(level); got == nil {
+			t.Errorf("newLogger(%q) = nil", level)
+		}
+	}
+}
+
+// TestAppMigrationsIsEmptyByDefault pins the extension point.
+func TestAppMigrationsIsEmptyByDefault(t *testing.T) {
+	if got := appMigrations(); len(got) != 0 {
+		t.Errorf("appMigrations() = %d migrations, want 0", len(got))
 	}
 }

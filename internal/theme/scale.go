@@ -2,7 +2,6 @@ package theme
 
 import (
 	"strconv"
-	"strings"
 )
 
 // Scale is a UI scale factor.
@@ -86,54 +85,3 @@ func (s Scale) ZoomOut() Scale {
 
 	return next
 }
-
-// ParseScale parses a scale from its string form.
-//
-// It accepts a plain number ("110"), a number with a percent sign
-// ("110%") and a multiplier ("1.1"). An empty string yields
-// [ScaleDefault].
-//
-// It returns an error when the value cannot be parsed or is out of
-// range.
-func ParseScale(value string) (Scale, error) {
-	trimmed := strings.TrimSpace(strings.ToLower(value))
-	if trimmed == "" {
-		return ScaleDefault, nil
-	}
-
-	multiplier := false
-
-	switch {
-	case strings.HasSuffix(trimmed, "%"):
-		trimmed = strings.TrimSuffix(trimmed, "%")
-	case strings.HasSuffix(trimmed, "x"):
-		trimmed = strings.TrimSuffix(trimmed, "x")
-		multiplier = true
-	}
-
-	number, err := strconv.ParseFloat(trimmed, 64)
-	if err != nil {
-		return ScaleDefault, err
-	}
-
-	if multiplier {
-		number *= 100
-	}
-
-	scale := Scale(number)
-	if !scale.Valid() {
-		return ScaleDefault, errScaleOutOfRange
-	}
-
-	return scale, nil
-}
-
-// errScaleOutOfRange is returned when a scale is outside the accepted
-// range.
-var errScaleOutOfRange = scaleError("theme: the scale is out of range")
-
-// scaleError is the error type of the scale parsing.
-type scaleError string
-
-// Error implements the error interface.
-func (e scaleError) Error() string { return string(e) }

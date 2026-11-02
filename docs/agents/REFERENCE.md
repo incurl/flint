@@ -40,12 +40,16 @@ background goroutines and call the store while the render loop is live.
 
 ### The `Hybrid` wrapper
 
-`pbstore.NewHybrid` wraps a store and evaluates the JSON filters that
-the native grammar cannot express. It implements `Store`, so the rest
-of the code does not know about it.
+`hybridstore.NewHybrid` wraps a store and evaluates the JSON filters
+that the native grammar cannot express. It implements `pbstore.Store`,
+so the rest of the code does not know about it.
+
+It lives in its own package — not in `pbstore` — because it imports
+`internal/jsonfilter`, and `pbstore` must import nothing from
+`internal/`.
 
 ```go
-func NewHybrid(inner Store, config HybridConfig) *Hybrid
+func NewHybrid(inner pbstore.Store, config HybridConfig) *Hybrid
 
 type HybridConfig struct {
 	// MaxLocalRecords bounds the local evaluation.
@@ -61,7 +65,7 @@ if err != nil {
 	return nil, err
 }
 
-return pbstore.NewHybrid(store, pbstore.HybridConfig{
+return hybridstore.NewHybrid(store, hybridstore.HybridConfig{
 	MaxLocalRecords: cfg.MaxLocalRecords,
 }), nil
 ```
@@ -361,7 +365,6 @@ func (t *Theme) StatusColor(status string) lipgloss.Style
 func (t *Theme) Apply(variant Variant, scale Scale)
 
 // The scale helpers.
-func ParseScale(value string) (Scale, error)
 func ScaleZoomIn(s Scale) Scale
 func ScaleZoomOut(s Scale) Scale
 ```
@@ -492,9 +495,6 @@ func Preload(renderer RecordRenderer, records []*pbstore.Record) int
 // The cached renderer.
 func NewCachedRenderer(script string, fallback RecordRenderer) *CachedRenderer
 func (r *CachedRenderer) Validate() error
-func (r *CachedRenderer) Invalidate(id string)
-func (r *CachedRenderer) InvalidateAll()
-func (r *CachedRenderer) Len() int
 
 // The script files.
 const ScriptExtension = ".pb.js"
@@ -752,9 +752,30 @@ case RecordsMsg:
 	return p, nil
 ```
 
-**Keep this whenever you add a paginated message.** Without it, a slow
-query that resolves after the user moved on overwrites the visible rows
-with stale data.
+**Keep this whenever you add an asynchronous message.** Without it, a
+slow query that resolves after the user moved on overwrites what is on
+screen with stale data.
+
+The same rule applies to a single record, where the identity is the
+record id rather than the page:
+
+```go
+type DetailMsg struct {
+	Record *pbstore.Record
+	Err    error
+	ID     string // the record that was requested
+}
+
+// in Update:
+case DetailMsg:
+	if msg.ID != p.runtime.SelectedID {
+		return p, nil
+	}
+```
+
+Open record A, go back, open B before A's response lands: without the
+id, the late response for A is applied while `SelectedID` says B, and
+the detail page shows the wrong record.
 
 The root model applies the same guard so that a stale error does not
 raise a toast:
@@ -807,7 +828,7 @@ meta.tags = "cli"          // matches nothing, silently
 meta.tags[0] = "cli"       // error: unexpected character '['
 ```
 
-The `pbstore.Hybrid` wrapper routes those expressions to a local
+The `hybridstore.Hybrid` wrapper routes those expressions to a local
 evaluation instead:
 
 ```

@@ -15,6 +15,15 @@ import (
 	"github.com/incurl/flint/internal/theme"
 )
 
+// The timeouts bound the background calls that the root model runs.
+const (
+	// healthTimeout bounds the health probe of the backend.
+	healthTimeout = 10 * time.Second
+	// syncTimeout bounds a full synchronisation, which copies a whole
+	// collection.
+	syncTimeout = 10 * time.Minute
+)
+
 // Model is the root Bubble Tea model.
 //
 // It composes the page submodels and routes the messages between them:
@@ -497,7 +506,7 @@ func (m *Model) checkHealth() tea.Cmd {
 			return HealthMsg{Status: "no store", Err: fmt.Errorf("app: no store configured")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), healthTimeout)
 		defer cancel()
 
 		if _, err := store.HealthCheck(ctx); err != nil {
@@ -535,7 +544,7 @@ func (m *Model) triggerSync() tea.Cmd {
 	}
 
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		ctx, cancel := context.WithTimeout(context.Background(), syncTimeout)
 		defer cancel()
 
 		report, err := store.SyncCollection(ctx, req)

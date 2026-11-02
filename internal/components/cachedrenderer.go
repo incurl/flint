@@ -1,6 +1,7 @@
 package components
 
 import (
+	"log/slog"
 	"sync"
 
 	"github.com/incurl/flint/internal/pbstore"
@@ -148,6 +149,16 @@ func (r *CachedRenderer) Preload(records []*pbstore.Record) int {
 			// evaluated again for the same record.
 			r.store(rec, cachedEntry{updated: rec.Updated, ok: false})
 
+			// The rendering falls back to the Go renderer, which is
+			// indistinguishable from a script that chose to render
+			// nothing. The failure is logged, once per record version,
+			// so that a broken script does not fail in silence.
+			slog.Warn("the record script failed, falling back to the Go renderer",
+				"collection", rec.CollectionName,
+				"record", rec.ID,
+				"error", err,
+			)
+
 			continue
 		}
 
@@ -187,31 +198,4 @@ func (r *CachedRenderer) store(rec *pbstore.Record, entry cachedEntry) {
 // back on every record.
 func (r *CachedRenderer) Validate() error {
 	return r.script.Validate()
-}
-
-// Invalidate drops the cached rendering of a record.
-//
-// The application calls it when a record changes, so that the next
-// frame renders it again.
-func (r *CachedRenderer) Invalidate(id string) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	delete(r.cache, id)
-}
-
-// InvalidateAll drops every cached rendering.
-func (r *CachedRenderer) InvalidateAll() {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
-	r.cache = map[string]cachedEntry{}
-}
-
-// Len returns the number of cached renderings.
-func (r *CachedRenderer) Len() int {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-
-	return len(r.cache)
 }

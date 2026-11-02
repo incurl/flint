@@ -80,48 +80,6 @@ func TestScaleValid(t *testing.T) {
 	}
 }
 
-func TestParseScale(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		value string
-		want  theme.Scale
-	}{
-		{"", theme.ScaleDefault},
-		{"110", 110},
-		{"110%", 110},
-		{"1.1x", 110},
-		{" 120 ", 120},
-	}
-
-	for _, tt := range tests {
-		got, err := theme.ParseScale(tt.value)
-		if err != nil {
-			t.Errorf("ParseScale(%q) error = %v", tt.value, err)
-
-			continue
-		}
-
-		if got != tt.want {
-			t.Errorf("ParseScale(%q) = %d, want %d", tt.value, int(got), int(tt.want))
-		}
-	}
-}
-
-func TestParseScaleErrors(t *testing.T) {
-	t.Parallel()
-
-	// A value that is not a number.
-	if _, err := theme.ParseScale("abc"); err == nil {
-		t.Error("ParseScale(\"abc\") returned no error")
-	}
-
-	// A value out of the accepted range.
-	if _, err := theme.ParseScale("500"); err == nil {
-		t.Error("ParseScale(\"500\") returned no error")
-	}
-}
-
 func TestScalePadding(t *testing.T) {
 	t.Parallel()
 

@@ -16,6 +16,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
+	"github.com/incurl/flint/internal/hybridstore"
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/theme"
 )
@@ -137,7 +138,7 @@ func Default() *Config {
 		PerPage:  DefaultPerPage,
 		LogLevel: "info",
 
-		MaxLocalRecords: pbstore.DefaultMaxLocalRecords,
+		MaxLocalRecords: hybridstore.DefaultMaxLocalRecords,
 		Embedded: EmbeddedConfig{
 			DataDir: DefaultDataDir,
 		},

@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -19,6 +18,12 @@ type DetailMsg struct {
 	Record *pbstore.Record
 	// Err holds the error, when the loading failed.
 	Err error
+	// ID is the identifier the request was made for.
+	//
+	// The page compares it to the currently selected record before
+	// applying the result: a slow response for a record the user has
+	// already left must not replace the one they are looking at.
+	ID string
 }
 
 // DetailPage is the record detail screen.
@@ -87,6 +92,13 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, nil
 
 	case DetailMsg:
+		// A response for a record the user has already left must not
+		// replace the one they are looking at: the requests are
+		// asynchronous and the slower one can arrive last.
+		if msg.ID != p.runtime.SelectedID {
+			return p, nil
+		}
+
 		if msg.Err != nil || msg.Record == nil {
 			return p, nil
 		}
@@ -173,25 +185,26 @@ func (p *DetailPage) Refresh() tea.Cmd { return p.Load() }
 // Load returns the command that fetches the record by id.
 func (p *DetailPage) Load() tea.Cmd {
 	store := p.store
+	renderer := p.renderer
 	collection := p.runtime.Collection
 	id := p.runtime.SelectedID
 
 	return func() tea.Msg {
 		if store == nil || collection == "" || id == "" {
-			return DetailMsg{Err: fmt.Errorf("pages: no record selected")}
+			return DetailMsg{Err: fmt.Errorf("pages: no record selected"), ID: id}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
 		defer cancel()
 
 		rec, err := store.Get(ctx, collection, id)
 		if err != nil {
-			return DetailMsg{Err: err}
+			return DetailMsg{Err: err, ID: id}
 		}
 
-		components.Preload(p.renderer, []*pbstore.Record{rec})
+		components.Preload(renderer, []*pbstore.Record{rec})
 
-		return DetailMsg{Record: rec}
+		return DetailMsg{Record: rec, ID: id}
 	}
 }
 
@@ -215,7 +228,7 @@ func (p *DetailPage) save() tea.Cmd {
 			return components.ToastMsg{Level: components.ToastError, Text: "no store configured"}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 
 		if _, err := store.Update(ctx, collection, id, doc); err != nil {

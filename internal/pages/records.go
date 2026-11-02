@@ -6,9 +6,7 @@
 package pages
 
 import (
-	"context"
 	"fmt"
-	"time"
 
 	"charm.land/bubbles/v2/spinner"
 	"charm.land/bubbles/v2/table"
@@ -287,6 +285,7 @@ func (p *RecordsPage) Refresh() tea.Cmd {
 // render loop is never blocked by a database call.
 func (p *RecordsPage) Load() tea.Cmd {
 	store := p.store
+	renderer := p.renderer
 	collection := p.runtime.Collection
 	filter := p.runtime.Filter
 	sortExpr := p.runtime.Sort
@@ -298,10 +297,7 @@ func (p *RecordsPage) Load() tea.Cmd {
 			return RecordsMsg{Err: fmt.Errorf("pages: no collection selected"), Page: page}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		result, err := store.List(ctx, pbstore.Query{
+		result, err := listRecords(store, renderer, pbstore.Query{
 			Collection: collection,
 			Filter:     filter,
 			Sort:       sortExpr,
@@ -311,10 +307,6 @@ func (p *RecordsPage) Load() tea.Cmd {
 		if err != nil {
 			return RecordsMsg{Err: err, Page: page}
 		}
-
-		// The script renderer computes its display data here, off the
-		// render loop, rather than while a frame is drawn.
-		components.Preload(p.renderer, result.Records)
 
 		return RecordsMsg{Result: result, Page: page}
 	}

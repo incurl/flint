@@ -18,11 +18,13 @@ server over REST, behind one interface.
 
 ## 1. Orientation
 
-### The five packages that matter
+### The packages that matter
 
 | Package          | Responsibility                                          | Rule of thumb                                  |
 | ---------------- | ------------------------------------------------------- | ---------------------------------------------- |
 | `internal/pbstore` | The data layer. `Store` interface + embedded/remote impls. | Never branch on the backend. Use `Store`.     |
+| `internal/hybridstore` | `Hybrid`: wraps a `Store` to evaluate the JSON filters the native grammar cannot express. | The only package allowed to import both `pbstore` and `jsonfilter`. |
+| `internal/jsonfilter` | The local evaluator for array and `not` filters.      | Pure functions over a record map; no state.     |
 | `internal/app`   | Root Bubble Tea model: routing, global keys, status bar, toasts. | Owns global concerns only.                |
 | `internal/pages` | One file per screen. Self-contained.                    | A page never imports `internal/app`.           |
 | `internal/components` | Reusable widgets: record card, JSON viewer/editor, toast, status bar, pagination. | Generic, no domain knowledge.      |
@@ -35,15 +37,19 @@ server over REST, behind one interface.
 
 ```
 cmd/tui → app → pages → components → theme
-                 ↘         ↘
-                   state   pbstore
+             ↘     ↘         ↘
+         hybridstore  state   pbstore → (nothing)
+             ↘
+           jsonfilter
 ```
 
 - `pages` **must not** import `app` — that is an import cycle. Pages
   request navigation by emitting `pages.NavigateMsg` / `pages.OpenRecordMsg`,
   which the root model handles.
 - `pbstore` must not import anything from `internal/`. It is a standalone
-  data layer.
+  data layer. Anything that needs to sit *above* it — the hybrid filter is
+  the example — goes in its own package (`internal/hybridstore`), never
+  inside `pbstore`.
 - `components` must not import `pages` or `app`.
 
 If you find yourself wanting to import `app` from `pages`, you need a
@@ -81,12 +87,17 @@ Break one of these and you have a bug, even if the tests pass.
    hold a pointer to the model, because the model mutates while the
    command runs. Capture the store, the collection, the filter — the
    immutable inputs.
-4. **Every page owns a `Refresh()`** and the root model calls it on
-   navigation. A page that shows data without a `Refresh` shows nothing.
-5. **The stale-response guard.** Every list-style message carries the
-   page number it was requested for, and the handler compares it to the
-   current page before applying the result. See
-   `docs/agents/REFERENCE.md` § *Stale response guard*.
+4. **Every page that shows data owns a `Refresh()`**, and the root model
+   calls it on navigation. A page that shows data without a `Refresh`
+   shows nothing. The two pages that fetch nothing — `settings` and
+   `sync` — have none, and that is correct: they render the `Runtime`
+   and the configuration they were given.
+5. **The stale-response guard.** Every asynchronous message carries the
+   identity it was requested for — the page number for a list, the
+   record id for a detail — and the handler compares it to the current
+   selection before applying the result. Without it, a slow response for
+   something the user has already left overwrites what they are looking
+   at. See `docs/agents/REFERENCE.md` § *Stale response guard*.
 6. **Store calls take a `context.Context`** with a timeout, and they
    return `pbstore` sentinel errors (`ErrNotFound`, `ErrInvalidFilter`,
    …) so callers can use `errors.Is`.
@@ -211,7 +222,7 @@ Three rules catch most mistakes:
   exist in the collection schema.
 - **The native grammar cannot reach into a JSON array.** The expression
   parser rejects `[`, and an array field compared with `=` matches
-  nothing. The `pbstore.Hybrid` wrapper evaluates those expressions
+  nothing. The `hybridstore.Hybrid` wrapper evaluates those expressions
   locally with `internal/jsonfilter`: `meta.tags.#(=="cli")`,
   `meta.items.0.name = "x"`, `meta.items.#.qty > 5`. The detection is
   syntactic, so the two layers never disagree.
@@ -241,9 +252,9 @@ This repository is a template. When you start a new project from it:
 2. **Replace the example adapter.** `examples/wikidata/` is a reference
    implementation, not a product. Delete it and write your own, using
    it as the template for a custom migration, renderer, and filter.
-3. **Keep the four core packages intact.** `pbstore`, `app`, `pages`,
-   `components`, `state`, `theme` are the contract. Extend them; do not
-   fork them.
+3. **Keep the core packages intact.** `pbstore`, `hybridstore`,
+   `jsonfilter`, `app`, `pages`, `components`, `state`, `theme` are the
+   contract. Extend them; do not fork them.
 4. **Add your migrations** in `appMigrations()` in `cmd/tui/main.go`.
 5. **Wire your renderer** into `app.New(store, cfg, renderer)`.
 6. **Set the module path** so `go get` works for your users.

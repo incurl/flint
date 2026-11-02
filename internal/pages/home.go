@@ -3,7 +3,6 @@ package pages
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
@@ -186,7 +185,7 @@ func (p *HomePage) Load() tea.Cmd {
 			return HomeMsg{Err: fmt.Errorf("pages: no store configured")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), readTimeout)
 		defer cancel()
 
 		collections, err := store.Collections(ctx)

@@ -13,6 +13,9 @@ import (
 	"github.com/incurl/flint/internal/theme"
 )
 
+// requestTimeout bounds the HTTP calls of the example.
+const requestTimeout = 15 * time.Second
+
 // SearchResultMsg carries the result of a Wikidata query.
 type SearchResultMsg struct {
 	// Record holds the first matching item.
@@ -128,7 +131,7 @@ func (p *Page) search() tea.Cmd {
 			return SearchResultMsg{Err: fmt.Errorf("wikidata: no store configured")}
 		}
 
-		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 		defer cancel()
 
 		result, err := store.List(ctx, pbstore.Query{
