@@ -583,12 +583,30 @@ func (p *XPage) Refresh() tea.Cmd   // called by the root model on navigation
 Existing pages: `HomePage`, `RecordsPage`, `DetailPage`, `SearchPage`,
 `SettingsPage`, `SyncPage`.
 
+The detail page adds one method, which the root model reads to keep the
+global hotkeys out of the raw JSON editor while it is open:
+
+```go
+func (p *DetailPage) Editing() bool
+```
+
 Messages a page may emit (defined in `pages/common.go` so the page does
 not have to import `app`):
 
 ```go
 type NavigateMsg struct{ Page state.Page }
 type OpenRecordMsg struct{ ID string }
+```
+
+The detail page adds one of its own, for the outcome of a write. It
+carries the identity of the record the write was made for, so that a
+response for a record the user has already left is discarded:
+
+```go
+type SavedMsg struct {
+	ID  string
+	Err error
+}
 ```
 
 ---

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pbstore"
@@ -86,6 +87,16 @@ type NavigateMsg struct {
 type OpenRecordMsg struct {
 	// ID is the identifier of the record to open.
 	ID string
+}
+
+// toastCmd returns a command that raises a toast.
+//
+// The pages report their failures as a toast, because the root model
+// owns the toast component and a page must not import the app.
+func toastCmd(level components.ToastLevel, text string) tea.Cmd {
+	return func() tea.Msg {
+		return components.ToastMsg{Level: level, Text: text}
+	}
 }
 
 // listRecords runs a timed list query and preloads the script renderer.

@@ -95,10 +95,21 @@ func (e *JSONEditor) SetSize(width, height int) {
 }
 
 // Focus gives the keyboard focus to the editor.
-func (e *JSONEditor) Focus() { e.focused = true }
+//
+// The focus has to reach the textarea: it drops every message while it
+// is blurred, so setting the wrapper's flag alone left a field that
+// looked focused, accepted no input and gave no sign of the problem.
+func (e *JSONEditor) Focus() tea.Cmd {
+	e.focused = true
+
+	return e.textarea.Focus()
+}
 
 // Blur removes the keyboard focus from the editor.
-func (e *JSONEditor) Blur() { e.focused = false }
+func (e *JSONEditor) Blur() {
+	e.focused = false
+	e.textarea.Blur()
+}
 
 // Focused reports whether the component handles the key input.
 func (e *JSONEditor) Focused() bool { return e.focused }

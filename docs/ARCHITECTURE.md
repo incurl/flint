@@ -127,6 +127,12 @@ key press
 The `inputFocused()` helper is what makes the suspension explicit. If you
 add a new page with a text input, add it to that helper.
 
+`modalInputFocused()` is the stricter variant, and the detail page's raw
+JSON editor is the one page that uses it. A modal editor binds nothing
+globally but `ctrl+c`: a JSON document is made of the very characters the
+global layer binds, so `q` would quit and the digits would navigate away
+from an unsaved edit.
+
 ## The package boundaries
 
 ### `internal/pbstore` — the stable contract

@@ -176,6 +176,41 @@ func TestJSONEditor(t *testing.T) {
 	}
 }
 
+// TestJSONEditorAcceptsTyping verifies that the editor hands the key
+// presses to the textarea once it is focused.
+//
+// The textarea drops every message while it is blurred, so a Focus that
+// only set the wrapper's flag left a field that looked focused,
+// accepted nothing and gave no sign of the problem.
+func TestJSONEditorAcceptsTyping(t *testing.T) {
+	editor := components.NewJSONEditor(theme.Default())
+	editor.SetSize(80, 20)
+	editor.SetContent(`{}`)
+
+	if cmd := editor.Focus(); cmd == nil {
+		t.Error("Focus() returned no command")
+	}
+
+	updated, _ := editor.Update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	editor = updated.(*components.JSONEditor)
+
+	if !strings.Contains(editor.Content(), "x") {
+		t.Errorf("Content() = %q, want it to contain the typed rune", editor.Content())
+	}
+
+	// A blurred editor keeps the document untouched.
+	editor.Blur()
+
+	before := editor.Content()
+
+	updated, _ = editor.Update(tea.KeyPressMsg{Code: 'y', Text: "y"})
+	editor = updated.(*components.JSONEditor)
+
+	if editor.Content() != before {
+		t.Errorf("Content() = %q after Blur(), want %q", editor.Content(), before)
+	}
+}
+
 // TestPagination verifies the pagination component.
 func TestPagination(t *testing.T) {
 	p := components.NewPagination(theme.Default(), 10)

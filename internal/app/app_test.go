@@ -260,3 +260,68 @@ func TestModelToastExpires(t *testing.T) {
 		t.Error("the toast is still displayed after the expiry")
 	}
 }
+
+// TestModelModalEditorOwnsTheKeys verifies that the global hotkeys stay
+// out of the raw JSON editor.
+//
+// A JSON document is made of the very characters the global layer binds,
+// so `q` would quit the program and the digits would navigate away from
+// the record, discarding an unsaved edit.
+func TestModelModalEditorOwnsTheKeys(t *testing.T) {
+	m := newTestModel(t)
+
+	record := &pbstore.Record{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"key": "go"}}
+
+	// Open the detail page on a record, then its raw JSON editor.
+	updated, _ := m.Update(tea.KeyPressMsg{Code: '3', Text: "3"})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(pages.OpenRecordMsg{ID: "rec1"})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(pages.DetailMsg{Record: record, ID: "rec1"})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+	m = updated.(*app.Model)
+
+	if !contains(m.View().Content, "Raw JSON editor") {
+		t.Fatalf("View() = %q, want the editor to be open", m.View().Content)
+	}
+
+	// `q` must reach the editor instead of quitting the program.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'q', Text: "q"})
+	m = updated.(*app.Model)
+
+	if m.View().Content == "" {
+		t.Error("`q` quit the program while the editor was open")
+	}
+
+	// A digit must not navigate away from the unsaved document.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '1', Text: "1"})
+	m = updated.(*app.Model)
+
+	if !contains(m.View().Content, "Raw JSON editor") {
+		t.Errorf("View() = %q, want the editor to stay open", m.View().Content)
+	}
+
+	// `esc` cancels the edit rather than navigating back.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEsc})
+	m = updated.(*app.Model)
+
+	if contains(m.View().Content, "Raw JSON editor") {
+		t.Errorf("View() = %q, want the editor closed by esc", m.View().Content)
+	}
+
+	if !contains(m.View().Content, "Record") {
+		t.Errorf("View() = %q, want the detail page to stay open", m.View().Content)
+	}
+
+	// The interrupt still works: the editor must never trap the user.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl})
+	m = updated.(*app.Model)
+
+	if m.View().Content != "" {
+		t.Error("ctrl+c did not quit while the editor was open")
+	}
+}

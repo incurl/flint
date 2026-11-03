@@ -26,6 +26,23 @@ type DetailMsg struct {
 	ID string
 }
 
+// SavedMsg reports the outcome of a write.
+//
+// The page separates a successful save from a failed one because only
+// the success may reload: the reload replaces the editor content with
+// the stored document, which would discard the very text the user needs
+// in order to fix a rejected write.
+type SavedMsg struct {
+	// ID is the identifier the write was made for.
+	//
+	// The page compares it to the current selection: the write is
+	// asynchronous, so the response can arrive after the user has
+	// moved on to another record.
+	ID string
+	// Err holds the write error, when the save failed.
+	Err error
+}
+
 // DetailPage is the record detail screen.
 //
 // It combines the generic record card with the collapsible JSON viewer, so
@@ -111,8 +128,7 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if p.editing {
 			switch msg.String() {
 			case "esc":
-				p.editing = false
-				p.editor.Blur()
+				p.cancelEdit()
 
 				return p, nil
 			case "ctrl+s":
@@ -125,14 +141,43 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return p, nil
 			case "e":
 				p.editing = true
-				p.editor.Focus()
 
-				return p, nil
+				return p, p.editor.Focus()
 			case "r":
 				p.runtime.RawJSON = !p.runtime.RawJSON
 				return p, nil
 			}
 		}
+
+	case SavedMsg:
+		// A write for a record the user has already left must not
+		// replace the one they are looking at.
+		if msg.ID != p.runtime.SelectedID {
+			return p, nil
+		}
+
+		if msg.Err != nil {
+			return p, toastCmd(components.ToastError, msg.Err.Error())
+		}
+
+		// The write succeeded, so the editor closes and the page reloads
+		// what the store holds rather than what was typed into it.
+		p.editing = false
+		p.editor.Blur()
+
+		return p, tea.Batch(
+			toastCmd(components.ToastSuccess, "record saved"),
+			p.Load(),
+		)
+	}
+
+	// The open editor owns the input: the viewer behind it must not
+	// scroll or collapse nodes under the cursor while the user types.
+	if p.editing {
+		updated, cmd := p.editor.Update(msg)
+		p.editor = updated.(*components.JSONEditor)
+
+		return p, cmd
 	}
 
 	updated, cmd := p.viewer.Update(msg)
@@ -179,6 +224,13 @@ func (p *DetailPage) View() tea.View {
 	return tea.NewView(joinLines(b))
 }
 
+// Editing reports whether the raw JSON editor is open.
+//
+// The root model keeps the global hotkeys out of the editor while it is
+// open, so that the document can be typed without losing it: `q` would
+// quit, and the digits would navigate away from the record.
+func (p *DetailPage) Editing() bool { return p.editing }
+
 // Refresh reloads the displayed record.
 func (p *DetailPage) Refresh() tea.Cmd { return p.Load() }
 
@@ -210,7 +262,8 @@ func (p *DetailPage) Load() tea.Cmd {
 
 // save validates the edited JSON and writes it back through the store.
 //
-// The store errors are reported as a toast by the root model.
+// The validation runs before the command is returned: it is pure, and a
+// document that cannot be saved must never leave the editor.
 func (p *DetailPage) save() tea.Cmd {
 	store := p.store
 	collection := p.runtime.Collection
@@ -218,24 +271,40 @@ func (p *DetailPage) save() tea.Cmd {
 
 	doc, err := p.editor.Validate()
 	if err != nil {
-		return func() tea.Msg {
-			return components.ToastMsg{Level: components.ToastError, Text: "invalid JSON: " + err.Error()}
-		}
+		return toastCmd(components.ToastError, "invalid JSON: "+err.Error())
 	}
 
 	return func() tea.Msg {
 		if store == nil {
-			return components.ToastMsg{Level: components.ToastError, Text: "no store configured"}
+			return SavedMsg{ID: id, Err: fmt.Errorf("pages: no store configured")}
 		}
 
 		ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
 		defer cancel()
 
 		if _, err := store.Update(ctx, collection, id, doc); err != nil {
-			return components.ToastMsg{Level: components.ToastError, Text: err.Error()}
+			return SavedMsg{ID: id, Err: err}
 		}
 
-		return components.ToastMsg{Level: components.ToastSuccess, Text: "record saved"}
+		return SavedMsg{ID: id}
+	}
+}
+
+// cancelEdit closes the editor and discards the changes.
+//
+// The editor keeps the text that was typed, so cancelling has to put
+// the stored document back: otherwise the next `e` would show the
+// abandoned edit as if it were the record.
+func (p *DetailPage) cancelEdit() {
+	p.editing = false
+	p.editor.Blur()
+
+	if p.record == nil {
+		return
+	}
+
+	if raw, err := p.record.JSON(); err == nil {
+		p.editor.SetContent(raw)
 	}
 }
 

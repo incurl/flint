@@ -306,6 +306,19 @@ func (m *Model) View() tea.View {
 // global layer is disabled while a text input has the focus, so that the
 // user can type freely.
 func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	// A modal editor owns every key but the interrupt. The detail page is
+	// the one page that goes modal, and it has to: a JSON document is
+	// full of the characters the global layer binds, so `q` would quit
+	// and the digits would navigate away from an unsaved edit.
+	if m.modalInputFocused() {
+		if msg.String() == "ctrl+c" {
+			m.quitting = true
+			return tea.Quit, true
+		}
+
+		return nil, false
+	}
+
 	// While a text input has the focus the global layer only handles the
 	// interrupt key and the page switch digits, so that the user can type
 	// freely in the input while still being able to jump between pages.
@@ -394,6 +407,12 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 // The global layer must not shadow those bindings.
 func (m *Model) hasLocalRBinding() bool {
 	return m.runtime.Page == state.PageDetail
+}
+
+// modalInputFocused reports whether the active page is in a modal
+// editing state, where every key but the interrupt belongs to the page.
+func (m *Model) modalInputFocused() bool {
+	return m.runtime.Page == state.PageDetail && m.detail.Editing()
 }
 
 // inputFocused reports whether a page currently owns a focused text input.

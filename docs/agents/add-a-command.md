@@ -161,6 +161,11 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 the user is typing in the filter box inserts a character instead of
 running the action.
 
+A *modal* editor is stricter than a focused text input: it takes every
+key but `ctrl+c`. That is what `m.modalInputFocused()` guards, and it is
+why the detail page can be edited as raw JSON: `q` and the digits are
+part of the document, not navigation.
+
 Add the hint to the status bar so the user knows the key exists. The
 hints live in `hints()` in `internal/app/app.go`:
 
