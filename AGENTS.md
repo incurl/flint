@@ -255,6 +255,12 @@ Three rules catch most mistakes:
   not an error — the failure is silent.
 - **`config` precedence is flags > env > TOML.** A `FLINT_`-prefixed
   environment variable beats the config file.
+- **A written config holds the values the *file* had.** `Config.Save`
+  and `Config.SaveAgent` write `FileValues()`, the snapshot taken
+  before the environment and the flags were applied: a setting that
+  came from `FLINT_AGENT_PROVIDER` does not belong in a file. The file
+  is written with `0600` and atomically, and the API key is never in
+  it — only the name of the variable that holds it.
 - **`internal/` is not importable from outside the module.** Downstream
   projects use the template's own packages by copying them in, or by
   keeping everything in one module.

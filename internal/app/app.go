@@ -35,6 +35,11 @@ const (
 type Model struct {
 	// store is the data layer.
 	store pbstore.Store
+	// cfg is the configuration the application was started with.
+	//
+	// It is kept so that the guided setup can write a configuration
+	// file with the settings the application holds.
+	cfg *config.Config
 	// runtime holds the shared runtime state.
 	runtime *state.Runtime
 	// theme is the shared style palette.
@@ -125,6 +130,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 
 	m := &Model{
 		store:        store,
+		cfg:          cfg,
 		runtime:      runtime,
 		prefs:        prefs,
 		theme:        t,
@@ -145,7 +151,43 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 	// preferences must be reflected in it from the start.
 	m.refreshSettings()
 
+	// The guided setup of the agent can write an example configuration
+	// file. The application owns the configuration, so it is the one
+	// that does the writing.
+	m.agentPage.SetConfigWriter(config.WritePath(cfg.Path()), func(path string, settings components.AgentSetupSettings) error {
+		return cfg.SaveAgent(agentSettings(settings), path)
+	})
+
 	return m
+}
+
+// SetConfigPath sets the path the configuration file is written to.
+//
+// The guided setup of the agent writes an example configuration file,
+// and the path is the one the application was started with: a user who
+// keeps the configuration in a specific place expects the application
+// to write there.
+func (m *Model) SetConfigPath(path string) {
+	if path == "" {
+		return
+	}
+
+	m.agentPage.SetConfigWriter(path, func(path string, settings components.AgentSetupSettings) error {
+		return m.cfg.SaveAgent(agentSettings(settings), path)
+	})
+}
+
+// agentSettings maps the settings of the setup to the configuration.
+//
+// The API key is not in them: the setup never gives it up, and the
+// configuration names the environment variable that holds it.
+func agentSettings(settings components.AgentSetupSettings) config.AgentConfig {
+	return config.AgentConfig{
+		Provider:  settings.Provider,
+		Model:     settings.Model,
+		BaseURL:   settings.BaseURL,
+		APIKeyEnv: settings.APIKeyEnv,
+	}
 }
 
 // Init implements [tea.Model].

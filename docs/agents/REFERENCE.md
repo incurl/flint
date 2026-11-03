@@ -552,22 +552,43 @@ func (s *AgentSetup) View() tea.View
 func (s *AgentSetup) Focus() tea.Cmd
 func (s *AgentSetup) SetSize(width, height int)
 
+// The writer. The setup writes an example configuration file.
+func (s *AgentSetup) SetWriter(path string, writer func(path string, settings AgentSetupSettings) error)
+func (s *AgentSetup) Write() bool
+func (s *AgentSetup) Written() bool
+func (s *AgentSetup) WriteError() error
+func (s *AgentSetup) ConfigPath() string
+
 // The result of the setup.
 func (s *AgentSetup) Provider() AgentSetupProviderInfo
 func (s *AgentSetup) Model() string
 func (s *AgentSetup) APIKey() string
 func (s *AgentSetup) KeyEnv() string
+func (s *AgentSetup) Settings() AgentSetupSettings
 func (s *AgentSetup) ConfigSnippet() string
 func (s *AgentSetup) Summary() string
+
+// The settings the setup collected.
+type AgentSetupSettings struct {
+	Provider  string
+	Model     string
+	BaseURL   string
+	APIKeyEnv string
+}
 ```
 
-Two rules hold it together:
+Three rules hold it together:
 
 - **The key is masked.** It is typed in a `textinput` with
   `EchoPassword`, so it never reaches the screen.
 - **The key is never written to a file.** `ConfigSnippet` returns the
-  TOML to copy, and it has no field for the key: a secret belongs in
-  the environment, not in a file that is copied around.
+  TOML to copy, and `AgentSetupSettings` has no field for the key: a
+  secret belongs in the environment, not in a file that is copied
+  around.
+- **The writer is a callback.** The components do not depend on the
+  configuration package — they are widgets — so the application wires
+  them. The application maps `AgentSetupSettings` to its own
+  configuration type.
 
 `Update` returns whether the key was handled. An unhandled key belongs
 to the page.
@@ -780,6 +801,13 @@ type SyncFinishedMsg struct {
 type Toast = components.ToastMsg
 ```
 
+The root model also owns the configuration, and it wires the writer of
+the agent setup:
+
+```go
+func (m *Model) SetConfigPath(path string)
+```
+
 ### The agent panel
 
 The root model owns a read-only panel that shows the conversation of
@@ -824,6 +852,17 @@ Import: `github.com/incurl/flint/config`
 func Load(configPath string, flags Flags) (*Config, error)
 func ParseFlags(args []string) (*Flags, []string, error)
 func Default() *Config
+
+// The writer.
+func Write(cfg *Config, path string) error
+func Render(cfg *Config) string
+func WritePath(explicit string) string
+
+// The methods of a configuration.
+func (c *Config) Path() string
+func (c *Config) FileValues() Config
+func (c *Config) Save() error
+func (c *Config) SaveAgent(agent AgentConfig, path string) error
 ```
 
 **Precedence: CLI flags > environment variables > TOML file.**

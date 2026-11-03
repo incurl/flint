@@ -788,6 +788,61 @@ puts a key in a database, is making a security decision on your
 behalf — and the setup is exactly where the user should be the one
 making it.
 
+### The example file
+
+The last step offers to write the file, and the offer is worth
+taking: the file it writes is a **complete, commented** `flint.toml`,
+not a dump of the settings.
+
+```go
+// The setup does not depend on the configuration package: the
+// components are widgets, and the application wires them.
+func (s *AgentSetup) SetWriter(path string, writer func(path string, settings AgentSetupSettings) error)
+```
+
+The application owns the configuration, so it owns the writing:
+
+```go
+m.agentPage.SetConfigWriter(config.WritePath(cfg.Path()), func(path string, settings components.AgentSetupSettings) error {
+    return cfg.SaveAgent(agentSettings(settings), path)
+})
+```
+
+Three things are easy to get wrong in a writer like this, and each of
+them is a security or a correctness bug rather than a crash.
+
+**The key must not be in the file.** The settings that cross the
+boundary have no field for it:
+
+```go
+type AgentSetupSettings struct {
+    Provider  string
+    Model     string
+    BaseURL   string
+    APIKeyEnv string  // the NAME of the variable, not the key
+}
+```
+
+**The file must be private.** A configuration file may hold a remote
+token, so it is written with `0600` — and atomically, through a
+temporary file and a rename, so that a failure in the middle of the
+write leaves the previous configuration intact.
+
+**The values written must be the ones the file held.** The effective
+configuration holds the environment variables and the flags, and those
+do not belong in a file:
+
+```go
+// The values of the file are kept, before the environment and the
+// flags override them.
+snapshot := *cfg
+cfg.fromFile = &snapshot
+```
+
+A setting that came from `FLINT_AGENT_PROVIDER` does not belong in
+`flint.toml`, and writing it there would make the file disagree with
+the way the application was actually started.
+
 ### The agent is optional
 
 Without a provider, the application still starts, and the agent page

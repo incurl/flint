@@ -488,6 +488,22 @@ func (p *AgentPage) PanelEntries() []components.AgentPanelEntry {
 	return out
 }
 
+// SetConfigWriter sets the function that writes the configuration.
+//
+// The setup offers to write an example configuration file, and the
+// application owns the configuration: it is the one that knows where
+// the file goes and what it holds.
+//
+// The writer receives the path and returns an error when it could not
+// write.
+func (p *AgentPage) SetConfigWriter(path string, writer func(path string, settings components.AgentSetupSettings) error) {
+	if p.setup == nil {
+		return
+	}
+
+	p.setup.SetWriter(path, writer)
+}
+
 // View implements [tea.Model].
 func (p *AgentPage) View() tea.View {
 	// A pending permission request is a blocking state: the model is

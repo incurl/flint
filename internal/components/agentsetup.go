@@ -95,6 +95,25 @@ func AgentSetupProviders() []AgentSetupProviderInfo {
 	}
 }
 
+// AgentSetupSettings holds the agent settings the setup collected.
+//
+// It is a plain struct and not the configuration type, because the
+// components do not depend on the configuration package: they are
+// widgets, and the application maps the settings to its own type.
+type AgentSetupSettings struct {
+	// Provider is the identifier of the provider.
+	Provider string
+	// Model is the name of the model.
+	Model string
+	// BaseURL is the endpoint of the provider.
+	BaseURL string
+	// APIKeyEnv is the name of the environment variable that holds the
+	// key.
+	//
+	// The key itself is not here, and it never leaves the input field.
+	APIKeyEnv string
+}
+
 // AgentSetup is the guided setup of the agent.
 //
 // It appears when the application starts without a model, and it walks
@@ -121,6 +140,18 @@ type AgentSetup struct {
 	keyInput textinput.Model
 	// keySet reports whether a key was typed.
 	keySet bool
+	// configPath is the file the configuration is written to.
+	configPath string
+	// writer writes the configuration.
+	//
+	// It is a callback and not a call to the config package, because
+	// the components do not depend on the configuration: they are
+	// widgets, and the application wires them.
+	writer func(path string, settings AgentSetupSettings) error
+	// written reports whether the configuration was written.
+	written bool
+	// writeErr holds the error of the last write.
+	writeErr error
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -148,6 +179,62 @@ func NewAgentSetup(t *theme.Theme) *AgentSetup {
 
 // Step returns the current step.
 func (s *AgentSetup) Step() string { return s.step }
+
+// SetWriter sets the function that writes the configuration.
+//
+// The path is the file the configuration goes to, the settings are the
+// ones the setup collected, and the function returns an error when it
+// could not write.
+//
+// The setup does not write anything on its own: it is wired by the
+// application, which owns the configuration.
+func (s *AgentSetup) SetWriter(path string, writer func(path string, settings AgentSetupSettings) error) {
+	s.configPath = path
+	s.writer = writer
+}
+
+// Settings returns the agent settings the setup collected.
+//
+// The API key is not in it: only the name of the environment variable
+// that holds it.
+func (s *AgentSetup) Settings() AgentSetupSettings {
+	provider := s.Provider()
+
+	return AgentSetupSettings{
+		Provider:  provider.ID,
+		Model:     s.Model(),
+		BaseURL:   provider.BaseURL,
+		APIKeyEnv: provider.KeyEnv,
+	}
+}
+
+// ConfigPath returns the path the configuration is written to.
+func (s *AgentSetup) ConfigPath() string { return s.configPath }
+
+// Written reports whether the configuration was written.
+func (s *AgentSetup) Written() bool { return s.written }
+
+// WriteError returns the error of the last write, if any.
+func (s *AgentSetup) WriteError() error { return s.writeErr }
+
+// Write saves the configuration.
+//
+// It returns false when there is no writer: a setup that cannot write
+// still shows the configuration to copy.
+//
+// The configuration is written from the values the setup collected, so
+// the file holds the provider, the model and the name of the key
+// variable — and never the key itself.
+func (s *AgentSetup) Write() bool {
+	if s.writer == nil {
+		return false
+	}
+
+	s.writeErr = s.writer(s.configPath, s.Settings())
+	s.written = s.writeErr == nil
+
+	return true
+}
 
 // Provider returns the selected provider.
 func (s *AgentSetup) Provider() AgentSetupProviderInfo {
@@ -196,6 +283,8 @@ func (s *AgentSetup) Update(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		return s.updateModel(msg)
 	case AgentSetupKey:
 		return s.updateKey(msg)
+	case AgentSetupDone:
+		return s.updateDone(msg)
 	default:
 		return nil, false
 	}
@@ -283,6 +372,28 @@ func (s *AgentSetup) updateKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	s.keyInput, cmd = s.keyInput.Update(msg)
 
 	return cmd, true
+}
+
+// updateDone handles the keys of the last step.
+//
+// The step is the summary: it shows the configuration to copy, and it
+// offers to write it.
+func (s *AgentSetup) updateDone(msg tea.KeyPressMsg) (tea.Cmd, bool) {
+	switch msg.String() {
+	case "w":
+		// The configuration is written. It holds the settings and the
+		// name of the key variable, never the key.
+		s.Write()
+
+		return nil, true
+
+	case "esc":
+		s.step = AgentSetupKey
+
+		return s.keyInput.Focus(), true
+	}
+
+	return nil, false
 }
 
 // defaultModelIndex returns the index of the default model of the
@@ -394,9 +505,48 @@ func (s *AgentSetup) doneView() []string {
 	}
 
 	b = append(b, "")
-	b = append(b, s.theme.Help.Render("Restart the application to use it."))
+	b = append(b, s.writeView()...)
 
 	return b
+}
+
+// writeView renders the state of the write.
+//
+// The example file holds every setting of the application, with the
+// agent section filled in. It never holds the key.
+func (s *AgentSetup) writeView() []string {
+	var b []string
+
+	switch {
+	case s.written:
+		b = append(b, s.theme.Success.Render("Written to "+s.configPath))
+		b = append(b, s.theme.Help.Render("Restart the application to use it."))
+
+		return b
+
+	case s.writeErr != nil:
+		b = append(b, s.theme.Error.Render("The configuration was not written: "+s.writeErr.Error()))
+		b = append(b, s.theme.Muted.Render("Copy the lines above into "+s.configPath+" by hand."))
+		b = append(b, "")
+		b = append(b, s.theme.Help.Render("esc back"))
+
+		return b
+
+	case s.writer == nil:
+		b = append(b, s.theme.Muted.Render("The configuration cannot be written from here."))
+		b = append(b, s.theme.Muted.Render("Copy the lines above into flint.toml by hand."))
+		b = append(b, "")
+		b = append(b, s.theme.Help.Render("esc back"))
+
+		return b
+
+	default:
+		b = append(b, s.theme.Muted.Render("Or write an example "+s.configPath+" with every setting, commented:"))
+		b = append(b, "")
+		b = append(b, s.theme.Help.Render("w write the file · esc back"))
+
+		return b
+	}
 }
 
 // configSnippet returns the configuration to copy.

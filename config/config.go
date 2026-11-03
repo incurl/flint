@@ -77,6 +77,22 @@ type Config struct {
 	Sync SyncConfig `toml:"sync"`
 	// Agent holds the language model settings.
 	Agent AgentConfig `toml:"agent"`
+
+	// path is the file the configuration was loaded from.
+	//
+	// It is not a setting: it is not read from the file, and it is not
+	// written to it. It is remembered so that a writer saves the
+	// configuration where it was read from.
+	path string
+	// fromFile holds the values the file held, before the environment
+	// and the flags overrode them.
+	//
+	// It is what a writer saves: a value that came from the
+	// environment does not belong in a file.
+	//
+	// It is a pointer so that the type stays flat: a Config that
+	// holds a Config is a recursive type, and Go does not allow it.
+	fromFile *Config
 }
 
 // AgentConfig holds the settings of the language model.
@@ -214,6 +230,17 @@ func Load(configPath string, flags Flags) (*Config, error) {
 		}
 	}
 
+	// The path is remembered, so that a writer saves the configuration
+	// where it was read from.
+	cfg.path = path
+
+	// The values of the file are kept, before the environment and the
+	// flags override them: a value that came from the environment does
+	// not belong in a file.
+	snapshot := *cfg
+	snapshot.fromFile = nil
+	cfg.fromFile = &snapshot
+
 	// 2. Environment variables.
 	applyEnv(cfg)
 
@@ -225,6 +252,48 @@ func Load(configPath string, flags Flags) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// Path returns the path the configuration was loaded from.
+//
+// It is empty when no configuration file exists yet. Use [WritePath]
+// to know where a new one would be written.
+func (c *Config) Path() string {
+	if c == nil {
+		return ""
+	}
+
+	return c.path
+}
+
+// FileValues returns the values the configuration file held.
+//
+// The environment variables and the flags are not in it: a value that
+// came from the environment does not belong in a file.
+//
+// It is what a writer saves.
+func (c *Config) FileValues() Config {
+	if c == nil {
+		return *Default()
+	}
+
+	if c.fromFile == nil {
+		// The configuration was not loaded from a file: the effective
+		// values are the ones to write.
+		values := *c
+		values.path = ""
+		values.fromFile = nil
+
+		return values
+	}
+
+	values := *c.fromFile
+
+	// The path is not a setting.
+	values.path = ""
+	values.fromFile = nil
+
+	return values
 }
 
 // Validate checks the consistency of the configuration.

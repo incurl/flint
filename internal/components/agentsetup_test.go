@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"errors"
 	"strings"
 	"testing"
 
@@ -133,5 +134,110 @@ func TestAgentSetupConfigIsCopyable(t *testing.T) {
 		if !strings.Contains(snippet, want) {
 			t.Errorf("the configuration does not contain %q:\n%s", want, snippet)
 		}
+	}
+}
+
+// TestAgentSetupWritesTheFile verifies that the setup writes the
+// configuration.
+//
+// The writer is a callback: the components do not know about the
+// configuration package, and the application wires them.
+func TestAgentSetupWritesTheFile(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	var (
+		gotPath     string
+		gotSettings components.AgentSetupSettings
+	)
+
+	setup.SetWriter("/tmp/flint.toml", func(path string, settings components.AgentSetupSettings) error {
+		gotPath = path
+		gotSettings = settings
+
+		return nil
+	})
+
+	// Walk to the last step.
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	// The write.
+	_, _ = setup.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+
+	if !setup.Written() {
+		t.Fatalf("the configuration was not written: %v", setup.WriteError())
+	}
+
+	if gotPath != "/tmp/flint.toml" {
+		t.Errorf("the path is %q, want /tmp/flint.toml", gotPath)
+	}
+
+	if gotSettings.Provider != "minimax" {
+		t.Errorf("the provider is %q, want minimax", gotSettings.Provider)
+	}
+
+	if gotSettings.Model != "MiniMax-M3.1-Flash" {
+		t.Errorf("the model is %q, want MiniMax-M3.1-Flash", gotSettings.Model)
+	}
+
+	if gotSettings.APIKeyEnv != "MINIMAX_API_KEY" {
+		t.Errorf("the key variable is %q, want MINIMAX_API_KEY", gotSettings.APIKeyEnv)
+	}
+}
+
+// TestAgentSetupSettingsHaveNoKey verifies that the settings the setup
+// hands over do not carry the key.
+//
+// The key never leaves the masked input field.
+func TestAgentSetupSettingsHaveNoKey(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	for _, r := range "sk-secret" {
+		_, _ = setup.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	settings := setup.Settings()
+
+	// The settings have no field for the key: the name of the
+	// environment variable is what they carry.
+	if settings.APIKeyEnv != "MINIMAX_API_KEY" {
+		t.Errorf("the key variable is %q, want MINIMAX_API_KEY", settings.APIKeyEnv)
+	}
+}
+
+// TestAgentSetupReportsTheWriteError verifies that a failed write is
+// reported.
+//
+// A silent failure would leave the user believing the configuration was
+// saved.
+func TestAgentSetupReportsTheWriteError(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	setup.SetWriter("/tmp/flint.toml", func(string, components.AgentSetupSettings) error {
+		return errors.New("the disk is full")
+	})
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+
+	if setup.Written() {
+		t.Error("the setup says it wrote the configuration, but it failed")
+	}
+
+	if setup.WriteError() == nil {
+		t.Error("the setup does not report the error")
+	}
+
+	if !strings.Contains(setup.View().Content, "the disk is full") {
+		t.Errorf("the view does not show the error:\n%s", setup.View().Content)
 	}
 }

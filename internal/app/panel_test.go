@@ -1,6 +1,8 @@
 package app_test
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -161,6 +163,81 @@ func TestPanelKeepsTheWidth(t *testing.T) {
 					i, got, width)
 			}
 		}
+	}
+}
+
+// TestSetupWritesALoadableConfig verifies that the configuration the
+// setup writes can be loaded back.
+//
+// A configuration file the application cannot read is worse than no
+// configuration file at all.
+func TestSetupWritesALoadableConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "flint.toml")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = ""
+
+	store := &stubStore{
+		mode: pbstore.ModeEmbedded,
+		collections: []pbstore.Collection{
+			{ID: "1", Name: "vocab", Type: "base"},
+		},
+	}
+
+	m := app.New(store, cfg, nil, nil)
+
+	// The writer is wired by the application with the path of the
+	// configuration file.
+	m.SetConfigPath(path)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(*app.Model)
+
+	// Go to the agent page: it shows the setup when there is no model.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '7', Text: "7"})
+	m = updated.(*app.Model)
+
+	// Walk the setup to the last step and write.
+	for range 3 {
+		updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m = updated.(*app.Model)
+	}
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+	m = updated.(*app.Model)
+
+	// The setup says it wrote the file.
+	if !strings.Contains(m.View().Content, "Written to") {
+		t.Errorf("the page does not say the configuration was written:\n%s", m.View().Content)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the configuration was not written: %v", err)
+	}
+
+	// The file loads.
+	loaded, err := config.Load(path, config.Flags{})
+	if err != nil {
+		t.Fatalf("the written configuration does not load: %v", err)
+	}
+
+	if loaded.Agent.Provider != "minimax" {
+		t.Errorf("the provider is %q, want minimax", loaded.Agent.Provider)
+	}
+
+	if loaded.Agent.Model != "MiniMax-M3.1-Flash" {
+		t.Errorf("the model is %q, want MiniMax-M3.1-Flash", loaded.Agent.Model)
+	}
+
+	if loaded.Agent.APIKeyEnv != "MINIMAX_API_KEY" {
+		t.Errorf("the key variable is %q, want MINIMAX_API_KEY", loaded.Agent.APIKeyEnv)
+	}
+
+	// The key is not in the file.
+	if strings.Contains(string(raw), "api_key =") {
+		t.Errorf("the file has a field for the key:\n%s", raw)
 	}
 }
 

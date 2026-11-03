@@ -303,6 +303,68 @@ The setup is a *guide*, not a configuration writer: it does not
 rewrite `flint.toml` behind your back, and it does not change the
 environment of the process it runs in.
 
+#### Writing the example file
+
+The last step offers to write the file for you:
+
+```
+ Or write an example /home/you/project/flint.toml with every setting, commented:
+
+ w write the file · esc back
+```
+
+Pressing `w` writes a **complete, commented** `flint.toml` — every
+setting of the application, with the agent section filled in with what
+you chose:
+
+```toml
+# flint.toml — the configuration of the application.
+#
+# Every setting is shown with the value it holds. Delete the lines
+# you do not need: the default applies to the ones that are
+# missing.
+#
+# The precedence is: flags > environment variables > this file.
+
+# The store: "embedded" runs a local PocketBase, "remote" uses a
+# server over REST.
+mode = "embedded"
+…
+[agent]
+# The provider: "minimax", "minimax-global", "openai",
+# "openaicompat", "openrouter" or "local".
+provider = "minimax"
+
+# The model. The providers do not expose a models endpoint, so the
+# name is the one the platform documents.
+model = "MiniMax-M3.1-Flash"
+
+# SECURITY: the API key is NEVER read from this file. This is the
+# name of the environment variable that holds it.
+api_key_env = "MINIMAX_API_KEY"
+```
+
+Three things are worth knowing about the file:
+
+- **It is an example, not a dump.** Every setting is there with a
+  comment that says what it does, so it doubles as the reference of the
+  configuration. Delete the lines you do not need: the default applies
+  to the ones that are missing.
+- **The key is not in it.** Only `api_key_env` — the *name* of the
+  variable that holds the key. The key itself never reaches the file.
+- **It is written with `0600`**, because a configuration file may hold
+  a remote token, and **atomically**: a failure in the middle of the
+  write leaves the previous file intact.
+
+The file is written where the application reads its configuration
+from: the `--config` path if there is one, the existing `flint.toml`,
+the XDG directory, and `flint.toml` in the working directory as the
+last resort.
+
+⚠️ **The values written are the ones the *file* held**, not the
+effective ones. A setting that came from an environment variable or a
+flag is not written into the file: it does not belong there.
+
 ---
 
 ## 5. The tools
@@ -519,12 +581,18 @@ If you truly need the key stored, the honest options are:
 
 ### A note on the guided setup
 
-The guided setup of the template is deliberately **not** a writer. It
-shows the configuration to copy and the variable to export, and it
-leaves both to you. A tool that rewrites `flint.toml` behind your
-back, or that puts a key in a database, is making a security decision
-on your behalf — and the guided setup is exactly the place where the
-user should be the one making it.
+The guided setup **writes the configuration file, but never the key**.
+
+Writing the file is not a security decision: a configuration file is a
+document the user reads and edits, and the setup writes an *example*
+of it — every setting, commented, with the agent section filled in.
+The user still decides what to keep.
+
+Writing the key **would** be. A key in a file is a key in a file that
+gets copied, backed up and committed by accident, and the setup has
+no business making that choice for the user. So the key stays in the
+environment variable the configuration names, and the file says which
+one.
 
 ## 9. Removing the agent
 
