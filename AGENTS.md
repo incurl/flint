@@ -4,8 +4,8 @@ Guidance for AI coding agents working in this repository.
 
 Flint is a **Go template** for terminal applications: Bubble Tea + Bubbles +
 Lip Gloss on the front, PocketBase on the back. It runs either with an
-embedded PocketBase (SQLite, in-process) or against a remote PocketBase
-server over REST, behind one interface.
+embedded PocketBase (in-process, local database) or against a remote
+PocketBase server over REST, behind one interface.
 
 **Read this file first. Then read the task-specific skill in
 `docs/agents/`.** The skills are short recipes; this file is the map.

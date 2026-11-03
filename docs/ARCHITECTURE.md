@@ -35,7 +35,7 @@ Flint is a single-process terminal application built on three layers:
                 ┌───────────────┴───────────────┐
                 ▼                               ▼
         Embedded PocketBase            Remote PocketBase
-        (App + App.Store + SQLite)      (REST API)
+        (App + App.Store, local db)     (REST API)
 ```
 
 ## The Bubble Tea flow

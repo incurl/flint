@@ -20,7 +20,7 @@ and the TUI scaffolding are already in place.
 │                    ┌───────────────┴───────────────┐        │
 │                    ▼                               ▼        │
 │            Embedded PocketBase              Remote PocketBase │
-│            (App.Store + SQLite)              (REST API)      │
+│            (App.Store, local db)           (REST API)        │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -105,7 +105,7 @@ the raw JSON view on the detail page, `e` opens the JSON editor.
 
 |                     | Embedded                            | Remote                             |
 | ------------------- | ----------------------------------- | ---------------------------------- |
-| Storage             | SQLite in `./pb_data`               | PocketBase server                  |
+| Storage             | PocketBase in `./pb_data`           | PocketBase server                  |
 | Data model          | Native PocketBase collections        | Native PocketBase collections      |
 | Filter / sort       | Native PocketBase grammar            | Native PocketBase grammar          |
 | Writes              | Direct, with PocketBase validation  | Through the REST API               |
