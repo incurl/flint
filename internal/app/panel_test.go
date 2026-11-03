@@ -166,6 +166,128 @@ func TestPanelKeepsTheWidth(t *testing.T) {
 	}
 }
 
+// TestSetupAppliesTheModelWithoutARestart verifies that the guided
+// setup installs a model, so that the agent works right away.
+//
+// The point of the apply is that the user does not have to export the
+// key and restart: the model is built from the key that was typed and
+// installed in the runner.
+func TestSetupAppliesTheModelWithoutARestart(t *testing.T) {
+	cfg := config.Default()
+	cfg.Agent.Provider = ""
+	cfg.Agent.Model = ""
+
+	store := &stubStore{
+		mode: pbstore.ModeEmbedded,
+		collections: []pbstore.Collection{
+			{ID: "1", Name: "vocab", Type: "base"},
+		},
+	}
+
+	runner := agent.NewRunner(agent.Options{Registry: agent.NewRegistry()})
+
+	m := app.New(store, cfg, nil, &agent.Setup{Runner: runner})
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(*app.Model)
+
+	// The setup is on screen: there is no model.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '7', Text: "7"})
+	m = updated.(*app.Model)
+
+	if !strings.Contains(m.View().Content, "Set up the agent") {
+		t.Fatalf("the setup is not on screen:\n%s", m.View().Content)
+	}
+
+	// Walk to the last step.
+	for range 3 {
+		updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+		m = updated.(*app.Model)
+	}
+
+	// Apply.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+	m = updated.(*app.Model)
+
+	// The runner has a model now.
+	if runner.Model() == nil {
+		t.Fatal("the model was not installed in the runner")
+	}
+
+	// The setup is gone: the page shows the chat.
+	view := m.View().Content
+	if strings.Contains(view, "Set up the agent") {
+		t.Errorf("the setup is still on screen:\n%s", view)
+	}
+
+	if !strings.Contains(view, "Ask about your records") {
+		t.Errorf("the chat is not on screen:\n%s", view)
+	}
+}
+
+// TestSetupWritesNoKeyInTheFile verifies that the typed key never
+// reaches the configuration file.
+//
+// The key is used to build the model in memory, and the file names the
+// environment variable that holds it. A secret in a file is a secret
+// in every backup of that file.
+func TestSetupWritesNoKeyInTheFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "flint.toml")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = ""
+
+	store := &stubStore{mode: pbstore.ModeEmbedded}
+
+	runner := agent.NewRunner(agent.Options{Registry: agent.NewRegistry()})
+
+	m := app.New(store, cfg, nil, &agent.Setup{Runner: runner})
+	m.SetConfigPath(path)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '7', Text: "7"})
+	m = updated.(*app.Model)
+
+	// Walk to the key step and type a key.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
+
+	for _, r := range "sk-super-secret" {
+		updated, _ = m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		m = updated.(*app.Model)
+	}
+
+	// The last step, then write.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'w', Text: "w"})
+	m = updated.(*app.Model)
+
+	// The setup says it wrote the file.
+	if !strings.Contains(m.View().Content, "Written to") {
+		t.Errorf("the page does not say the configuration was written:\n%s", m.View().Content)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("the configuration was not written: %v", err)
+	}
+
+	if strings.Contains(string(raw), "sk-super-secret") {
+		t.Errorf("the file carries the key:\n%s", raw)
+	}
+
+	// The name of the variable is in it, though.
+	if !strings.Contains(string(raw), "api_key_env") {
+		t.Errorf("the file does not name the key variable:\n%s", raw)
+	}
+}
+
 // TestSetupWritesALoadableConfig verifies that the configuration the
 // setup writes can be loaded back.
 //

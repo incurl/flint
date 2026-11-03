@@ -112,6 +112,16 @@ type AgentSetupSettings struct {
 	//
 	// The key itself is not here, and it never leaves the input field.
 	APIKeyEnv string
+	// APIKey is the key the user typed.
+	//
+	// It is held in memory for the lifetime of the setup, and it is
+	// never written to a file: the configuration names the variable
+	// that holds it, and the key goes there.
+	//
+	// It is here so that the application can build a model right away,
+	// without a restart, and without waiting for the user to export
+	// the variable.
+	APIKey string
 }
 
 // AgentSetup is the guided setup of the agent.
@@ -148,6 +158,15 @@ type AgentSetup struct {
 	// the components do not depend on the configuration: they are
 	// widgets, and the application wires them.
 	writer func(path string, settings AgentSetupSettings) error
+	// applier installs the model, so that the agent works right away.
+	//
+	// It is a callback for the same reason the writer is one: the
+	// application owns the model, not the widget.
+	applier func(settings AgentSetupSettings) error
+	// applied reports whether the model was installed.
+	applied bool
+	// applyErr holds the error of the last apply.
+	applyErr error
 	// written reports whether the configuration was written.
 	written bool
 	// writeErr holds the error of the last write.
@@ -195,8 +214,9 @@ func (s *AgentSetup) SetWriter(path string, writer func(path string, settings Ag
 
 // Settings returns the agent settings the setup collected.
 //
-// The API key is not in it: only the name of the environment variable
-// that holds it.
+// The key is in them, and it stays in memory: the application uses it
+// to build a model right away, without a restart. It is never written
+// to a file — the configuration names the variable that holds it.
 func (s *AgentSetup) Settings() AgentSetupSettings {
 	provider := s.Provider()
 
@@ -205,11 +225,45 @@ func (s *AgentSetup) Settings() AgentSetupSettings {
 		Model:     s.Model(),
 		BaseURL:   provider.BaseURL,
 		APIKeyEnv: provider.KeyEnv,
+		APIKey:    s.keyInput.Value(),
 	}
 }
 
 // ConfigPath returns the path the configuration is written to.
 func (s *AgentSetup) ConfigPath() string { return s.configPath }
+
+// SetApplier sets the function that installs the model.
+//
+// The function receives the settings — the provider, the model and the
+// key — and returns an error when the model could not be built.
+//
+// Installing the model is what makes the agent work **now**, without a
+// restart: the application builds a model from the key that was typed
+// and hands it to the runner.
+func (s *AgentSetup) SetApplier(applier func(settings AgentSetupSettings) error) {
+	s.applier = applier
+}
+
+// Applied reports whether the model was installed.
+func (s *AgentSetup) Applied() bool { return s.applied }
+
+// ApplyError returns the error of the last apply, if any.
+func (s *AgentSetup) ApplyError() error { return s.applyErr }
+
+// Apply installs the model.
+//
+// It returns false when there is no applier: a setup that cannot
+// install a model still shows the configuration to copy.
+func (s *AgentSetup) Apply() bool {
+	if s.applier == nil {
+		return false
+	}
+
+	s.applyErr = s.applier(s.Settings())
+	s.applied = s.applyErr == nil
+
+	return true
+}
 
 // Written reports whether the configuration was written.
 func (s *AgentSetup) Written() bool { return s.written }
@@ -380,6 +434,13 @@ func (s *AgentSetup) updateKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 // offers to write it.
 func (s *AgentSetup) updateDone(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	switch msg.String() {
+	case "a":
+		// The model is installed: the agent works from now on, without
+		// a restart.
+		s.Apply()
+
+		return nil, true
+
 	case "w":
 		// The configuration is written. It holds the settings and the
 		// name of the key variable, never the key.
@@ -505,9 +566,44 @@ func (s *AgentSetup) doneView() []string {
 	}
 
 	b = append(b, "")
+	b = append(b, s.applyView()...)
 	b = append(b, s.writeView()...)
 
 	return b
+}
+
+// applyView renders the state of the apply.
+//
+// The apply is what makes the agent work right away: the model is built
+// from the key that was typed and installed in the runner, so there is
+// no restart.
+func (s *AgentSetup) applyView() []string {
+	var b []string
+
+	switch {
+	case s.applied:
+		b = append(b, s.theme.Success.Render("The agent is ready."))
+		b = append(b, s.theme.Muted.Render("The model is installed: it works from now on, without a restart."))
+		b = append(b, "")
+
+		return b
+
+	case s.applyErr != nil:
+		b = append(b, s.theme.Error.Render("The model was not installed: "+s.applyErr.Error()))
+		b = append(b, "")
+
+		return b
+
+	case s.applier == nil:
+		return b
+
+	default:
+		b = append(b, s.theme.Muted.Render("Use the agent now, without a restart:"))
+		b = append(b, "")
+		b = append(b, s.theme.Help.Render("a use it now"))
+
+		return b
+	}
 }
 
 // writeView renders the state of the write.
@@ -520,7 +616,9 @@ func (s *AgentSetup) writeView() []string {
 	switch {
 	case s.written:
 		b = append(b, s.theme.Success.Render("Written to "+s.configPath))
-		b = append(b, s.theme.Help.Render("Restart the application to use it."))
+		b = append(b, s.theme.Muted.Render("Export the key to use it after a restart:"))
+		b = append(b, "")
+		b = append(b, s.theme.Help.Render("esc back"))
 
 		return b
 

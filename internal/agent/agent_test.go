@@ -260,12 +260,68 @@ func TestRunnerToolFailureIsAResult(t *testing.T) {
 
 // TestRunnerRequiresModel verifies that a run without a model is an
 // error rather than an empty turn.
+// TestRunnerRequiresModel verifies that a runner without a model
+// refuses to run.
 func TestRunnerRequiresModel(t *testing.T) {
 	runner := agent.NewRunner(agent.Options{})
 
 	_, err := runner.Run(context.Background(), agent.RunRequest{RunID: "r1", Prompt: "hi"})
 	if !errors.Is(err, agent.ErrNoModel) {
 		t.Errorf("Run() error = %v, want ErrNoModel", err)
+	}
+}
+
+// TestRunnerSetModel verifies that the model can be installed after the
+// runner was built.
+//
+// It is what makes the guided setup work without a restart: the runner
+// exists from the start, and the model arrives later.
+func TestRunnerSetModel(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{})
+
+	if runner.Model() != nil {
+		t.Error("a new runner has a model")
+	}
+
+	model := &fakeModel{}
+	if err := runner.SetModel(model); err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	if runner.Model() != model {
+		t.Error("the model was not installed")
+	}
+}
+
+// TestRunnerSetModelRefusesNil verifies that a nil model is refused.
+//
+// It would turn every later run into an error, and a caller that wants
+// no model should not have a runner at all.
+func TestRunnerSetModelRefusesNil(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{Model: &fakeModel{}})
+
+	if err := runner.SetModel(nil); !errors.Is(err, agent.ErrNoModel) {
+		t.Errorf("SetModel() error = %v, want ErrNoModel", err)
+	}
+
+	if runner.Model() == nil {
+		t.Error("the model was dropped")
+	}
+}
+
+// TestRunnerUsesTheCurrentModel verifies that a run uses the model that
+// is installed, not the one the runner was built with.
+func TestRunnerUsesTheCurrentModel(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{})
+
+	if err := runner.SetModel(&fakeModel{}); err != nil {
+		t.Fatalf("SetModel() error = %v", err)
+	}
+
+	// The run does not fail with ErrNoModel: the model is there.
+	_, err := runner.Run(context.Background(), agent.RunRequest{RunID: "r1", Prompt: "hi"})
+	if errors.Is(err, agent.ErrNoModel) {
+		t.Error("Run() says there is no model, but one was installed")
 	}
 }
 

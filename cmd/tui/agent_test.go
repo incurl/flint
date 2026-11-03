@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/incurl/flint/config"
+	"github.com/incurl/flint/internal/agent"
 )
 
 // TestMiniMaxProvidersBuild verifies that the MiniMax providers build
@@ -22,7 +23,7 @@ func TestMiniMaxProvidersBuild(t *testing.T) {
 	} {
 		cfg := config.Default()
 		cfg.Agent.Provider = provider
-		cfg.Agent.Model = minimaxDefaultModel
+		cfg.Agent.Model = agent.MinimaxDefaultModel
 
 		model, err := newModel(cfg, "key")
 		if err != nil {
@@ -56,8 +57,8 @@ func TestMiniMaxDefaultModel(t *testing.T) {
 		t.Fatal("the provider built no model")
 	}
 
-	if got := model.Model(); got != minimaxDefaultModel {
-		t.Errorf("the default model is %q, want %q", got, minimaxDefaultModel)
+	if got := model.Model(); got != agent.MinimaxDefaultModel {
+		t.Errorf("the default model is %q, want %q", got, agent.MinimaxDefaultModel)
 	}
 }
 

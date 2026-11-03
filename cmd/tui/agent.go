@@ -10,8 +10,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/fantasy"
-	"charm.land/fantasy/providers/openai"
-	"charm.land/fantasy/providers/openaicompat"
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/agent"
@@ -34,26 +32,15 @@ You change the data only when the user asks for it. The user approves every chan
 
 // newRunner builds the agent setup described by the configuration.
 //
-// It returns nil when no provider is configured: the agent is optional,
-// and the application must still run without it.
+// The setup is always built: the tools, the conversations and the
+// permission gate do not need a model. Only the model is missing when
+// no provider is configured, and the guided setup installs one without
+// a restart.
 //
 // The publisher is what carries the events of a run to the UI. It is
 // created here, before the program exists, and the program is given to
 // it once it is running.
 func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*agent.Setup, error) {
-	if cfg.Agent.Provider == "" || cfg.Agent.Model == "" {
-		logger.Info("no agent provider is configured", "provider", cfg.Agent.Provider)
-
-		return nil, nil
-	}
-
-	apiKey := agentAPIKey(cfg)
-
-	model, err := newModel(cfg, apiKey)
-	if err != nil {
-		return nil, err
-	}
-
 	// The conversations live in PocketBase, like every other piece of
 	// data of the template.
 	sessions := session.NewService(store)
@@ -79,7 +66,6 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 	}
 
 	runner := agent.NewRunner(agent.Options{
-		Model:        model,
 		Registry:     registry,
 		SystemPrompt: systemPrompt,
 		MaxSteps:     cfg.Agent.MaxSteps,
@@ -89,6 +75,28 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 		History: agent.NewHistory(sessions, ""),
 	})
 	runner.AddPublisher(publisher)
+
+	// The model is the only part that needs a provider. Without one the
+	// runner has no model, and the guided setup installs one later.
+	if cfg.Agent.Provider == "" || cfg.Agent.Model == "" {
+		logger.Info("no agent provider is configured", "provider", cfg.Agent.Provider)
+
+		return &agent.Setup{
+			Runner:    runner,
+			Resolver:  broker,
+			Service:   sessions,
+			Publisher: publisher,
+		}, nil
+	}
+
+	model, err := newModel(cfg, agentAPIKey(cfg))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := runner.SetModel(model); err != nil {
+		return nil, fmt.Errorf("cmd/tui: set the model: %w", err)
+	}
 
 	return &agent.Setup{
 		Runner:    runner,
@@ -199,120 +207,15 @@ func defaultAPIKeyEnv(provider string) string {
 	}
 }
 
-// The MiniMax endpoints.
-//
-// MiniMax runs two platforms: the Chinese one and the international
-// one. They have different hosts and different accounts, so they are
-// two providers rather than one with a configurable host.
-const (
-	// minimaxChinaURL is the OpenAI compatible endpoint of the Chinese
-	// platform.
-	minimaxChinaURL = "https://api.minimax.cn/v1"
-	// minimaxGlobalURL is the OpenAI compatible endpoint of the
-	// international platform.
-	minimaxGlobalURL = "https://api.minimax.io/v1"
-)
-
-// The MiniMax models.
-//
-// MiniMax does not expose a models endpoint through the compatible API,
-// so the name of the default is listed here. It is the model the
-// platform recommends for agents and tool use.
-const (
-	// minimaxDefaultModel is the model used when the configuration does
-	// not name one.
-	minimaxDefaultModel = "MiniMax-M3.1-Flash"
-)
-
 // newModel builds the language model of the configuration.
 //
-// The template ships the OpenAI compatible providers only: they cover
-// OpenAI itself, OpenRouter, MiniMax and any local server, and they do
-// not pull the AWS and Google SDKs into the binary. A downstream
-// project that needs another provider adds it here.
+// The providers live in the agent package, so that the application can
+// build one too when the guided setup installs a model.
 func newModel(cfg *config.Config, apiKey string) (fantasy.LanguageModel, error) {
-	provider := strings.ToLower(cfg.Agent.Provider)
-
-	switch provider {
-	case "openai":
-		opts := []openai.Option{openai.WithAPIKey(apiKey)}
-		if cfg.Agent.BaseURL != "" {
-			opts = append(opts, openai.WithBaseURL(cfg.Agent.BaseURL))
-		}
-
-		built, err := openai.New(opts...)
-		if err != nil {
-			return nil, fmt.Errorf("cmd/tui: build the provider: %w", err)
-		}
-
-		return newProviderModel(cfg.Agent.Model, built)
-
-	case "minimax", "minimax-cn", "minimax-china":
-		// The Chinese platform. The endpoint is fixed, but a base URL
-		// in the configuration still wins: a proxy or a gateway is a
-		// legitimate reason to override it.
-		baseURL := minimaxChinaURL
-		if cfg.Agent.BaseURL != "" {
-			baseURL = cfg.Agent.BaseURL
-		}
-
-		return newCompatModel(cfg.Agent.Model, apiKey, baseURL)
-
-	case "minimax-global", "minimax-intl", "minimax-io":
-		// The international platform.
-		baseURL := minimaxGlobalURL
-		if cfg.Agent.BaseURL != "" {
-			baseURL = cfg.Agent.BaseURL
-		}
-
-		return newCompatModel(cfg.Agent.Model, apiKey, baseURL)
-
-	case "openaicompat", "openai-compatible", "openrouter", "local":
-		opts := []openaicompat.Option{openaicompat.WithAPIKey(apiKey)}
-		if cfg.Agent.BaseURL != "" {
-			opts = append(opts, openaicompat.WithBaseURL(cfg.Agent.BaseURL))
-		}
-
-		built, err := openaicompat.New(opts...)
-		if err != nil {
-			return nil, fmt.Errorf("cmd/tui: build the provider: %w", err)
-		}
-
-		return newProviderModel(cfg.Agent.Model, built)
-
-	default:
-		return nil, fmt.Errorf("cmd/tui: unknown agent provider %q", cfg.Agent.Provider)
-	}
-}
-
-// newCompatModel builds a model from an OpenAI compatible endpoint.
-//
-// It is the path of the providers that only differ by their host: the
-// protocol is the same.
-func newCompatModel(modelID, apiKey, baseURL string) (fantasy.LanguageModel, error) {
-	opts := []openaicompat.Option{
-		openaicompat.WithAPIKey(apiKey),
-		openaicompat.WithBaseURL(baseURL),
-	}
-
-	built, err := openaicompat.New(opts...)
-	if err != nil {
-		return nil, fmt.Errorf("cmd/tui: build the provider: %w", err)
-	}
-
-	if modelID == "" {
-		modelID = minimaxDefaultModel
-	}
-
-	return newProviderModel(modelID, built)
-}
-
-// newProviderModel returns the model of a provider.
-func newProviderModel(modelID string, provider fantasy.Provider) (fantasy.LanguageModel, error) {
-	model, err := provider.LanguageModel(context.Background(), modelID)
-	if err != nil {
-		return nil, fmt.Errorf("cmd/tui: build the model %q: %w", modelID, err)
-	}
-
-	return model, nil
+	return agent.NewModel(agent.ProviderConfig{
+		Provider: cfg.Agent.Provider,
+		Model:    cfg.Agent.Model,
+		BaseURL:  cfg.Agent.BaseURL,
+		APIKey:   apiKey,
+	})
 }

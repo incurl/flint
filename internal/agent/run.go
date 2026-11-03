@@ -146,6 +146,14 @@ type Runner struct {
 	active map[string]context.CancelFunc
 	// publishers holds the subscribers of the events.
 	publishers []Publisher
+	// modelMu guards the model.
+	modelMu sync.RWMutex
+	// model is the language model of the next run.
+	//
+	// It is read at the start of every run, so it can be replaced
+	// while the application runs: a setup that configures a model does
+	// not need a restart.
+	model fantasy.LanguageModel
 }
 
 // NewRunner returns a runner with the given options.
@@ -165,7 +173,39 @@ func NewRunner(options Options) *Runner {
 	return &Runner{
 		options: options,
 		active:  map[string]context.CancelFunc{},
+		model:   options.Model,
 	}
+}
+
+// Model returns the language model of the next run.
+//
+// It may be nil, which means that no model is configured.
+func (r *Runner) Model() fantasy.LanguageModel {
+	r.modelMu.RLock()
+	defer r.modelMu.RUnlock()
+
+	return r.model
+}
+
+// SetModel replaces the language model of the next run.
+//
+// The model is read at the start of every run, so the replacement takes
+// effect on the next one: a run that is already in flight keeps the
+// model it started with, which is the least surprising behaviour.
+//
+// A nil model is refused: it would turn every later run into an error,
+// and the caller that wants no model should not have a runner at all.
+func (r *Runner) SetModel(model fantasy.LanguageModel) error {
+	if model == nil {
+		return ErrNoModel
+	}
+
+	r.modelMu.Lock()
+	defer r.modelMu.Unlock()
+
+	r.model = model
+
+	return nil
 }
 
 // AddPublisher subscribes to the events of the runs.
@@ -240,7 +280,10 @@ func (r *Runner) publish(event Event) {
 // It blocks for the duration of the run, so it must be called from a
 // command and never from the update loop.
 func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
-	if r.options.Model == nil {
+	// The model is read here, not at construction: it may have been
+	// replaced since, and the run uses the current one.
+	model := r.Model()
+	if model == nil {
 		return "", ErrNoModel
 	}
 
@@ -298,7 +341,7 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 		return len(steps) >= r.options.MaxSteps
 	}))
 
-	agent := fantasy.NewAgent(r.options.Model, opts...)
+	agent := fantasy.NewAgent(model, opts...)
 
 	var text string
 

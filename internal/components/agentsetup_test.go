@@ -118,6 +118,99 @@ func TestAgentSetupMasksTheKey(t *testing.T) {
 	}
 }
 
+// TestAgentSetupAppliesTheModel verifies that the setup installs the
+// model.
+//
+// It is what makes the agent work right away, without a restart.
+func TestAgentSetupAppliesTheModel(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	var gotSettings components.AgentSetupSettings
+
+	setup.SetApplier(func(settings components.AgentSetupSettings) error {
+		gotSettings = settings
+
+		return nil
+	})
+
+	// Walk to the last step.
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	// Apply.
+	_, _ = setup.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if !setup.Applied() {
+		t.Fatalf("the model was not installed: %v", setup.ApplyError())
+	}
+
+	if gotSettings.Provider != "minimax" {
+		t.Errorf("the provider is %q, want minimax", gotSettings.Provider)
+	}
+
+	if gotSettings.APIKeyEnv != "MINIMAX_API_KEY" {
+		t.Errorf("the key variable is %q, want MINIMAX_API_KEY", gotSettings.APIKeyEnv)
+	}
+}
+
+// TestAgentSetupAppliesTheTypedKey verifies that the key the user typed
+// reaches the applier.
+//
+// The key stays in memory: it is used to build the model, and it is
+// never written to a file.
+func TestAgentSetupAppliesTheTypedKey(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	var gotSettings components.AgentSetupSettings
+
+	setup.SetApplier(func(settings components.AgentSetupSettings) error {
+		gotSettings = settings
+
+		return nil
+	})
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	for _, r := range "sk-secret" {
+		_, _ = setup.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if gotSettings.APIKey != "sk-secret" {
+		t.Errorf("the key is %q, want sk-secret", gotSettings.APIKey)
+	}
+}
+
+// TestAgentSetupReportsTheApplyError verifies that a failed apply is
+// reported.
+func TestAgentSetupReportsTheApplyError(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	setup.SetApplier(func(components.AgentSetupSettings) error {
+		return errors.New("the provider refused the key")
+	})
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})
+
+	if setup.Applied() {
+		t.Error("the setup says it installed the model, but it failed")
+	}
+
+	if !strings.Contains(setup.View().Content, "the provider refused the key") {
+		t.Errorf("the view does not show the error:\n%s", setup.View().Content)
+	}
+}
+
 // TestAgentSetupConfigIsCopyable verifies that the configuration the
 // setup produces is the TOML the user needs.
 func TestAgentSetupConfigIsCopyable(t *testing.T) {

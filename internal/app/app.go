@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -40,6 +41,11 @@ type Model struct {
 	// It is kept so that the guided setup can write a configuration
 	// file with the settings the application holds.
 	cfg *config.Config
+	// setup is the agent setup.
+	//
+	// It is kept so that the guided setup can install a model in the
+	// runner, without a restart.
+	setup *agent.Setup
 	// runtime holds the shared runtime state.
 	runtime *state.Runtime
 	// theme is the shared style palette.
@@ -131,6 +137,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 	m := &Model{
 		store:        store,
 		cfg:          cfg,
+		setup:        setup,
 		runtime:      runtime,
 		prefs:        prefs,
 		theme:        t,
@@ -158,7 +165,45 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		return cfg.SaveAgent(agentSettings(settings), path)
 	})
 
+	// The guided setup can also install a model, so that the agent works
+	// right away without a restart.
+	m.agentPage.SetModelApplier(func(settings components.AgentSetupSettings) error {
+		return m.installModel(settings)
+	})
+
 	return m
+}
+
+// installModel builds a model from the settings of the setup and
+// installs it in the runner.
+//
+// The key is the one the user typed, and it is used to build the model
+// in memory: it is never written to a file. The configuration names
+// the environment variable that holds it, so the next start finds it
+// there.
+//
+// The model takes effect on the next turn: a run that is already in
+// flight keeps the model it started with.
+func (m *Model) installModel(settings components.AgentSetupSettings) error {
+	if m.setup == nil || m.setup.Runner == nil {
+		return errors.New("app: the agent is not set up")
+	}
+
+	model, err := agent.NewModel(agent.ProviderConfig{
+		Provider: settings.Provider,
+		Model:    settings.Model,
+		BaseURL:  settings.BaseURL,
+		APIKey:   settings.APIKey,
+	})
+	if err != nil {
+		return fmt.Errorf("app: build the model: %w", err)
+	}
+
+	if err := m.setup.Runner.SetModel(model); err != nil {
+		return fmt.Errorf("app: install the model: %w", err)
+	}
+
+	return nil
 }
 
 // SetConfigPath sets the path the configuration file is written to.
@@ -316,6 +361,12 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// The panel shows the conversation of the agent, which changes with
 	// the agent events.
 	m.refreshPanel()
+
+	// The guided setup has done its work once a model is installed: the
+	// page shows the chat from then on.
+	if m.agentPage.HasModel() {
+		m.agentPage.DropSetup()
+	}
 
 	return m, tea.Batch(cmds...)
 }

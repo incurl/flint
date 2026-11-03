@@ -290,7 +290,9 @@ The last step shows what to copy:
    api_key_env = "MINIMAX_API_KEY"
    base_url = "https://api.minimax.cn/v1"
 
- Restart the application to use it.
+ Use the agent now, without a restart:
+
+ a use it now
 ```
 
 **The key is masked on the screen and it is never written to a file.**
@@ -298,6 +300,28 @@ The setup produces the configuration to copy and the variable to
 export, and leaves the two to you — a secret belongs in the
 environment, not in a file that is copied around and committed by
 accident.
+
+### Using it right away
+
+Pressing `a` installs the model **in this session**, without a
+restart:
+
+```
+ The agent is ready.
+ The model is installed: it works from now on, without a restart.
+```
+
+The key you typed is used to build the model, and it is held in memory
+only. The setup disappears and the chat takes its place — you can ask
+a question straight away.
+
+The model takes effect on the **next turn**: a request that is already
+in flight keeps the model it started with.
+
+⚠️ **The key is still needed in the environment for the *next* start.**
+The model works now because the setup handed the key to the running
+process; a new process finds it in the variable the configuration
+names. So export it too, or the next start shows the setup again.
 
 The setup is a *guide*, not a configuration writer: it does not
 rewrite `flint.toml` behind your back, and it does not change the
@@ -360,6 +384,10 @@ The file is written where the application reads its configuration
 from: the `--config` path if there is one, the existing `flint.toml`,
 the XDG directory, and `flint.toml` in the working directory as the
 last resort.
+
+Writing the file is **not** what makes the agent work: pressing `a`
+does that, and it works in this session. The file is for the *next*
+one — which is why the key has to be in the environment too.
 
 ⚠️ **The values written are the ones the *file* held**, not the
 effective ones. A setting that came from an environment variable or a
@@ -581,12 +609,17 @@ If you truly need the key stored, the honest options are:
 
 ### A note on the guided setup
 
-The guided setup **writes the configuration file, but never the key**.
+The guided setup **writes the configuration file, and it uses the key —
+but it never writes the key**.
 
 Writing the file is not a security decision: a configuration file is a
 document the user reads and edits, and the setup writes an *example*
 of it — every setting, commented, with the agent section filled in.
 The user still decides what to keep.
+
+Using the key is not a security decision either: the key stays in the
+process that the user typed it into, and it is used to build a model.
+That is what makes the agent work without a restart.
 
 Writing the key **would** be. A key in a file is a key in a file that
 gets copied, backed up and committed by accident, and the setup has

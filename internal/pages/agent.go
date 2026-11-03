@@ -188,9 +188,9 @@ func NewAgentPage(
 		spinner:  spinner.New(),
 	}
 
-	// Without a model there is nothing the prompt can do, so the page
-	// offers the guided setup instead.
-	if runner == nil {
+	// The setup is offered when there is no model: the runner always
+	// exists, but it has no model until one is configured.
+	if runner == nil || runner.Model() == nil {
 		page.setup = components.NewAgentSetup(t)
 	}
 
@@ -336,7 +336,7 @@ func (p *AgentPage) send() tea.Cmd {
 		return nil
 	}
 
-	if p.runner == nil {
+	if p.runner == nil || p.runner.Model() == nil {
 		return toastCmd(components.ToastError, "no agent is configured")
 	}
 
@@ -502,6 +502,37 @@ func (p *AgentPage) SetConfigWriter(path string, writer func(path string, settin
 	}
 
 	p.setup.SetWriter(path, writer)
+}
+
+// SetModelApplier sets the function that installs the model.
+//
+// The guided setup can build a model from the key that was typed and
+// install it in the runner, so that the agent works right away without
+// a restart.
+func (p *AgentPage) SetModelApplier(applier func(settings components.AgentSetupSettings) error) {
+	if p.setup == nil {
+		return
+	}
+
+	p.setup.SetApplier(applier)
+}
+
+// HasModel reports whether the page has a model to run.
+//
+// It is false while the guided setup is on screen: the agent cannot
+// answer a question before a model is configured.
+func (p *AgentPage) HasModel() bool {
+	return p.runner != nil && p.runner.Model() != nil
+}
+
+// DropSetup removes the guided setup from the page.
+//
+// It is called when a model is installed: the setup has done its work,
+// and the page shows the chat from then on.
+func (p *AgentPage) DropSetup() {
+	p.setup = nil
+
+	p.input.Focus()
 }
 
 // View implements [tea.Model].

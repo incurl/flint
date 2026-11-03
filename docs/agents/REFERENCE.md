@@ -559,6 +559,13 @@ func (s *AgentSetup) Written() bool
 func (s *AgentSetup) WriteError() error
 func (s *AgentSetup) ConfigPath() string
 
+// The applier. The setup installs the model, so that the agent works
+// without a restart.
+func (s *AgentSetup) SetApplier(applier func(settings AgentSetupSettings) error)
+func (s *AgentSetup) Apply() bool
+func (s *AgentSetup) Applied() bool
+func (s *AgentSetup) ApplyError() error
+
 // The result of the setup.
 func (s *AgentSetup) Provider() AgentSetupProviderInfo
 func (s *AgentSetup) Model() string
@@ -574,21 +581,26 @@ type AgentSetupSettings struct {
 	Model     string
 	BaseURL   string
 	APIKeyEnv string
+	// APIKey is the key the user typed. It is held in memory and it
+	// is never written to a file.
+	APIKey string
 }
 ```
 
-Three rules hold it together:
+Four rules hold it together:
 
 - **The key is masked.** It is typed in a `textinput` with
   `EchoPassword`, so it never reaches the screen.
 - **The key is never written to a file.** `ConfigSnippet` returns the
-  TOML to copy, and `AgentSetupSettings` has no field for the key: a
-  secret belongs in the environment, not in a file that is copied
-  around.
-- **The writer is a callback.** The components do not depend on the
-  configuration package — they are widgets — so the application wires
-  them. The application maps `AgentSetupSettings` to its own
-  configuration type.
+  TOML to copy, and it has no field for the key: a secret belongs in
+  the environment, not in a file that is copied around.
+- **The key is used in memory.** `AgentSetupSettings.APIKey` carries it
+  to the applier, which builds a model from it. That is what makes
+  the agent work without a restart.
+- **The writer and the applier are callbacks.** The components do not
+  depend on the configuration package — they are widgets — so the
+  application wires them. The application maps `AgentSetupSettings` to
+  its own configuration type.
 
 `Update` returns whether the key was handled. An unhandled key belongs
 to the page.
@@ -718,6 +730,22 @@ func (r *Runner) Cancel(runID string) bool
 func (r *Runner) CancelAll()
 func (r *Runner) Busy() bool
 func (r *Runner) AddPublisher(publisher Publisher)
+
+// The model of the runner. It can be replaced while the application
+// runs: the guided setup installs one, so that the agent works without
+// a restart.
+func (r *Runner) Model() fantasy.LanguageModel
+func (r *Runner) SetModel(model fantasy.LanguageModel) error
+
+// The providers.
+type ProviderConfig struct {
+	Provider string
+	Model    string
+	BaseURL  string
+	APIKey   string
+}
+
+func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error)
 
 // The permission gate.
 func NewGate(mode PermissionMode, requester PermissionRequester) *Gate

@@ -261,6 +261,12 @@ Three rules catch most mistakes:
   came from `FLINT_AGENT_PROVIDER` does not belong in a file. The file
   is written with `0600` and atomically, and the API key is never in
   it — only the name of the variable that holds it.
+- **The runner's model can be replaced while the application runs.**
+  `Runner.SetModel` installs it, and `Run` reads the current one at the
+  start of every turn — a run already in flight keeps the model it
+  started with. This is what lets the guided setup make the agent work
+  without a restart. The key it uses is held in memory and never
+  written to a file.
 - **`internal/` is not importable from outside the module.** Downstream
   projects use the template's own packages by copying them in, or by
   keeping everything in one module.

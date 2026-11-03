@@ -788,6 +788,85 @@ puts a key in a database, is making a security decision on your
 behalf — and the setup is exactly where the user should be the one
 making it.
 
+### Using it without a restart
+
+A setup that ends with "now restart the application" is a setup the
+user will not finish. The agent can be used **straight away**, and the
+mechanism is small.
+
+The runner holds the model behind a lock, and reads it at the start of
+every run:
+
+```go
+type Runner struct {
+	// ...
+	modelMu sync.RWMutex
+	// model is the language model of the next run.
+	//
+	// It is read at the start of every run, so it can be replaced
+	// while the application runs: a setup that configures a model does
+	// not need a restart.
+	model fantasy.LanguageModel
+}
+
+func (r *Runner) SetModel(model fantasy.LanguageModel) error {
+	if model == nil {
+		return ErrNoModel
+	}
+	// ...
+}
+```
+
+A run that is already in flight keeps the model it started with: the
+replacement takes effect on the *next* turn, which is the least
+surprising behaviour.
+
+This is the same shape as the reference implementation, where the agent
+holds a closure that hands out the current model on every call — but
+Flint does not need the closure, because the model is a field that is
+swapped under a lock.
+
+The setup keeps the key in memory and hands it to the application,
+which builds the model and installs it:
+
+```go
+// The applier is a callback: the components do not depend on the
+// configuration package.
+m.agentPage.SetModelApplier(func(settings components.AgentSetupSettings) error {
+	return m.installModel(settings)
+})
+```
+
+⚠️ **The key is used, but never written.** It lives in the process
+that the user typed it into, and it is used to build the model. The
+configuration file names the *variable* that holds the key, and the
+key itself stays out of every file. So the agent works in this
+session, and the next session finds the key in the environment.
+
+The runner is built **before** the model exists. The tools, the
+conversations and the permission gate do not need a model, so they
+are always there:
+
+```go
+runner := agent.NewRunner(agent.Options{
+	Registry:     registry,
+	SystemPrompt: systemPrompt,
+	MaxSteps:     cfg.Agent.MaxSteps,
+	History:      agent.NewHistory(sessions, ""),
+})
+```
+
+Only the model arrives later, and the page shows the guided setup
+while it is missing:
+
+```go
+// The setup is offered when there is no model: the runner always
+// exists, but it has no model until one is configured.
+if runner == nil || runner.Model() == nil {
+	page.setup = components.NewAgentSetup(t)
+}
+```
+
 ### The example file
 
 The last step offers to write the file, and the offer is worth
