@@ -245,6 +245,30 @@ silent approval.
 The loop itself belongs to `charm.land/fantasy`: the template adds the
 tools, the events, the gate and the conversation.
 
+### The agent panel
+
+The root model owns a **read-only panel** that shows the conversation
+of the agent next to the page. It is toggled with `ctrl+b`, it is 32
+columns wide, and it is refused on a terminal narrower than 121
+columns — the record table is 88 columns wide, and a table whose
+viewport is narrower than its columns renders *empty*.
+
+```text
+internal/app/panel.go  ──renders──►  internal/components/agentpanel.go
+        ▲
+        └── reads the entries of internal/pages/agent.go
+```
+
+The panel holds no conversation of its own: it renders the entries of
+the agent page, so the two views cannot drift apart. The events of a
+run reach the agent page whatever page is displayed, so a run keeps
+streaming after the user navigates away.
+
+The *writing* half of the agent — the prompt and the permission
+questions — stays on the agent page. A prompt in a 32-column panel
+would be unusable, and a permission prompt has to show what is about to
+change.
+
 ### `internal/session` — the conversations
 
 The turns of a conversation live in PocketBase, in two collections:

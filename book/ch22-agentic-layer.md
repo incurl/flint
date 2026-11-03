@@ -544,7 +544,151 @@ case tea.WindowSizeMsg:
     return p, nil
 ```
 
-## 22.10 Configuring the model
+## 22.10 The side panel
+
+The chat page is a *page*: it takes the whole screen. That is right for
+composing a question and for answering a permission prompt, but it is
+the wrong shape for *watching* the agent work.
+
+A second view of the same conversation solves this: a narrow panel on
+the right, next to the records.
+
+```
+ Records · vocab                  │ Agent
+ filter: go                       │ Which records mention Go?
+ id       key      label          │ → search_records
+ rec1     go       Go             │ I found 3 records that mention
+ rec2     rust     Rust           │ Go in their description.
+```
+
+The panel is **read-only**. The writing — the prompt, the permission
+questions — stays on the page, where there is room for it. A prompt in
+a 32-column panel would be unusable, and a permission prompt has to
+show what is about to change.
+
+### The panel is a view, not a second copy
+
+The panel does not own a conversation. It renders the entries of the
+agent page:
+
+```go
+func (p *AgentPage) PanelEntries() []components.AgentPanelEntry {
+    out := make([]components.AgentPanelEntry, 0, len(p.entries))
+    for _, entry := range p.entries {
+        // ...
+    }
+    return out
+}
+```
+
+Two copies of the conversation would drift. One copy, rendered twice,
+cannot.
+
+### A run outlives the page it was started from
+
+The panel makes a problem visible that was already there. A run
+happens in a goroutine, and it keeps going after the user navigates
+away. But the agent events were only delivered to the page that was
+displayed:
+
+```go
+switch m.runtime.Page {
+case state.PageRecords:
+    // ...
+case state.PageAgent:
+    updated, cmd := m.agentPage.Update(msg)  // only here
+    // ...
+}
+```
+
+So the user started a run, pressed `2` to go back to the records, and
+the answer was lost. The fix is to deliver the events of the agent to
+the agent page whatever page is displayed:
+
+```go
+if m.runtime.Page != state.PageAgent {
+    switch msg.(type) {
+    case pages.AgentEventMsg, pages.AgentDoneMsg, pages.AgentPermissionMsg:
+        updated, cmd := m.agentPage.Update(msg)
+        m.agentPage = updated.(*pages.AgentPage)
+        cmds = append(cmds, cmd)
+    }
+}
+```
+
+⚠️ **The guard matters.** Without it, the event is applied twice when
+the agent page *is* the page that is displayed — once by the block
+above and once by the switch below — and every entry of the
+conversation appears twice. The test that catches it counts the
+occurrences of a word in the panel.
+
+### The width is a hard constraint
+
+The record table is 88 columns wide. The panel takes 32, and the gap
+between them takes 1. So the panel needs a terminal of at least
+
+```
+88 + 32 + 1 = 121 columns
+```
+
+Below that the table would be clipped — and a table whose viewport is
+narrower than its columns renders **empty**, with no error and no
+warning. The panel is therefore refused on a narrow terminal, and the
+hint is not shown either: a toggle that cannot work is worse than no
+toggle.
+
+The panel also has to tell the pages about the narrower width. The
+root model forwards the resize with the width of the *page*:
+
+```go
+case tea.WindowSizeMsg:
+    m.width = msg.Width
+    m.height = msg.Height
+    m.resize()
+
+    // The pages get the width the panel does not use.
+    if m.pageWidth != m.width {
+        msg.Width = m.pageWidth
+    }
+```
+
+Without this the table would render at 121 columns inside a 88-column
+page, and the layout would wrap.
+
+### Composing two columns
+
+The composition is plain text: pad the body to the width of the page,
+and put the panel next to it.
+
+```go
+left = theme.Truncate(left, bodyWidth)
+left = padRight(left, bodyWidth+gap)
+padded = append(padded, left+right)
+```
+
+Two details are easy to get wrong, and both of them show up as a
+broken layout rather than as an error:
+
+- **The gap belongs to neither column.** `SplitWidth` returns the two
+  widths *without* the gap, so the body is padded to
+  `bodyWidth + gap`, not to `bodyWidth`. Get this wrong and every
+  line is one column short.
+- **Every line of the panel has the same width.** Lip Gloss draws the
+  border around a block and does not pad the *lines* of that block, so
+  a short line leaves a ragged border. The lines are padded before
+  they are rendered.
+
+The test that catches both of them is a width check:
+
+```go
+for i, line := range lines[:len(lines)-1] {
+    if got := lipgloss.Width(line); got != width {
+        t.Errorf("line %d is %d columns wide on a %d column terminal", i, got, width)
+    }
+}
+```
+
+## 22.11 Configuring the model
 
 ```toml
 [agent]
@@ -592,7 +736,7 @@ Without a provider, the application still starts, and the agent page
 says that no model is configured. A template that cannot be run without
 an API key is not a template.
 
-## 22.11 Testing an agentic application
+## 22.12 Testing an agentic application
 
 The agent layer is the part of the template that is easiest to test
 badly, because it is the part that talks to something you do not
@@ -647,7 +791,7 @@ against a real embedded PocketBase, and that is where the behaviour
 lives. The model is a detail: it decides *when* to call the tool, not
 *what the tool does*.
 
-## 22.12 What it costs
+## 22.13 What it costs
 
 The agentic layer is not free, and the costs are worth stating plainly.
 
@@ -668,7 +812,7 @@ come first.
 with tools is several. The UI has to show that it is working, which is
 what the spinner is for.
 
-## 22.13 Exercises
+## 22.14 Exercises
 
 1. Add a tool that exports the records of a collection as CSV. Give it
    a schema, a description and a test.
@@ -696,7 +840,7 @@ what the spinner is for.
 7. Write a mock provider server and assert that the tool schema the
    model receives is the one the parameter structs describe.
 
-## 22.14 What you learned
+## 22.15 What you learned
 
 - The **loop is not yours**: it comes from `charm.land/fantasy`, and
   what the template adds is the tools, the events, the gate and the
@@ -722,7 +866,7 @@ what the spinner is for.
 - The agent is **optional**: without a provider, the application still
   runs.
 
-## 22.15 Further reading
+## 22.16 Further reading
 
 - `internal/agent/run.go` — the runner and the events.
 - `internal/agent/tool.go` — the tool interface and the registry.

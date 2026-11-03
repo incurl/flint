@@ -43,7 +43,8 @@ and the TUI scaffolding are already in place.
 - **An agentic layer.** A language model can read *and* write your
   records through typed tools, behind a permission gate that asks
   before every change. The conversations are stored in PocketBase, like
-  everything else.
+  everything else. A side panel (`ctrl+b`) shows what the agent did,
+  next to the records it did it to.
 - **Extension points.** Custom record renderers, custom pages, custom
   sync strategies, custom agent tools and custom migrations — none of
   them require touching the core packages.

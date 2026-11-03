@@ -54,6 +54,8 @@ type Model struct {
 	search *pages.SearchPage
 	// agentPage is the chat with the language model.
 	agentPage *pages.AgentPage
+	// panel is the side panel that shows the conversation of the agent.
+	panel *panelState
 	// settingsPage is the settings page.
 	settingsPage *pages.SettingsPage
 	// sync is the sync page.
@@ -68,6 +70,9 @@ type Model struct {
 	width int
 	// height is the terminal height.
 	height int
+	// pageWidth is the width the pages get, which is narrower than the
+	// terminal when the panel is visible.
+	pageWidth int
 	// quitting reports whether the application is shutting down.
 	quitting bool
 }
@@ -131,6 +136,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		detail:       pages.NewDetailPage(store, runtime, t, renderer),
 		search:       pages.NewSearchPage(store, runtime, t, renderer),
 		agentPage:    pages.NewAgentPage(setup.Runner, setup.Resolver, setup.Service, runtime, t),
+		panel:        newPanelState(t),
 		settingsPage: pages.NewSettingsPage(runtime, t, cfg.SettingsRows()),
 		sync:         pages.NewSyncPage(store, runtime, t),
 	}
@@ -159,6 +165,13 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.resize()
+
+		// The pages get the width the panel does not use, so the
+		// resize is forwarded with the narrower width. A page that
+		// renders a table needs to know how much room it has.
+		if m.pageWidth != m.width {
+			msg.Width = m.pageWidth
+		}
 
 	case tea.KeyPressMsg:
 		// The global hotkey layer is only active when no page specific
@@ -258,12 +271,29 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// on every update cycle.
 	m.refreshStatusBar()
 
+	// The panel shows the conversation of the agent, which changes with
+	// the agent events.
+	m.refreshPanel()
+
 	return m, tea.Batch(cmds...)
 }
 
 // refreshStatusBar pushes the current runtime state to the status bar.
 func (m *Model) refreshStatusBar() {
 	m.statusBar.SetInfo(m.statusInfo())
+}
+
+// refreshPanel updates the conversation the panel shows.
+//
+// The panel is a view of the agent page's conversation, so it is
+// refreshed whenever the page is: there is no second copy of the
+// conversation to keep in sync.
+func (m *Model) refreshPanel() {
+	if !m.panel.visible {
+		return
+	}
+
+	m.panel.panel.SetEntries(m.agentPage.PanelEntries())
 }
 
 // View implements [tea.Model].
@@ -297,7 +327,16 @@ func (m *Model) View() tea.View {
 		parts = append(parts, toast)
 	}
 
-	parts = append(parts, m.statusBar.View().Content)
+	status := m.statusBar.View().Content
+
+	// The agent panel sits on the right of the body and of the status
+	// bar: the status bar spans the whole width, so the panel has to
+	// stop before it.
+	if m.panel.visible {
+		return m.viewWithPanel(parts, status)
+	}
+
+	parts = append(parts, status)
 
 	view := tea.NewView(joinLines(parts))
 
@@ -360,6 +399,17 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "ctrl+c", "q":
 		m.quitting = true
 		return tea.Quit, true
+
+	case "ctrl+b":
+		// The panel is a chrome toggle, like the theme: it is not a
+		// page and it does not navigate.
+		if m.togglePanel() {
+			return nil, true
+		}
+
+		// The panel does not fit on this terminal: the key is left to
+		// the page, which may use it for something else.
+		return nil, false
 
 	case "+", "=":
 		return m.zoom(theme.ScaleZoomIn), true
@@ -480,6 +530,23 @@ func (m *Model) loadPage(page state.Page) tea.Cmd {
 // updateActivePage forwards a message to the active page.
 func (m *Model) updateActivePage(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
+
+	// The events of a running agent reach the agent page whatever page
+	// is displayed: a run outlives the page it was started from, and the
+	// side panel shows the conversation of a run the user started and
+	// then navigated away from.
+	//
+	// The agent page is skipped below, so that an event is not applied
+	// twice when it is the page that is displayed.
+	if m.runtime.Page != state.PageAgent {
+		switch msg.(type) {
+		case pages.AgentEventMsg, pages.AgentDoneMsg, pages.AgentPermissionMsg:
+			updated, cmd := m.agentPage.Update(msg)
+			m.agentPage = updated.(*pages.AgentPage)
+
+			cmds = append(cmds, cmd)
+		}
+	}
 
 	switch m.runtime.Page {
 	case state.PageRecords:
@@ -633,6 +700,27 @@ func (m *Model) statusInfo() components.StatusInfo {
 
 // hints returns the contextual hotkey hints of the active page.
 func (m *Model) hints() []string {
+	hints := m.pageHints()
+
+	// The panel is a global toggle, so its hint is shown on every
+	// page. It is only offered when the terminal is wide enough for it.
+	if m.panel.canShow() {
+		if m.panel.visible {
+			hints = append(hints, components.FormatHints([][2]string{
+				{"ctrl+b", "hide panel"},
+			})...)
+		} else {
+			hints = append(hints, components.FormatHints([][2]string{
+				{"ctrl+b", "panel"},
+			})...)
+		}
+	}
+
+	return hints
+}
+
+// pageHints returns the contextual hotkey hints of the active page.
+func (m *Model) pageHints() []string {
 	switch m.runtime.Page {
 	case state.PageRecords:
 		return components.FormatHints([][2]string{
@@ -668,7 +756,15 @@ func (m *Model) hints() []string {
 
 // resize adapts the components to the terminal size.
 func (m *Model) resize() {
+	// The pages get the width the panel does not use.
+	m.panel.setSize(m.width, m.height)
+	m.panel.resize()
+
 	m.statusBar.SetWidth(m.width)
+
+	// The pages are told about the narrower width, so that the record
+	// table and the JSON viewer adapt to it.
+	m.pageWidth = m.panel.pageWidth()
 }
 
 // joinLines renders a list of lines as a single block.

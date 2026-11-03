@@ -429,6 +429,34 @@ func (p *AgentPage) applyDone(msg AgentDoneMsg) tea.Cmd {
 	return nil
 }
 
+// PanelEntries returns the conversation in the form the side panel
+// renders it.
+//
+// The panel is a different view of the same conversation, so the
+// conversion happens here rather than in the panel: the panel knows
+// nothing about the roles and the tool calls of the page.
+func (p *AgentPage) PanelEntries() []components.AgentPanelEntry {
+	out := make([]components.AgentPanelEntry, 0, len(p.entries))
+
+	for _, entry := range p.entries {
+		text := entry.Text
+		if entry.IsTool {
+			text = entry.ToolName
+			if entry.Text != "" {
+				text += " " + entry.Text
+			}
+		}
+
+		out = append(out, components.AgentPanelEntry{
+			Text:   text,
+			IsTool: entry.IsTool,
+			Failed: entry.Failed,
+		})
+	}
+
+	return out
+}
+
 // View implements [tea.Model].
 func (p *AgentPage) View() tea.View {
 	var b []string

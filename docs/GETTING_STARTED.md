@@ -292,6 +292,31 @@ explain or try something else.
 The conversations are stored in PocketBase, so a turn continues where
 the last one stopped.
 
+### The side panel
+
+On a terminal that is at least 121 columns wide and 12 rows tall,
+`ctrl+b` opens a panel on the right of the page:
+
+```
+ Records · vocab                  │ Agent
+ filter: go                       │ Which records mention Go?
+ id       key      label          │ → search_records
+ rec1     go       Go             │ I found 3 records that mention
+ rec2     rust     Rust           │ Go in their description.
+```
+
+The panel is the *reading* half of the agent: it shows what the model
+did, next to the records it did it to. It is read-only — the prompt
+and the permission questions stay on the agent page, where there is
+room for them.
+
+The panel needs a terminal of 121 columns because the record table is
+88 columns wide and the panel takes 32. On a narrower terminal the
+toggle does nothing, and the hint is not shown: there is no room for
+both.
+
+Press `ctrl+b` again to close it.
+
 ## 9. Before you publish
 
 ```bash

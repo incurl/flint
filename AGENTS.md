@@ -65,7 +65,7 @@ message instead. See skill `add-a-page.md`.
 
 ```
 keypress → app.Model.Update
-              ├─ global key layer (ctrl+c, q, 1-6 digits, +/- zoom, T theme, c compact)
+              ├─ global key layer (ctrl+c, q, 1-7 digits, +/- zoom, T theme, c compact, ctrl+b panel)
               └─ updateActivePage(msg) → the active page's Update
                                             ├─ may return a tea.Cmd
                                             └─ the cmd runs off the render loop
@@ -220,6 +220,15 @@ Three rules catch most mistakes:
 - **A `table` row must not have more cells than the table has
   columns.** Bubble Tea v2 indexes the columns with the cell position
   and panics with an index out of range otherwise.
+- **The agent panel is width-gated.** `ctrl+b` only works on a
+  terminal of at least 121 columns: the record table is 88 wide, the
+  panel takes 32, and a table narrower than its columns renders
+  *empty*. When the panel is open the root model forwards the resize
+  with the width of the *page*, not the width of the terminal.
+- **Two columns have to add up.** `theme.SplitWidth` returns the two
+  widths *without* the gap, so the body is padded to
+  `bodyWidth + gap`. Lip Gloss does not pad the lines of a bordered
+  block either: pad them yourself, or the border is ragged.
 - **PocketBase ids are 15+ characters.** A short id from a remote source
   must be padded; `normalizeID` in `pbstore` does this.
 - **`PageResult.TotalItems` costs a second query.** Set

@@ -737,6 +737,40 @@ type SyncFinishedMsg struct {
 type Toast = components.ToastMsg
 ```
 
+### The agent panel
+
+The root model owns a read-only panel that shows the conversation of
+the agent next to the page (`internal/app/panel.go`).
+
+```go
+const (
+	panelColumnWidth = components.AgentPanelWidth  // 32
+	panelGap         = 1
+	panelMinWidth    = 121
+	panelMinHeight   = 12
+)
+```
+
+- `ctrl+b` toggles it. The key is left to the page when the terminal
+  is too small, so that a page may use it for something else.
+- The panel is only offered on a terminal of at least 121 columns: the
+  record table is 88 columns wide, the panel takes 32, and a table
+  whose viewport is narrower than its columns renders *empty*.
+- The page is told about the narrower width with a `tea.WindowSizeMsg`
+  that carries the width of the page, not the width of the terminal.
+- The panel shows the conversation of the agent page. The events of a
+  run reach the agent page whatever page is displayed, so a run keeps
+  streaming after the user navigates away.
+
+The widget itself is `components.AgentPanel`:
+
+```go
+func NewAgentPanel(t *theme.Theme) *AgentPanel
+func (p *AgentPanel) SetEntries(entries []AgentPanelEntry)
+func (p *AgentPanel) SetSize(width, height int)
+func (p *AgentPanel) View() tea.View
+```
+
 ---
 
 ## `config` — settings
