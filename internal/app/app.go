@@ -8,6 +8,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/incurl/flint/config"
+	"github.com/incurl/flint/internal/agent"
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/pbstore"
@@ -51,6 +52,8 @@ type Model struct {
 	detail *pages.DetailPage
 	// search is the search page.
 	search *pages.SearchPage
+	// agentPage is the chat with the language model.
+	agentPage *pages.AgentPage
 	// settingsPage is the settings page.
 	settingsPage *pages.SettingsPage
 	// sync is the sync page.
@@ -73,7 +76,7 @@ type Model struct {
 //
 // The renderer is the optional domain specific record renderer: when nil
 // the generic [components.DefaultRecordRenderer] is used.
-func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer) *Model {
+func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer, runner *agent.Runner) *Model {
 	if cfg == nil {
 		cfg = config.Default()
 	}
@@ -123,6 +126,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		records:      pages.NewRecordsPage(store, runtime, t, renderer),
 		detail:       pages.NewDetailPage(store, runtime, t, renderer),
 		search:       pages.NewSearchPage(store, runtime, t, renderer),
+		agentPage:    pages.NewAgentPage(runner, runtime, t),
 		settingsPage: pages.NewSettingsPage(runtime, t, cfg.SettingsRows()),
 		sync:         pages.NewSyncPage(store, runtime, t),
 	}
@@ -273,6 +277,8 @@ func (m *Model) View() tea.View {
 		body = m.detail.View().Content
 	case state.PageSearch:
 		body = m.search.View().Content
+	case state.PageAgent:
+		body = m.agentPage.View().Content
 	case state.PageSettings:
 		body = m.settingsPage.View().Content
 	case state.PageSync:
@@ -339,6 +345,8 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 			return m.navigate(state.PageSettings), true
 		case "6":
 			return m.navigate(state.PageSync), true
+		case "7":
+			return m.navigate(state.PageAgent), true
 		}
 
 		return nil, false
@@ -378,6 +386,9 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 
 	case "6":
 		return m.navigate(state.PageSync), true
+
+	case "7":
+		return m.navigate(state.PageAgent), true
 
 	case "s":
 		return m.checkHealth(), true
@@ -421,6 +432,8 @@ func (m *Model) modalInputFocused() bool {
 func (m *Model) inputFocused() bool {
 	switch m.runtime.Page {
 	case state.PageSearch:
+		return true
+	case state.PageAgent:
 		return true
 	case state.PageRecords:
 		return m.records.FilterFocused()
@@ -478,6 +491,11 @@ func (m *Model) updateActivePage(msg tea.Msg) []tea.Cmd {
 	case state.PageSearch:
 		updated, cmd := m.search.Update(msg)
 		m.search = updated.(*pages.SearchPage)
+
+		cmds = append(cmds, cmd)
+	case state.PageAgent:
+		updated, cmd := m.agentPage.Update(msg)
+		m.agentPage = updated.(*pages.AgentPage)
 
 		cmds = append(cmds, cmd)
 	case state.PageSettings:
@@ -623,6 +641,10 @@ func (m *Model) hints() []string {
 	case state.PageSearch:
 		return components.FormatHints([][2]string{
 			{"enter", "run"}, {"esc", "clear"},
+		})
+	case state.PageAgent:
+		return components.FormatHints([][2]string{
+			{"enter", "send"}, {"esc", "cancel"},
 		})
 	case state.PageSync:
 		return components.FormatHints([][2]string{

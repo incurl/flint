@@ -75,6 +75,38 @@ type Config struct {
 	Remote RemoteConfig `toml:"remote"`
 	// Sync holds the cache synchronisation settings.
 	Sync SyncConfig `toml:"sync"`
+	// Agent holds the language model settings.
+	Agent AgentConfig `toml:"agent"`
+}
+
+// AgentConfig holds the settings of the language model.
+//
+// The agent is optional: without a provider the template still runs,
+// and the agent page reports that no model is configured.
+type AgentConfig struct {
+	// Provider is the name of the provider: anthropic, openai,
+	// openaicompat, openrouter, google, bedrock, azure or vercel.
+	Provider string `toml:"provider"`
+	// Model is the name of the model, for example "claude-sonnet-4".
+	Model string `toml:"model"`
+	// BaseURL is the endpoint of the provider.
+	//
+	// It is only used by the OpenAI compatible providers, which lets a
+	// local server be used instead of a hosted one.
+	BaseURL string `toml:"base_url"`
+	// APIKeyEnv is the name of the environment variable holding the API
+	// key.
+	//
+	// The key is never read from the configuration file itself: a file
+	// is easy to copy around, an environment variable is not.
+	APIKeyEnv string `toml:"api_key_env"`
+	// SystemPrompt is the instruction given to the model.
+	SystemPrompt string `toml:"system_prompt"`
+	// PermissionMode tells how the mutating tools are gated: "ask" or
+	// "allow".
+	PermissionMode string `toml:"permission_mode"`
+	// MaxSteps bounds the number of model calls of a single run.
+	MaxSteps int `toml:"max_steps"`
 }
 
 // EmbeddedConfig holds the embedded store settings.
@@ -227,6 +259,14 @@ func (c *Config) SettingsRows() [][2]string {
 
 	if c.JSRenderer {
 		rows = append(rows, [2]string{"renderer_dir", c.RendererDirPath()})
+	}
+
+	if c.Agent.Provider != "" {
+		rows = append(rows,
+			[2]string{"agent.provider", c.Agent.Provider},
+			[2]string{"agent.model", c.Agent.Model},
+			[2]string{"agent.permission_mode", c.Agent.PermissionMode},
+		)
 	}
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
@@ -411,6 +451,36 @@ func applyEnv(cfg *Config) {
 
 	if v := os.Getenv(EnvPrefix + "REMOTE_COLLECTIONS"); v != "" {
 		cfg.Remote.Collections = parseList(v)
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_PROVIDER"); v != "" {
+		cfg.Agent.Provider = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_MODEL"); v != "" {
+		cfg.Agent.Model = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_BASE_URL"); v != "" {
+		cfg.Agent.BaseURL = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_API_KEY_ENV"); v != "" {
+		cfg.Agent.APIKeyEnv = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_SYSTEM_PROMPT"); v != "" {
+		cfg.Agent.SystemPrompt = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_PERMISSION_MODE"); v != "" {
+		cfg.Agent.PermissionMode = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_MAX_STEPS"); v != "" {
+		if n, err := parseInt(v); err == nil {
+			cfg.Agent.MaxSteps = n
+		}
 	}
 
 	if v := os.Getenv(EnvPrefix + "REMOTE_TIMEOUT"); v != "" {

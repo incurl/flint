@@ -29,6 +29,8 @@ const (
 	PageSettings Page = "settings"
 	// PageSync drives the remote -> local cache synchronisation.
 	PageSync Page = "sync"
+	// PageAgent is the chat with the language model.
+	PageAgent Page = "agent"
 )
 
 // AllPages lists the pages in their navigation order.
@@ -38,6 +40,7 @@ func AllPages() []Page {
 		PageRecords,
 		PageDetail,
 		PageSearch,
+		PageAgent,
 		PageSettings,
 		PageSync,
 	}
@@ -54,6 +57,8 @@ func (p Page) Title() string {
 		return "Detail"
 	case PageSearch:
 		return "Search"
+	case PageAgent:
+		return "Agent"
 	case PageSettings:
 		return "Settings"
 	case PageSync:

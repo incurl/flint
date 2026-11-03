@@ -123,7 +123,7 @@ func newTestModel(t *testing.T) *app.Model {
 		},
 	}
 
-	return app.New(store, config.Default(), nil)
+	return app.New(store, config.Default(), nil, nil)
 }
 
 // TestModelInit verifies that the model starts without panicking.

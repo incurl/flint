@@ -25,6 +25,7 @@ PocketBase server over REST, behind one interface.
 | `internal/pbstore` | The data layer. `Store` interface + embedded/remote impls. | Never branch on the backend. Use `Store`.     |
 | `internal/hybridstore` | `Hybrid`: wraps a `Store` to evaluate the JSON filters the native grammar cannot express. | The only package allowed to import both `pbstore` and `jsonfilter`. |
 | `internal/jsonfilter` | The local evaluator for array and `not` filters.      | Pure functions over a record map; no state.     |
+| `internal/agent`  | The agentic layer: tool registry, run lifecycle, permission gate. | Knows nothing about the UI. Publishes events. |
 | `internal/app`   | Root Bubble Tea model: routing, global keys, status bar, toasts. | Owns global concerns only.                |
 | `internal/pages` | One file per screen. Self-contained.                    | A page never imports `internal/app`.           |
 | `internal/components` | Reusable widgets: record card, JSON viewer/editor, toast, status bar, pagination. | Generic, no domain knowledge.      |
@@ -39,8 +40,10 @@ PocketBase server over REST, behind one interface.
 cmd/tui → app → pages → components → theme
              ↘     ↘         ↘
          hybridstore  state   pbstore → (nothing)
-             ↘
-           jsonfilter
+             ↘                 ↑
+           jsonfilter           │
+             ↘                 │
+             agent ─────────────┘
 ```
 
 - `pages` **must not** import `app` — that is an import cycle. Pages
@@ -123,6 +126,7 @@ recipe, the files to touch, and the checks to run.
 | [`add-a-command.md`](docs/agents/add-a-command.md)   | You want a key action or a background operation.        |
 | [`add-a-config-option.md`](docs/agents/add-a-config-option.md) | You need a new setting.                        |
 | [`add-a-sync.md`](docs/agents/add-a-sync.md)         | You want to pull remote data into the local cache.      |
+| [`add-an-agent-tool.md`](docs/agents/add-an-agent-tool.md) | You want the model to do something new.             |
 | [`debug-a-tui.md`](docs/agents/debug-a-tui.md)       | The UI is frozen, blank, or unresponsive.                |
 | [`verify.md`](docs/agents/verify.md)                 | Before you commit. Run this.                            |
 

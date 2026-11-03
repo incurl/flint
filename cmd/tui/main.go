@@ -97,7 +97,14 @@ func run() error {
 		return err
 	}
 
-	model := app.New(store, cfg, renderer)
+	// The agent is optional: without a provider the application still
+	// runs, and the agent page says that no model is configured.
+	runner, err := newRunner(cfg, store, logger)
+	if err != nil {
+		return err
+	}
+
+	model := app.New(store, cfg, renderer, runner)
 
 	// In Bubble Tea v2 the alternate screen and the mouse mode are
 	// properties of the rendered view, not of the program: the root

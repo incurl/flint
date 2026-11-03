@@ -159,7 +159,7 @@ func TestEveryStoredPreferenceIsRestored(t *testing.T) {
 		},
 	}
 
-	m := app.New(store, config.Default(), nil)
+	m := app.New(store, config.Default(), nil, nil)
 
 	if got := m.Theme().Variant; got != theme.VariantLight {
 		t.Errorf("the variant = %q, want %q", got, theme.VariantLight)
