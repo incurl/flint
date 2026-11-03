@@ -52,7 +52,7 @@ func (m *answerModel) Stream(context.Context, fantasy.Call) (fantasy.StreamRespo
 func TestAgentPageShowsTheAnswer(t *testing.T) {
 	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: "there are 3 records"}})
 
-	page := pages.NewAgentPage(runner, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
@@ -82,7 +82,7 @@ func TestAgentPageShowsTheAnswer(t *testing.T) {
 //
 // A late delta of a cancelled turn must not appear in the next one.
 func TestAgentPageDiscardsStaleEvents(t *testing.T) {
-	page := pages.NewAgentPage(nil, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(nil, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
@@ -105,7 +105,7 @@ func TestAgentPageDiscardsStaleEvents(t *testing.T) {
 func TestAgentPageShowsThePrompt(t *testing.T) {
 	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: "ok"}})
 
-	page := pages.NewAgentPage(runner, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
@@ -124,7 +124,7 @@ func TestAgentPageShowsThePrompt(t *testing.T) {
 // TestAgentPageWithoutRunner verifies that a page without a runner
 // reports the missing agent instead of failing.
 func TestAgentPageWithoutRunner(t *testing.T) {
-	page := pages.NewAgentPage(nil, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(nil, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
@@ -154,7 +154,7 @@ func TestAgentPageWithoutRunner(t *testing.T) {
 // The model waits for the answer, so the page has to show it and turn
 // the key into a decision.
 func TestAgentPageAsksForPermission(t *testing.T) {
-	page := pages.NewAgentPage(nil, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(nil, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
@@ -202,7 +202,7 @@ func TestAgentPageAsksForPermission(t *testing.T) {
 // TestAgentPageDeniesPermission verifies that a refusal is reported as
 // a denial.
 func TestAgentPageDeniesPermission(t *testing.T) {
-	page := pages.NewAgentPage(nil, state.NewRuntime(), theme.Default())
+	page := pages.NewAgentPage(nil, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)

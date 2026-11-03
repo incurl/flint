@@ -3,7 +3,9 @@ package agent_test
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/incurl/flint/internal/agent"
 )
@@ -183,5 +185,175 @@ func TestGuardedToolKeepsTheSchema(t *testing.T) {
 
 	if len(info.Required) != 1 || info.Required[0] != "collection" {
 		t.Errorf("Required = %v, want [collection]", info.Required)
+	}
+}
+
+// recordingPublisher records the published requests.
+type recordingPublisher struct {
+	mu sync.Mutex
+	// requests holds the published requests.
+	requests []agent.PermissionRequest
+}
+
+// PublishPermission implements [agent.RequestPublisher].
+func (p *recordingPublisher) PublishPermission(request agent.PermissionRequest) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.requests = append(p.requests, request)
+}
+
+// TestDecisionBrokerCarriesTheAnswer verifies that the answer of the
+// user reaches the run that asked for it.
+//
+// This is the bridge the whole permission flow depends on: the run
+// blocks on the answer, and the answer comes from the UI.
+func TestDecisionBrokerCarriesTheAnswer(t *testing.T) {
+	publisher := &recordingPublisher{}
+	broker := agent.NewDecisionBroker(publisher)
+
+	done := make(chan agent.PermissionDecision, 1)
+
+	go func() {
+		decision, err := broker.RequestPermission(context.Background(), agent.PermissionRequest{
+			ToolName:    "delete_record",
+			Description: "Delete a record.",
+		})
+		if err != nil {
+			done <- agent.PermissionDeny
+
+			return
+		}
+
+		done <- decision
+	}()
+
+	// Wait for the request to be published.
+	for {
+		publisher.mu.Lock()
+		published := len(publisher.requests)
+		publisher.mu.Unlock()
+
+		if published > 0 {
+			break
+		}
+	}
+
+	if !broker.Resolve(publisher.requests[0].ID, agent.PermissionAllow) {
+		t.Fatal("Resolve() = false, want the pending request to be answered")
+	}
+
+	select {
+	case decision := <-done:
+		if decision != agent.PermissionAllow {
+			t.Errorf("the decision is %v, want allow", decision)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the run did not receive the decision")
+	}
+}
+
+// TestDecisionBrokerUnknownRequest verifies that answering a request
+// that is not pending is reported as such.
+func TestDecisionBrokerUnknownRequest(t *testing.T) {
+	broker := agent.NewDecisionBroker(&recordingPublisher{})
+
+	if broker.Resolve("nope", agent.PermissionAllow) {
+		t.Error("Resolve() = true, want false for an unknown request")
+	}
+}
+
+// TestDecisionBrokerWithoutPublisher verifies that a broker that cannot
+// ask refuses rather than approving.
+func TestDecisionBrokerWithoutPublisher(t *testing.T) {
+	broker := agent.NewDecisionBroker(nil)
+
+	_, err := broker.RequestPermission(context.Background(), agent.PermissionRequest{
+		ToolName: "delete_record",
+	})
+	if !errors.Is(err, agent.ErrNoPermissionRequester) {
+		t.Errorf("RequestPermission() error = %v, want ErrNoPermissionRequester", err)
+	}
+}
+
+// TestDecisionBrokerCancelEndsTheWait verifies that a cancelled run does
+// not leave the requester blocked forever.
+func TestDecisionBrokerCancelEndsTheWait(t *testing.T) {
+	broker := agent.NewDecisionBroker(&recordingPublisher{})
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := broker.RequestPermission(ctx, agent.PermissionRequest{ToolName: "delete_record"})
+		done <- err
+	}()
+
+	cancel()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Errorf("RequestPermission() error = %v, want context.Canceled", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the requester stayed blocked after the cancellation")
+	}
+}
+
+// TestGatedToolRunsAfterTheApproval verifies the whole flow: a gated
+// tool waits for the answer and only then writes.
+//
+// It is the property the permission gate exists for: the write happens
+// because the user allowed it, not before.
+func TestGatedToolRunsAfterTheApproval(t *testing.T) {
+	store := newEmbeddedStore(t)
+	seedCollection(t, store)
+
+	publisher := &recordingPublisher{}
+	broker := agent.NewDecisionBroker(publisher)
+
+	tool := agent.NewGuardedTool(agent.NewCreateRecordTool(store), agent.NewGate(
+		agent.PermissionModeAsk,
+		broker,
+	), "Create a record.")
+
+	done := make(chan error, 1)
+
+	go func() {
+		_, err := tool.Run(context.Background(), `{"collection":"vocab","fields":{"key":"delta"}}`)
+		done <- err
+	}()
+
+	// Wait for the request, then allow it.
+	for {
+		publisher.mu.Lock()
+		published := len(publisher.requests)
+		publisher.mu.Unlock()
+
+		if published > 0 {
+			break
+		}
+	}
+
+	broker.Resolve(publisher.requests[0].ID, agent.PermissionAllow)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("the tool did not run")
+	}
+
+	count, err := store.Count(context.Background(), "vocab", "")
+	if err != nil {
+		t.Fatalf("Count() error = %v", err)
+	}
+
+	if count != 4 {
+		t.Errorf("the collection holds %d records, want 4: the approved write did not happen", count)
 	}
 }

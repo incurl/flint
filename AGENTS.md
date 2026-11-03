@@ -26,6 +26,7 @@ PocketBase server over REST, behind one interface.
 | `internal/hybridstore` | `Hybrid`: wraps a `Store` to evaluate the JSON filters the native grammar cannot express. | The only package allowed to import both `pbstore` and `jsonfilter`. |
 | `internal/jsonfilter` | The local evaluator for array and `not` filters.      | Pure functions over a record map; no state.     |
 | `internal/agent`  | The agentic layer: tool registry, run lifecycle, permission gate. | Knows nothing about the UI. Publishes events. |
+| `internal/session` | The conversations of the agent, stored in PocketBase. | Reads and writes through `pbstore`.            |
 | `internal/app`   | Root Bubble Tea model: routing, global keys, status bar, toasts. | Owns global concerns only.                |
 | `internal/pages` | One file per screen. Self-contained.                    | A page never imports `internal/app`.           |
 | `internal/components` | Reusable widgets: record card, JSON viewer/editor, toast, status bar, pagination. | Generic, no domain knowledge.      |
@@ -44,6 +45,8 @@ cmd/tui → app → pages → components → theme
            jsonfilter           │
              ↘                 │
              agent ─────────────┘
+             ↕
+          session
 ```
 
 - `pages` **must not** import `app` — that is an import cycle. Pages

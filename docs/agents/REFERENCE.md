@@ -30,10 +30,16 @@ type Store interface {
 	Delete(ctx context.Context, collection, id string) error
 	Count(ctx context.Context, collection, filter string) (int, error)
 	EnsureDictionaryCollection(ctx context.Context, name string, fields []DictionaryField) (Collection, error)
+	EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
 	SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error)
 	Close() error
 }
 ```
+
+`EnsureCollection` creates a collection with the fields the application
+needs. The embedded backend creates it; the remote backend cannot, and
+returns an error: there, the collections are created by a migration on
+the server.
 
 Implementations must be **safe for concurrent use** — commands run in
 background goroutines and call the store while the render loop is live.
@@ -611,12 +617,101 @@ type SavedMsg struct {
 
 ---
 
+## `internal/agent` — the agentic layer
+
+Import: `github.com/incurl/flint/internal/agent`
+
+```go
+// The tools.
+type Tool interface {
+	Name() string
+	Description() string
+	Run(ctx context.Context, input string) (string, error)
+}
+
+// The registry.
+func NewRegistry() *Registry
+func (r *Registry) Register(tool Tool)
+func (r *Registry) Tools() []Tool
+func (r *Registry) Get(name string) (Tool, error)
+func (r *Registry) Names() []string
+
+// The store tools.
+func RegisterStoreTools(registry *Registry, store pbstore.Store, gate *Gate)
+func NewListRecordsTool(store pbstore.Store) Tool
+func NewGetRecordTool(store pbstore.Store) Tool
+func NewSearchRecordsTool(store pbstore.Store) Tool
+func NewCountRecordsTool(store pbstore.Store) Tool
+func NewListCollectionsTool(store pbstore.Store) Tool
+func NewCreateRecordTool(store pbstore.Store) Tool
+func NewUpdateRecordTool(store pbstore.Store) Tool
+func NewDeleteRecordTool(store pbstore.Store) Tool
+
+// The runner.
+func NewRunner(options Options) *Runner
+func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error)
+func (r *Runner) Cancel(runID string) bool
+func (r *Runner) CancelAll()
+func (r *Runner) Busy() bool
+func (r *Runner) AddPublisher(publisher Publisher)
+
+// The permission gate.
+func NewGate(mode PermissionMode, requester PermissionRequester) *Gate
+func NewGuardedTool(tool Tool, gate *Gate, description string) *GuardedTool
+func NewDecisionBroker(requester RequestPublisher) *DecisionBroker
+func (b *DecisionBroker) Resolve(id string, decision PermissionDecision) bool
+
+// The conversation.
+func NewHistory(service *session.Service, sessionID string) *History
+func (h *History) Load(ctx context.Context) []fantasy.Message
+```
+
+The tool names are part of the contract with the model:
+
+```go
+const (
+	ToolListRecords     = "list_records"
+	ToolGetRecord       = "get_record"
+	ToolSearchRecords   = "search_records"
+	ToolCountRecords    = "count_records"
+	ToolListCollections = "list_collections"
+	ToolCreateRecord    = "create_record"
+	ToolUpdateRecord    = "update_record"
+	ToolDeleteRecord    = "delete_record"
+)
+```
+
+---
+
+## `internal/session` — the conversations
+
+Import: `github.com/incurl/flint/internal/session`
+
+```go
+const (
+	SessionsCollection = "_flint_sessions"
+	MessagesCollection = "_flint_messages"
+)
+
+func NewService(store pbstore.Store) *Service
+func EnsureCollections(ctx context.Context, store pbstore.Store) error
+
+func (s *Service) CreateSession(ctx context.Context, title string) (*Session, error)
+func (s *Service) Session(ctx context.Context, id string) (*Session, error)
+func (s *Service) Sessions(ctx context.Context, limit int) ([]Session, error)
+func (s *Service) DeleteSession(ctx context.Context, id string) error
+func (s *Service) AppendMessage(ctx context.Context, sessionID string, message Message) (*Message, error)
+func (s *Service) Messages(ctx context.Context, sessionID string, limit int) ([]Message, error)
+```
+
+---
+
 ## `internal/app` — the root model
 
 Import: `github.com/incurl/flint/internal/app`
 
 ```go
-func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer) *Model
+func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer, setup *agent.Setup) *Model
 
 func (m *Model) Init() tea.Cmd
 func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd)

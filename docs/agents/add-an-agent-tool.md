@@ -219,6 +219,57 @@ the schema of them.
 
 ---
 
+## The permission gate
+
+The three mutating tools go behind the gate. It is not a warning: a
+refused call never reaches the tool, so no write happens.
+
+```go
+registry.Register(NewGuardedTool(
+	NewArchiveRecordTool(store),
+	gate,
+	"Archive a record. It can be unarchived.",
+))
+```
+
+The gate asks the user through a **decision broker**, which is the
+meeting point between the run and the UI:
+
+- the run blocks on `broker.RequestPermission(...)`;
+- the broker publishes the request to the UI;
+- the UI shows it and the user presses `y` or `n`;
+- the page calls `broker.Resolve(id, decision)`, which unblocks the run.
+
+The broker owns the id of the request, so the answer always reaches the
+run that asked for it. A request that is never answered ends when the
+run is cancelled: the wait watches the context.
+
+A gate with no requester **refuses** rather than approves:
+
+```go
+if requester == nil {
+	return fmt.Errorf("%w: %s", ErrNoPermissionRequester, request.ToolName)
+}
+```
+
+An agent that writes to the data of the user must not do it by
+default.
+
+---
+
+## The conversations
+
+The turns of a conversation live in PocketBase, in the collections of
+the `internal/session` package. The runner reads the conversation
+before a turn and writes it back after, so the model sees the previous
+turns.
+
+A tool that wants to be part of the conversation does not have to do
+anything: the runner records the prompt and the answer. A tool call is
+recorded by the page, through `history.AppendTool(...)`.
+
+---
+
 ## Checks
 
 ```bash

@@ -144,6 +144,33 @@ func (r *Record) JSON() (string, error) {
 	return marshalIndent(r.Fields)
 }
 
+// TimeField returns the named field as a time.
+//
+// The field must hold a date: a PocketBase date field, or one of the
+// timestamps the record itself carries. A field that holds something
+// else is an error, so that a caller does not silently read a zero
+// time as a real date.
+func (r *Record) TimeField(name string) (time.Time, error) {
+	v, ok := r.Field(name)
+	if !ok || v == nil {
+		return time.Time{}, fmt.Errorf("pbstore: the field %q is missing", name)
+	}
+
+	switch value := v.(type) {
+	case time.Time:
+		return value, nil
+	case string:
+		parsed, err := time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("pbstore: the field %q is not a date: %w", name, err)
+		}
+
+		return parsed, nil
+	default:
+		return time.Time{}, fmt.Errorf("pbstore: the field %q is not a date", name)
+	}
+}
+
 // Query describes a record listing request.
 //
 // The fields mirror the native PocketBase search semantics so that a query
@@ -292,10 +319,35 @@ type Store interface {
 	// the existing local copy instead of duplicating it.
 	SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error)
 
+	// EnsureCollection creates a base collection with the given fields
+	// if it does not exist yet.
+	//
+	// It is the call the application uses to create the collections it
+	// needs at startup. The remote backend cannot create a collection:
+	// there, the collections are created by a migration on the server.
+	EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
+
 	// Close releases the resources held by the store.
 	//
 	// It is safe to call Close more than once.
 	Close() error
+}
+
+// CollectionField describes a single field of a collection.
+//
+// It is the shape [Store.EnsureCollection] takes, so that a downstream
+// project can create its own collections through the same call.
+type CollectionField struct {
+	// Name is the field name.
+	Name string
+	// Type is one of: text, editor, json, number, bool, date, select.
+	Type string
+	// Required marks the field as required.
+	Required bool
+	// Max is the maximum length of a text field.
+	Max int
+	// Options lists the allowed values for select fields.
+	Options []string
 }
 
 // DictionaryField describes a single field of a dictionary collection.
@@ -322,6 +374,11 @@ const (
 	FieldTypeBool   = "bool"
 	FieldTypeDate   = "date"
 	FieldTypeSelect = "select"
+	// FieldTypeAutodate is a timestamp the backend fills in.
+	//
+	// The field name decides when it is filled: "created" is set when
+	// the record is created, "updated" when it is changed.
+	FieldTypeAutodate = "autodate"
 )
 
 // SyncRequest describes a cache/dictionary sync operation.

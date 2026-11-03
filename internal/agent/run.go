@@ -83,6 +83,11 @@ type RunRequest struct {
 	Prompt string
 	// History holds the messages of the previous turns.
 	History []fantasy.Message
+	// SessionID names the conversation the turn belongs to.
+	//
+	// It is empty when the conversation is not persisted, and the run
+	// then works on the history it is given and nothing else.
+	SessionID string
 }
 
 // Options configures a [Runner].
@@ -100,6 +105,10 @@ type Options struct {
 	//
 	// It may be nil, in which case the events are discarded.
 	Publisher Publisher
+	// History reads and writes the conversations.
+	//
+	// It may be nil, in which case the runs do not remember anything.
+	History *History
 	// MaxSteps bounds the number of model calls of a single run.
 	//
 	// A run without a bound can loop forever: a model that keeps
@@ -130,11 +139,13 @@ const DefaultRunTimeout = 5 * time.Minute
 type Runner struct {
 	// options are the settings of the runner.
 	options Options
-	// mu guards the active runs.
+	// mu guards the active runs and the publishers.
 	mu sync.Mutex
 	// active holds the cancel function of the running runs, keyed by
 	// run id.
 	active map[string]context.CancelFunc
+	// publishers holds the subscribers of the events.
+	publishers []Publisher
 }
 
 // NewRunner returns a runner with the given options.
@@ -155,6 +166,21 @@ func NewRunner(options Options) *Runner {
 		options: options,
 		active:  map[string]context.CancelFunc{},
 	}
+}
+
+// AddPublisher subscribes to the events of the runs.
+//
+// The publisher is called from the goroutine that runs the model, so
+// it must not block: a publisher that blocks stalls the run.
+func (r *Runner) AddPublisher(publisher Publisher) {
+	if publisher == nil {
+		return
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.publishers = append(r.publishers, publisher)
 }
 
 // Cancel stops the run with the given id.
@@ -195,11 +221,18 @@ func (r *Runner) Busy() bool {
 
 // publish sends an event to the publisher, if there is one.
 func (r *Runner) publish(event Event) {
-	if r.options.Publisher == nil {
-		return
+	r.mu.Lock()
+	publishers := make([]Publisher, len(r.publishers))
+	copy(publishers, r.publishers)
+	r.mu.Unlock()
+
+	if r.options.Publisher != nil {
+		r.options.Publisher.Publish(event)
 	}
 
-	r.options.Publisher.Publish(event)
+	for _, publisher := range publishers {
+		publisher.Publish(event)
+	}
 }
 
 // Run executes a turn and returns the final text of the assistant.
@@ -232,6 +265,25 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 
 	r.publish(Event{RunID: request.RunID, Kind: EventStarted})
 
+	// The history of the conversation comes first: the model has to see
+	// the previous turns before it can continue them.
+	history := request.History
+
+	// The run names the conversation it belongs to: the page creates one
+	// on its first turn, so the history of the runner cannot know its
+	// id beforehand. A run without a conversation is not persisted.
+	var conversation *History
+
+	if request.SessionID != "" && r.options.History != nil {
+		conversation = NewHistory(r.options.History.service, request.SessionID)
+	}
+
+	if conversation != nil {
+		if loaded := conversation.Load(runCtx); len(loaded) > 0 {
+			history = append(history, loaded...)
+		}
+	}
+
 	opts := []fantasy.AgentOption{
 		fantasy.WithTools(r.options.Registry.AgentTools()...),
 	}
@@ -252,7 +304,7 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 
 	result, err := agent.Stream(runCtx, fantasy.AgentStreamCall{
 		Prompt:   request.Prompt,
-		Messages: request.History,
+		Messages: history,
 		OnTextDelta: func(id, delta string) error {
 			text += delta
 			r.publish(Event{RunID: request.RunID, Kind: EventTextDelta, Text: delta})
@@ -284,7 +336,34 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 
 	r.publish(Event{RunID: request.RunID, Kind: EventFinished})
 
-	return resultText(result, text), nil
+	final := resultText(result, text)
+
+	// The conversation is written back, so that the next turn of the
+	// same session continues it.
+	r.record(runCtx, request, conversation, final, text)
+
+	return final, nil
+}
+
+// record writes the turns of a run to the conversation.
+//
+// The prompt is written first, so that a conversation always holds the
+// question even when the run failed.
+func (r *Runner) record(ctx context.Context, request RunRequest, conversation *History, final, streamed string) {
+	if conversation == nil {
+		return
+	}
+
+	conversation.AppendUser(ctx, 1, request.Prompt)
+
+	answer := final
+	if answer == "" {
+		answer = streamed
+	}
+
+	if answer != "" {
+		conversation.AppendAssistant(ctx, 1, answer)
+	}
 }
 
 // resultText returns the text of the final response, falling back to

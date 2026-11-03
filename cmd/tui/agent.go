@@ -6,14 +6,18 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/providers/openaicompat"
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/agent"
+	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/pbstore"
+	"github.com/incurl/flint/internal/session"
 )
 
 // defaultAgentSystemPrompt is the instruction given to the model when
@@ -28,11 +32,15 @@ You answer questions about the records with the tools. Use the read-only tools t
 
 You change the data only when the user asks for it. The user approves every change, so a refused change is not a failure: explain what you wanted to do and try another way.`
 
-// newRunner builds the agent runner described by the configuration.
+// newRunner builds the agent setup described by the configuration.
 //
 // It returns nil when no provider is configured: the agent is optional,
 // and the application must still run without it.
-func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*agent.Runner, error) {
+//
+// The publisher is what carries the events of a run to the UI. It is
+// created here, before the program exists, and the program is given to
+// it once it is running.
+func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*agent.Setup, error) {
 	if cfg.Agent.Provider == "" || cfg.Agent.Model == "" {
 		logger.Info("no agent provider is configured", "provider", cfg.Agent.Provider)
 
@@ -46,20 +54,94 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 		return nil, err
 	}
 
+	// The conversations live in PocketBase, like every other piece of
+	// data of the template.
+	sessions := session.NewService(store)
+	if err := session.EnsureCollections(context.Background(), store); err != nil {
+		// The collections are a convenience: an application that cannot
+		// store its conversations still runs, it just does not remember
+		// them.
+		logger.Warn("the conversations cannot be stored", "error", err)
+	}
+
+	publisher := &programPublisher{}
+
+	// The broker asks the user through the publisher, and the page
+	// answers through the broker.
+	broker := agent.NewDecisionBroker(publisher)
+
 	registry := agent.NewRegistry()
-	agent.RegisterStoreTools(registry, store, agent.NewGate(permissionMode(cfg), nil))
+	agent.RegisterStoreTools(registry, store, agent.NewGate(permissionMode(cfg), broker))
 
 	systemPrompt := cfg.Agent.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = defaultAgentSystemPrompt
 	}
 
-	return agent.NewRunner(agent.Options{
+	runner := agent.NewRunner(agent.Options{
 		Model:        model,
 		Registry:     registry,
 		SystemPrompt: systemPrompt,
 		MaxSteps:     cfg.Agent.MaxSteps,
-	}), nil
+		// The history is a template: the run replaces it with the
+		// conversation it names, because the page creates one on the
+		// first turn.
+		History: agent.NewHistory(sessions, ""),
+	})
+	runner.AddPublisher(publisher)
+
+	return &agent.Setup{
+		Runner:    runner,
+		Resolver:  broker,
+		Service:   sessions,
+		Publisher: publisher,
+	}, nil
+}
+
+// programPublisher carries the events of a run to the Bubble Tea
+// program.
+//
+// The runs happen in their own goroutines, so the only way to reach the
+// update loop is to send a message to the program.
+type programPublisher struct {
+	// mu guards the program and the counter.
+	mu sync.Mutex
+	// program is the running program.
+	program *tea.Program
+}
+
+// Attach gives the publisher the program to send to.
+//
+// It is called once the program is created, before it runs.
+func (p *programPublisher) Attach(program *tea.Program) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.program = program
+}
+
+// Publish implements [agent.Publisher].
+func (p *programPublisher) Publish(event agent.Event) {
+	p.mu.Lock()
+	program := p.program
+	p.mu.Unlock()
+
+	if program == nil {
+		return
+	}
+
+	program.Send(pages.AgentEventMsg{Event: event})
+}
+
+// PublishPermission implements [agent.RequestPublisher].
+func (p *programPublisher) PublishPermission(request agent.PermissionRequest) {
+	p.mu.Lock()
+	program := p.program
+	p.mu.Unlock()
+
+	if program != nil {
+		program.Send(pages.AgentPermissionMsg{ID: request.ID, Request: request})
+	}
 }
 
 // permissionMode returns the permission mode of the configuration.

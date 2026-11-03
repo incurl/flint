@@ -99,17 +99,25 @@ func run() error {
 
 	// The agent is optional: without a provider the application still
 	// runs, and the agent page says that no model is configured.
-	runner, err := newRunner(cfg, store, logger)
+	setup, err := newRunner(cfg, store, logger)
 	if err != nil {
 		return err
 	}
 
-	model := app.New(store, cfg, renderer, runner)
+	model := app.New(store, cfg, renderer, setup)
 
 	// In Bubble Tea v2 the alternate screen and the mouse mode are
 	// properties of the rendered view, not of the program: the root
 	// model sets them on every frame.
 	program := tea.NewProgram(model)
+
+	// The publisher carries the events of a run to the program, so the
+	// page sees the text as it streams.
+	if setup != nil && setup.Publisher != nil {
+		if attacher, ok := setup.Publisher.(interface{ Attach(*tea.Program) }); ok {
+			attacher.Attach(program)
+		}
+	}
 
 	// Bubble Tea installs its own SIGINT and SIGTERM handler: SIGINT
 	// interrupts the program (tea.ErrInterrupted) and SIGTERM asks for a
@@ -244,6 +252,15 @@ func registerJavaScript(app core.App, cfg *config.Config) error {
 }
 
 // appMigrations returns the application migrations executed on startup.
+//
+// The template ships none: the collections the application needs are
+// created on demand by the embedded backend, and a remote backend needs
+// a migration on the server — which is a deployment concern, not a
+// template one.
+//
+// The conversations of the agent are the exception: they are created by
+// [session.EnsureCollections] on the embedded backend, and the server
+// side migration lives in the session package.
 //
 // Downstream projects add their own dictionary/reference collection
 // migrations here.

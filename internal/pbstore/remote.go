@@ -423,6 +423,17 @@ func (s *Remote) SyncCollection(ctx context.Context, req SyncRequest) (*SyncRepo
 	return nil, errors.New("pbstore: the remote backend cannot sync into a local cache; use the embedded mode")
 }
 
+// EnsureCollection implements [Store].
+//
+// The remote backend cannot create a collection: the collections of a
+// server are created by a migration on the server side, and the
+// application only reads and writes them. The error says so, because a
+// silent no-op would look like a collection that refuses to hold a
+// record.
+func (s *Remote) EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error) {
+	return Collection{}, errors.New("pbstore: the remote backend cannot create a collection; create it with a server migration")
+}
+
 // Close implements [Store].
 func (s *Remote) Close() error {
 	s.mu.Lock()

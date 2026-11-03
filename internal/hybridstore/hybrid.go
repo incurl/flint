@@ -250,6 +250,11 @@ func (h *Hybrid) SyncCollection(ctx context.Context, req pbstore.SyncRequest) (*
 	return h.inner.SyncCollection(ctx, req)
 }
 
+// EnsureCollection implements [pbstore.Store].
+func (h *Hybrid) EnsureCollection(ctx context.Context, name string, fields []pbstore.CollectionField) (pbstore.Collection, error) {
+	return h.inner.EnsureCollection(ctx, name, fields)
+}
+
 // Close releases the resources held by the store.
 func (h *Hybrid) Close() error { return h.inner.Close() }
 

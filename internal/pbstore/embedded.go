@@ -477,6 +477,98 @@ func (s *Embedded) EnsureDictionaryCollection(ctx context.Context, name string, 
 	return Collection{ID: collection.Id, Name: collection.Name, Type: collection.Type}, nil
 }
 
+// EnsureCollection implements [Store].
+//
+// The call is idempotent: a collection that already exists is returned
+// as it is, so it is safe to run on every start.
+func (s *Embedded) EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error) {
+	if err := ctx.Err(); err != nil {
+		return Collection{}, err
+	}
+
+	if s.isClosed() {
+		return Collection{}, ErrClosed
+	}
+
+	if name == "" {
+		return Collection{}, errors.New("pbstore: the collection name is required")
+	}
+
+	if existing, err := s.app.FindCachedCollectionByNameOrId(name); err == nil && existing != nil {
+		return Collection{ID: existing.Id, Name: existing.Name, Type: existing.Type}, nil
+	}
+
+	collection := core.NewBaseCollection(name)
+
+	for _, f := range fields {
+		field, err := buildCollectionField(f)
+		if err != nil {
+			return Collection{}, err
+		}
+
+		collection.Fields.Add(field)
+	}
+
+	if err := s.app.Save(collection); err != nil {
+		return Collection{}, fmt.Errorf("pbstore: create the collection %q: %w", name, err)
+	}
+
+	return Collection{ID: collection.Id, Name: collection.Name, Type: collection.Type}, nil
+}
+
+// buildCollectionField converts a [CollectionField] description into a
+// native PocketBase field.
+func buildCollectionField(f CollectionField) (core.Field, error) {
+	switch f.Type {
+	case FieldTypeText, "":
+		max := f.Max
+		if max <= 0 {
+			max = 500
+		}
+
+		return &core.TextField{Name: f.Name, Required: f.Required, Max: max}, nil
+
+	case FieldTypeEditor:
+		return &core.EditorField{Name: f.Name, Required: f.Required, MaxSize: 5000}, nil
+
+	case FieldTypeJSON:
+		return &core.JSONField{Name: f.Name, Required: f.Required, MaxSize: 100000}, nil
+
+	case FieldTypeNumber:
+		return &core.NumberField{Name: f.Name, Required: f.Required}, nil
+
+	case FieldTypeBool:
+		return &core.BoolField{Name: f.Name, Required: f.Required}, nil
+
+	case FieldTypeDate:
+		return &core.DateField{Name: f.Name, Required: f.Required}, nil
+
+	case FieldTypeSelect:
+		return &core.SelectField{Name: f.Name, Required: f.Required, Values: f.Options}, nil
+
+	case FieldTypeAutodate:
+		// The name decides when the timestamp is filled: "created" is
+		// set when the record is created, "updated" when it changes.
+		field := &core.AutodateField{Name: f.Name}
+
+		switch f.Name {
+		case "created":
+			field.OnCreate = true
+		case "updated":
+			field.OnCreate = true
+			field.OnUpdate = true
+		default:
+			field.OnCreate = true
+			field.OnUpdate = true
+		}
+
+		return field, nil
+
+	default:
+		return nil, fmt.Errorf("pbstore: unknown field type %q", f.Type)
+	}
+}
+
 // buildDictionaryField converts a [DictionaryField] description into a
 // native PocketBase field.
 func buildDictionaryField(f DictionaryField) (core.Field, error) {

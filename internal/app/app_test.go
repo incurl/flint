@@ -104,6 +104,11 @@ func (s *stubStore) SyncCollection(ctx context.Context, req pbstore.SyncRequest)
 	return &pbstore.SyncReport{}, nil
 }
 
+// EnsureCollection implements [pbstore.Store].
+func (s *stubStore) EnsureCollection(ctx context.Context, name string, fields []pbstore.CollectionField) (pbstore.Collection, error) {
+	return pbstore.Collection{Name: name}, nil
+}
+
 func (s *stubStore) Close() error {
 	s.closed = true
 	return nil

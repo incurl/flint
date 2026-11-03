@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+
+	"github.com/incurl/flint/internal/session"
 )
 
 // Errors returned by the permission package.
@@ -46,6 +48,11 @@ func (m PermissionMode) String() string {
 // The request is a value, so it can travel through the message channel
 // of the UI without any shared state.
 type PermissionRequest struct {
+	// ID identifies the request.
+	//
+	// The broker that published the request owns the id, so that the
+	// answer can be routed back to the run that asked for it.
+	ID string
 	// RunID identifies the run the request belongs to.
 	RunID string
 	// ToolName is the name of the tool that wants to run.
@@ -214,4 +221,139 @@ func (g *GuardedTool) Run(ctx context.Context, input string) (string, error) {
 	}
 
 	return g.tool.Run(ctx, input)
+}
+
+// Resolver carries the answers of the user back to the runs.
+//
+// The interface lives here so that the page can be given a fake one in
+// a test without importing the implementation.
+type Resolver interface {
+	// Resolve answers a pending request.
+	Resolve(id string, decision PermissionDecision) bool
+}
+
+// Setup is everything the agent needs to run.
+//
+// It groups the parts that belong together: the runner that runs the
+// turns, the resolver that carries the answers of the user back to the
+// runs, and the service that holds the conversations.
+type Setup struct {
+	// Runner runs the turns.
+	//
+	// It may be nil, which means that no model is configured.
+	Runner *Runner
+	// Resolver carries the answers of the user back to the runs.
+	//
+	// It may be nil, which means that every write is refused.
+	Resolver Resolver
+	// Service reads and writes the conversations.
+	//
+	// It may be nil, which means that the runs do not remember
+	// anything.
+	Service *session.Service
+	// Publisher carries the events of the runs to the UI.
+	//
+	// It may be nil, in which case the events are discarded.
+	Publisher Publisher
+}
+
+// DecisionBroker carries the answers of the user back to the runs that
+// asked for them.
+//
+// A run blocks on the answer of the user, and the answer arrives
+// through the message channel of the UI. The broker is the meeting
+// point: the requester publishes the request and waits for the answer,
+// and the page publishes the answer when the user presses a key.
+//
+// The broker must be safe for concurrent use: the runs ask from their
+// own goroutines.
+type DecisionBroker struct {
+	// mu guards the pending requests.
+	mu sync.Mutex
+	// pending holds the requests that wait for an answer, keyed by the
+	// id of the request.
+	pending map[string]chan PermissionDecision
+	// counter names the requests.
+	counter int
+	// requester publishes the requests to the UI.
+	requester RequestPublisher
+}
+
+// RequestPublisher publishes a permission request to the UI.
+//
+// The request carries the id the broker gave it, so the publisher does
+// not have to invent one: the answer has to reach the run that asked.
+type RequestPublisher interface {
+	// PublishPermission publishes a request.
+	PublishPermission(request PermissionRequest)
+}
+
+// NewDecisionBroker returns a broker that publishes the requests to the
+// given publisher.
+func NewDecisionBroker(requester RequestPublisher) *DecisionBroker {
+	return &DecisionBroker{
+		pending:   map[string]chan PermissionDecision{},
+		requester: requester,
+	}
+}
+
+// RequestPermission implements [PermissionRequester].
+//
+// It publishes the request and waits for the answer. The wait ends when
+// the context is canceled, so a run that is cancelled does not leave a
+// requester blocked forever.
+func (b *DecisionBroker) RequestPermission(
+	ctx context.Context,
+	request PermissionRequest,
+) (PermissionDecision, error) {
+	if b.requester == nil {
+		return PermissionDeny, fmt.Errorf("%w: %s", ErrNoPermissionRequester, request.ToolName)
+	}
+
+	b.mu.Lock()
+	b.counter++
+	id := fmt.Sprintf("permission-%d", b.counter)
+	answers := make(chan PermissionDecision, 1)
+	b.pending[id] = answers
+	b.mu.Unlock()
+
+	defer func() {
+		b.mu.Lock()
+		delete(b.pending, id)
+		b.mu.Unlock()
+	}()
+
+	// The request carries the id, so the answer can be routed back to
+	// this run.
+	request.ID = id
+	b.requester.PublishPermission(request)
+
+	select {
+	case decision := <-answers:
+		return decision, nil
+	case <-ctx.Done():
+		return PermissionDeny, ctx.Err()
+	}
+}
+
+// Resolve answers a pending request.
+//
+// It returns false when no request with that id is waiting, which
+// happens when the run was cancelled while the user was reading the
+// request.
+func (b *DecisionBroker) Resolve(id string, decision PermissionDecision) bool {
+	b.mu.Lock()
+	answers, ok := b.pending[id]
+	b.mu.Unlock()
+
+	if !ok {
+		return false
+	}
+
+	select {
+	case answers <- decision:
+		return true
+	default:
+		return false
+	}
 }

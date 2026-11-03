@@ -76,13 +76,17 @@ type Model struct {
 //
 // The renderer is the optional domain specific record renderer: when nil
 // the generic [components.DefaultRecordRenderer] is used.
-func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer, runner *agent.Runner) *Model {
+func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRenderer, setup *agent.Setup) *Model {
 	if cfg == nil {
 		cfg = config.Default()
 	}
 
 	if renderer == nil {
 		renderer = &components.DefaultRecordRenderer{}
+	}
+
+	if setup == nil {
+		setup = &agent.Setup{}
 	}
 
 	// The user preferences override the deployment configuration: they
@@ -126,7 +130,7 @@ func New(store pbstore.Store, cfg *config.Config, renderer components.RecordRend
 		records:      pages.NewRecordsPage(store, runtime, t, renderer),
 		detail:       pages.NewDetailPage(store, runtime, t, renderer),
 		search:       pages.NewSearchPage(store, runtime, t, renderer),
-		agentPage:    pages.NewAgentPage(runner, runtime, t),
+		agentPage:    pages.NewAgentPage(setup.Runner, setup.Resolver, setup.Service, runtime, t),
 		settingsPage: pages.NewSettingsPage(runtime, t, cfg.SettingsRows()),
 		sync:         pages.NewSyncPage(store, runtime, t),
 	}

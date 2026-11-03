@@ -11,6 +11,7 @@ import (
 
 	"github.com/incurl/flint/internal/agent"
 	"github.com/incurl/flint/internal/components"
+	"github.com/incurl/flint/internal/session"
 	"github.com/incurl/flint/internal/state"
 	"github.com/incurl/flint/internal/theme"
 )
@@ -38,6 +39,11 @@ type AgentDoneMsg struct {
 	Text string
 	// Err holds the error, when the run failed.
 	Err error
+	// SessionID names the conversation the run belongs to.
+	//
+	// The page keeps it, so that the next turn continues the same
+	// conversation.
+	SessionID string
 }
 
 // AgentPermissionMsg asks the user to approve a tool call.
@@ -46,6 +52,9 @@ type AgentDoneMsg struct {
 // back through the same channel: the page holds the pending request
 // and the user answers it with a key.
 type AgentPermissionMsg struct {
+	// ID identifies the request, so that the answer can be routed back
+	// to the run that asked for it.
+	ID string
 	// Request is the pending request.
 	Request agent.PermissionRequest
 }
@@ -54,8 +63,8 @@ type AgentPermissionMsg struct {
 //
 // It is what the page sends back to the run when the user decided.
 type AgentPermissionDecisionMsg struct {
-	// RunID identifies the run the request belongs to.
-	RunID string
+	// ID identifies the request the answer belongs to.
+	ID string
 	// Decision is the answer of the user.
 	Decision agent.PermissionDecision
 }
@@ -96,6 +105,10 @@ const (
 type AgentPage struct {
 	// runner runs the turns.
 	runner *agent.Runner
+	// resolver carries the answers of the user back to the runs.
+	resolver PermissionResolver
+	// sessions reads and writes the conversations.
+	sessions *session.Service
 	// runtime holds the shared state.
 	runtime *state.Runtime
 	// theme is the shared style palette.
@@ -106,24 +119,46 @@ type AgentPage struct {
 	spinner spinner.Model
 	// entries holds the conversation.
 	entries []AgentEntry
+	// sessionID names the conversation of the page.
+	sessionID string
 	// runID identifies the current run.
 	runID string
 	// running reports whether a run is in flight.
 	running bool
 	// pending holds the permission request the user has to answer.
-	pending *agent.PermissionRequest
+	pending *AgentPermissionMsg
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
 	height int
 }
 
+// PermissionResolver carries the answers of the user back to the runs.
+//
+// The agent layer defines the interface, so the page does not have to
+// import the implementation.
+type PermissionResolver = agent.Resolver
+
 // NewAgentPage creates the agent page.
 //
 // A nil runner makes the page inert: it accepts the prompt and reports
 // that no model is configured, which is what a template without a
 // provider should do.
-func NewAgentPage(runner *agent.Runner, runtime *state.Runtime, t *theme.Theme) *AgentPage {
+//
+// The resolver carries the answers of the user back to the runs. A nil
+// resolver means that every write is refused, which is the safe
+// default: an agent that writes to the data of the user must not do it
+// without an answer.
+//
+// A nil service means that the conversation is not persisted: the page
+// then keeps it in memory only.
+func NewAgentPage(
+	runner *agent.Runner,
+	resolver PermissionResolver,
+	sessions *session.Service,
+	runtime *state.Runtime,
+	t *theme.Theme,
+) *AgentPage {
 	if t == nil {
 		t = theme.Default()
 	}
@@ -138,11 +173,13 @@ func NewAgentPage(runner *agent.Runner, runtime *state.Runtime, t *theme.Theme) 
 	input.CharLimit = 0
 
 	return &AgentPage{
-		runner:  runner,
-		runtime: runtime,
-		theme:   t,
-		input:   input,
-		spinner: spinner.New(),
+		runner:   runner,
+		resolver: resolver,
+		sessions: sessions,
+		runtime:  runtime,
+		theme:    t,
+		input:    input,
+		spinner:  spinner.New(),
 	}
 }
 
@@ -180,8 +217,8 @@ func (p *AgentPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case AgentPermissionMsg:
 		// The request arrives while the model waits: the page holds it
 		// until the user answers.
-		request := msg.Request
-		p.pending = &request
+		pending := msg
+		p.pending = &pending
 
 		return p, nil
 
@@ -229,8 +266,12 @@ func (p *AgentPage) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 // handlePermissionKey answers a pending permission request.
+//
+// The answer goes back to the run through the resolver: the run is
+// blocked waiting for it, and a decision that never arrives would hang
+// the turn until the timeout.
 func (p *AgentPage) handlePermissionKey(msg tea.KeyPressMsg) tea.Cmd {
-	request := p.pending
+	pending := p.pending
 	p.pending = nil
 
 	decision := agent.PermissionDeny
@@ -242,8 +283,15 @@ func (p *AgentPage) handlePermissionKey(msg tea.KeyPressMsg) tea.Cmd {
 		decision = agent.PermissionDeny
 	}
 
+	resolver := p.resolver
+	id := pending.Request.ID
+
 	return func() tea.Msg {
-		return AgentPermissionDecisionMsg{RunID: request.RunID, Decision: decision}
+		if resolver != nil {
+			resolver.Resolve(id, decision)
+		}
+
+		return AgentPermissionDecisionMsg{ID: id, Decision: decision}
 	}
 }
 
@@ -268,14 +316,28 @@ func (p *AgentPage) send() tea.Cmd {
 
 	runner := p.runner
 	runID := p.runID
+	sessions := p.sessions
+	sessionID := p.sessionID
 
 	return func() tea.Msg {
+		// The conversation is created on the first turn: a page that is
+		// never used leaves nothing behind.
+		if sessions != nil && sessionID == "" {
+			created, err := sessions.CreateSession(context.Background(), "")
+			if err != nil {
+				return AgentDoneMsg{RunID: runID, Err: err}
+			}
+
+			sessionID = created.ID
+		}
+
 		text, err := runner.Run(context.Background(), agent.RunRequest{
-			RunID:  runID,
-			Prompt: prompt,
+			RunID:     runID,
+			Prompt:    prompt,
+			SessionID: sessionID,
 		})
 
-		return AgentDoneMsg{RunID: runID, Text: text, Err: err}
+		return AgentDoneMsg{RunID: runID, Text: text, Err: err, SessionID: sessionID}
 	}
 }
 
@@ -343,6 +405,12 @@ func (p *AgentPage) applyDone(msg AgentDoneMsg) tea.Cmd {
 
 	p.running = false
 	p.pending = nil
+
+	// The conversation is created by the run: the page keeps its id so
+	// that the next turn continues it.
+	if msg.SessionID != "" {
+		p.sessionID = msg.SessionID
+	}
 
 	if msg.Err != nil {
 		p.entries = append(p.entries, AgentEntry{
@@ -423,11 +491,11 @@ func (p *AgentPage) renderEntry(entry AgentEntry) []string {
 // renderPending renders the permission request the user has to answer.
 func (p *AgentPage) renderPending() string {
 	lines := []string{
-		p.theme.Warning.Render("The agent wants to " + p.pending.Description),
+		p.theme.Warning.Render("The agent wants to " + p.pending.Request.Description),
 	}
 
-	if p.pending.Arguments != "" {
-		lines = append(lines, p.theme.Muted.Render(p.pending.Arguments))
+	if p.pending.Request.Arguments != "" {
+		lines = append(lines, p.theme.Muted.Render(p.pending.Request.Arguments))
 	}
 
 	lines = append(lines, p.theme.Help.Render("y allow · n deny"))
