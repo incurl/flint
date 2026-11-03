@@ -10,7 +10,6 @@ import (
 	"charm.land/fantasy"
 
 	"github.com/incurl/flint/internal/agent"
-	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/state"
 	"github.com/incurl/flint/internal/theme"
@@ -122,29 +121,24 @@ func TestAgentPageShowsThePrompt(t *testing.T) {
 }
 
 // TestAgentPageWithoutRunner verifies that a page without a runner
-// reports the missing agent instead of failing.
+// offers the guided setup instead of a prompt that cannot work.
+//
+// A prompt that does nothing is worse than no prompt: the user needs
+// to know what to configure, and the setup says it.
 func TestAgentPageWithoutRunner(t *testing.T) {
 	page := pages.NewAgentPage(nil, nil, nil, state.NewRuntime(), theme.Default())
 
 	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
 	page = updated.(*pages.AgentPage)
 
-	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
-	page = updated.(*pages.AgentPage)
+	view := page.View().Content
 
-	_, cmd := page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
-
-	if cmd == nil {
-		t.Fatal("the page did not report the missing agent")
+	if !strings.Contains(view, "Set up the agent") {
+		t.Errorf("View() = %q, want the guided setup", view)
 	}
 
-	msg, ok := cmd().(components.ToastMsg)
-	if !ok {
-		t.Fatal("the command did not produce a toast")
-	}
-
-	if !strings.Contains(msg.Text, "agent") {
-		t.Errorf("the toast is %q, want it to mention the agent", msg.Text)
+	if !strings.Contains(view, "MiniMax") {
+		t.Errorf("View() = %q, want the providers on offer", view)
 	}
 }
 

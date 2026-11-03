@@ -7,12 +7,31 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/agent"
 	"github.com/incurl/flint/internal/app"
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pages"
+	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/theme"
 )
+
+// newPanelModel builds a root model with a working agent.
+//
+// The panel shows the conversation of the agent page, and the agent
+// page only shows a conversation when a model is configured.
+func newPanelModel(t *testing.T) *app.Model {
+	t.Helper()
+
+	store := &stubStore{
+		mode: pbstore.ModeEmbedded,
+		collections: []pbstore.Collection{
+			{ID: "1", Name: "vocab", Type: "base"},
+		},
+	}
+
+	return app.New(store, config.Default(), nil, newTestSetup(t))
+}
 
 // TestPanelIsClosedByDefault verifies that the panel does not take any
 // space until it is asked for.
@@ -20,7 +39,7 @@ import (
 // The panel is not free: it takes a third of the width of a wide
 // terminal, and the pages need that width.
 func TestPanelIsClosedByDefault(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)
@@ -35,7 +54,7 @@ func TestPanelIsClosedByDefault(t *testing.T) {
 // TestPanelToggles verifies that the panel opens and closes with the
 // toggle key.
 func TestPanelToggles(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)
@@ -63,7 +82,7 @@ func TestPanelToggles(t *testing.T) {
 // Applying an event twice would show every entry of the conversation
 // twice.
 func TestPanelDoesNotDuplicateTheEntries(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)
@@ -93,7 +112,7 @@ func TestPanelDoesNotDuplicateTheEntries(t *testing.T) {
 // A feature the user does not know about is a feature nobody uses: the
 // hint is shown whenever the terminal is wide enough for the panel.
 func TestPanelIsAdvertised(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)
@@ -106,7 +125,7 @@ func TestPanelIsAdvertised(t *testing.T) {
 // TestPanelIsNotAdvertisedOnANarrowTerminal verifies that the hint is
 // not shown when the panel cannot be opened.
 func TestPanelIsNotAdvertisedOnANarrowTerminal(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 40})
 	m = updated.(*app.Model)
@@ -124,7 +143,7 @@ func TestPanelIsNotAdvertisedOnANarrowTerminal(t *testing.T) {
 // the layout, and a line that is too narrow leaves a gap.
 func TestPanelKeepsTheWidth(t *testing.T) {
 	for _, width := range []int{121, 160} {
-		m := newTestModel(t)
+		m := newPanelModel(t)
 
 		updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 40})
 		m = updated.(*app.Model)
@@ -156,7 +175,7 @@ func TestPanelKeepsTheTableWidth(t *testing.T) {
 	const tableWidth = 88
 
 	for _, width := range []int{121, 140, 200} {
-		m := newTestModel(t)
+		m := newPanelModel(t)
 
 		updated, _ := m.Update(tea.WindowSizeMsg{Width: width, Height: 40})
 		m = updated.(*app.Model)
@@ -187,7 +206,7 @@ func TestPanelKeepsTheTableWidth(t *testing.T) {
 // viewport is narrower than its columns renders *empty* — with no
 // error.
 func TestPanelNeedsRoom(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: 40})
 	m = updated.(*app.Model)
@@ -203,7 +222,7 @@ func TestPanelNeedsRoom(t *testing.T) {
 // TestPanelNeedsHeight verifies that the panel stays closed on a
 // terminal that is too short.
 func TestPanelNeedsHeight(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 6})
 	m = updated.(*app.Model)
@@ -222,7 +241,7 @@ func TestPanelNeedsHeight(t *testing.T) {
 // A run outlives the page it was started from: the user starts it, goes
 // back to the records, and the answer still has to arrive.
 func TestAgentEventsReachThePageWhateverThePage(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)
@@ -269,7 +288,7 @@ func TestAgentEventsReachThePageWhateverThePage(t *testing.T) {
 // The tool call is what the user wants to see: it is the record of
 // what the agent did.
 func TestPanelShowsTheConversation(t *testing.T) {
-	m := newTestModel(t)
+	m := newPanelModel(t)
 
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
 	m = updated.(*app.Model)

@@ -127,6 +127,12 @@ type AgentPage struct {
 	running bool
 	// pending holds the permission request the user has to answer.
 	pending *AgentPermissionMsg
+	// setup is the guided setup of the agent.
+	//
+	// It is only used when no model is configured: the page then walks
+	// the user through the provider, the model and the key instead of
+	// showing a prompt that cannot work.
+	setup *components.AgentSetup
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -172,7 +178,7 @@ func NewAgentPage(
 	input.ShowLineNumbers = false
 	input.CharLimit = 0
 
-	return &AgentPage{
+	page := &AgentPage{
 		runner:   runner,
 		resolver: resolver,
 		sessions: sessions,
@@ -181,10 +187,22 @@ func NewAgentPage(
 		input:    input,
 		spinner:  spinner.New(),
 	}
+
+	// Without a model there is nothing the prompt can do, so the page
+	// offers the guided setup instead.
+	if runner == nil {
+		page.setup = components.NewAgentSetup(t)
+	}
+
+	return page
 }
 
 // Init implements [tea.Model].
 func (p *AgentPage) Init() tea.Cmd {
+	if p.setup != nil {
+		return p.setup.Focus()
+	}
+
 	p.input.Focus()
 
 	return nil
@@ -202,6 +220,10 @@ func (p *AgentPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// The focus cannot live in Init: the root model only calls it
 		// once, for the home page, so a page that is reached later would
 		// never get the focus.
+		if p.setup != nil {
+			return p, p.setup.Focus()
+		}
+
 		p.input.Focus()
 
 		return p, nil
@@ -237,6 +259,15 @@ func (p *AgentPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (p *AgentPage) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if p.pending != nil {
 		return p.handlePermissionKey(msg)
+	}
+
+	// The setup owns the keyboard while it is on screen: it is the
+	// only thing that can work without a model.
+	if p.setup != nil {
+		cmd, handled := p.setup.Update(msg)
+		if handled {
+			return cmd
+		}
 	}
 
 	switch msg.String() {
@@ -459,6 +490,19 @@ func (p *AgentPage) PanelEntries() []components.AgentPanelEntry {
 
 // View implements [tea.Model].
 func (p *AgentPage) View() tea.View {
+	// A pending permission request is a blocking state: the model is
+	// waiting for the answer. It is shown even when the setup is on
+	// screen, because a request that is hidden is a request that is
+	// never answered.
+	if p.pending != nil {
+		return p.viewWithPermission()
+	}
+
+	// Without a model, the setup is the page.
+	if p.setup != nil {
+		return p.setup.View()
+	}
+
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Agent"))
@@ -475,13 +519,6 @@ func (p *AgentPage) View() tea.View {
 
 	b = append(b, "")
 
-	if p.pending != nil {
-		b = append(b, p.renderPending())
-		b = append(b, "")
-
-		return tea.NewView(joinLines(b))
-	}
-
 	if p.running {
 		b = append(b, p.theme.Muted.Render(p.spinner.View()+" working…"))
 		b = append(b, "")
@@ -490,6 +527,27 @@ func (p *AgentPage) View() tea.View {
 	b = append(b, p.input.View())
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("enter send · esc cancel/clear · ctrl+c quit"))
+
+	return tea.NewView(joinLines(b))
+}
+
+// viewWithPermission renders the page while a request is pending.
+//
+// The request replaces the prompt: the model is waiting for the
+// answer, and the prompt must not take the keyboard.
+func (p *AgentPage) viewWithPermission() tea.View {
+	var b []string
+
+	b = append(b, p.theme.Title.Render("Agent"))
+	b = append(b, "")
+
+	for _, entry := range p.entries {
+		b = append(b, p.renderEntry(entry)...)
+	}
+
+	b = append(b, "")
+	b = append(b, p.renderPending())
+	b = append(b, "")
 
 	return tea.NewView(joinLines(b))
 }
@@ -533,6 +591,12 @@ func (p *AgentPage) renderPending() string {
 
 // resize adapts the components to the available space.
 func (p *AgentPage) resize() {
+	if p.setup != nil {
+		p.setup.SetSize(p.width, p.height)
+
+		return
+	}
+
 	// The header, the conversation and the help line take up the rest.
 	inputHeight := 5
 

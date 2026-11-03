@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/fantasy"
 
 	"github.com/incurl/flint/config"
+	"github.com/incurl/flint/internal/agent"
 	"github.com/incurl/flint/internal/app"
 	"github.com/incurl/flint/internal/components"
 	"github.com/incurl/flint/internal/pages"
@@ -18,6 +20,50 @@ import (
 
 // errTest is the error injected in the error handling test.
 var errTest = errors.New("test error")
+
+// fakeModel is a language model that never answers.
+//
+// It is enough to build a runner: the tests drive the events of the
+// agent themselves, and the model is never called.
+type fakeModel struct{}
+
+// Provider implements [fantasy.LanguageModel].
+func (m *fakeModel) Provider() string { return "fake" }
+
+// Model implements [fantasy.LanguageModel].
+func (m *fakeModel) Model() string { return "fake-model" }
+
+// Generate implements [fantasy.LanguageModel].
+func (m *fakeModel) Generate(context.Context, fantasy.Call) (*fantasy.Response, error) {
+	return nil, errors.New("the fake model does not answer")
+}
+
+// Stream implements [fantasy.LanguageModel].
+func (m *fakeModel) Stream(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+	return nil, errors.New("the fake model does not answer")
+}
+
+// GenerateObject implements [fantasy.LanguageModel].
+func (m *fakeModel) GenerateObject(context.Context, fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	return nil, errors.New("the fake model does not answer")
+}
+
+// StreamObject implements [fantasy.LanguageModel].
+func (m *fakeModel) StreamObject(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+	return nil, errors.New("the fake model does not answer")
+}
+
+// newTestSetup builds an agent setup with a fake model.
+//
+// A setup with a runner is what a configured application has, and the
+// tests need one to reach the chat screen.
+func newTestSetup(t *testing.T) *agent.Setup {
+	t.Helper()
+
+	runner := agent.NewRunner(agent.Options{Model: &fakeModel{}})
+
+	return &agent.Setup{Runner: runner}
+}
 
 // stubStore is a minimal in-memory [pbstore.Store] used to drive the root
 // model without a database.

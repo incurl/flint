@@ -257,18 +257,18 @@ Set the provider and the model:
 ```toml
 # flint.toml
 [agent]
-provider = "openai"            # openai | openaicompat | openrouter | local
-model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY"
+provider = "minimax"         # minimax | minimax-global | openai | openrouter | local
+model = "MiniMax-M3.1-Flash"
+api_key_env = "MINIMAX_API_KEY"
 permission_mode = "ask"         # ask before every write, or allow
 ```
 
 Or in the environment:
 
 ```bash
-export FLINT_AGENT_PROVIDER=openai
-export FLINT_AGENT_MODEL=gpt-4o
-export OPENAI_API_KEY=sk-...
+export FLINT_AGENT_PROVIDER=minimax
+export FLINT_AGENT_MODEL=MiniMax-M3.1-Flash
+export MINIMAX_API_KEY=your-key
 ```
 
 The key is read from the **environment variable the configuration

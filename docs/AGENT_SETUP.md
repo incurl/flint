@@ -29,7 +29,7 @@ that no model is configured:
 ```
 
 A project that does not want a model at all can delete the layer
-entirely — see [§8](#8-removing-the-agent).
+entirely — see [§9](#9-removing-the-agent).
 
 ---
 
@@ -104,27 +104,79 @@ export OPENAI_API_KEY="sk-..."
 ## 3. The providers
 
 The template builds the **OpenAI compatible** providers only. They
-cover OpenAI itself, OpenRouter and any local server, and they do not
-pull the AWS and Google SDKs into the binary.
+cover OpenAI itself, MiniMax, OpenRouter and any local server, and
+they do not pull the AWS and Google SDKs into the binary.
 
 | `provider`      | What it is                                          | Needs `base_url`? |
 | --------------- | --------------------------------------------------- | ----------------- |
+| `minimax`       | MiniMax, the **Chinese** platform                    | no                |
+| `minimax-global`| MiniMax, the **international** platform               | no                |
 | `openai`        | The OpenAI API                                       | no                |
 | `openaicompat`  | Any OpenAI compatible API                            | yes               |
 | `openai-compatible` | An alias of `openaicompat`                        | yes               |
 | `openrouter`    | OpenRouter, through the compatible API                | no                |
 | `local`         | A local server, such as Ollama or LM Studio           | yes               |
 
+### MiniMax
+
+MiniMax is the provider the template documents first, and it is the
+one the guided setup offers first. The two platforms have **separate
+accounts** and **separate keys**:
+
+| Platform         | `provider`       | Endpoint                      |
+| ---------------- | ---------------- | ----------------------------- |
+| China            | `minimax`        | `https://api.minimax.cn/v1`   |
+| International    | `minimax-global` | `https://api.minimax.io/v1`   |
+
+Both read the key from `MINIMAX_API_KEY`.
+
+The current models are `MiniMax-M3.1-Flash` and `MiniMax-M3`. The
+first one is the default: it is the model the platform recommends for
+agents and tool use, and it has a 1M token context window.
+
+Both platforms speak the OpenAI chat protocol at `/v1/chat/completions`
+and authenticate with `Authorization: Bearer <key>`, which is what the
+template sends.
+
+**Copy and paste this into `flint.toml`:**
+
 ```toml
+# MiniMax, the Chinese platform.
 [agent]
-provider = "local"
-model = "llama3.1"
-base_url = "http://localhost:11434/v1"
-api_key_env = "OLLAMA_API_KEY"   # the local server usually ignores it
+provider = "minimax"
+model = "MiniMax-M3.1-Flash"
+api_key_env = "MINIMAX_API_KEY"
+base_url = "https://api.minimax.cn/v1"
+permission_mode = "ask"
 ```
 
-The `local` provider has no conventional variable name, so
-`api_key_env` is required — set it to anything, and export it.
+**And this into your shell:**
+
+```bash
+export MINIMAX_API_KEY="your-minimax-key"
+```
+
+**The international platform** is the same, with two lines changed:
+
+```toml
+# MiniMax, the international platform.
+[agent]
+provider = "minimax-global"
+model = "MiniMax-M3.1-Flash"
+api_key_env = "MINIMAX_API_KEY"
+base_url = "https://api.minimax.io/v1"
+permission_mode = "ask"
+```
+
+The `base_url` line is optional: the template already knows the
+endpoint of each platform. It is in the snippet so that the
+configuration is complete and obvious — a reader does not have to
+know which endpoint goes with which provider.
+
+⚠️ **MiniMax does not serve a models endpoint through the compatible
+API.** The model names are listed in `cmd/tui/agent.go` and in the
+guided setup; a model that is not there will be refused by the
+platform.
 
 ### Adding another provider
 
@@ -195,6 +247,61 @@ The collections are created on the first run, by the migration in
 `internal/session/setup.go`. If they cannot be created the application
 still runs — it just does not remember the conversations, and says so
 in the log.
+
+### The guided setup
+
+When the application starts **without a model**, the agent page shows
+a guided setup instead of a prompt that cannot work. It walks through
+the three things a setup needs:
+
+```
+ Set up the agent
+
+ Which provider?
+
+ ▸ MiniMax
+    MiniMax, the Chinese platform. api.minimax.cn
+   MiniMax (global)
+    MiniMax, the international platform. api.minimax.io
+   OpenAI
+    The OpenAI API. Needs an OpenAI account.
+   …
+
+ ↑↓ choose · enter next · esc skip
+```
+
+The steps are **provider → model → key**. The provider decides which
+models are offered, so the order matters.
+
+The last step shows what to copy:
+
+```
+ Set up the agent
+
+ The key is read from the environment. Export it:
+
+ export MINIMAX_API_KEY="…"
+
+ And put this in flint.toml:
+
+   [agent]
+   provider = "minimax"
+   model = "MiniMax-M3.1-Flash"
+   api_key_env = "MINIMAX_API_KEY"
+   base_url = "https://api.minimax.cn/v1"
+
+ Restart the application to use it.
+```
+
+**The key is masked on the screen and it is never written to a file.**
+The setup produces the configuration to copy and the variable to
+export, and leaves the two to you — a secret belongs in the
+environment, not in a file that is copied around and committed by
+accident.
+
+The setup is a *guide*, not a configuration writer: it does not
+rewrite `flint.toml` behind your back, and it does not change the
+environment of the process it runs in.
 
 ---
 
@@ -292,7 +399,134 @@ that returns the same result will never stop on its own.
 
 ---
 
-## 8. Removing the agent
+## 8. Persisting the configuration to PocketBase
+
+**Short answer: the non-secret settings are fine; the API key is not.**
+
+The preferences of the template are already persisted to PocketBase —
+the theme, the scale, the page size and the compact mode live in the
+`_flint_preferences` collection, and they are restored at startup. The
+question is whether the *agent* configuration belongs there too.
+
+### What can be persisted
+
+| Setting | Persist? | Why |
+| ------- | -------- | --- |
+| `provider` | yes | Not a secret. It is a name. |
+| `model` | yes | Not a secret. It is a name. |
+| `base_url` | yes | Not a secret. It is a URL. |
+| `permission_mode` | yes | Not a secret. It is a mode. |
+| `max_steps` | yes | Not a secret. It is a number. |
+| `system_prompt` | yes | Not a secret. It is an instruction. |
+| `api_key_env` | yes | Not a secret. It is the *name* of a variable. |
+| **the API key** | **no** | It is the secret itself. |
+
+The first seven are exactly what the guided setup produces, so they
+can be stored and restored without any new risk. The last one is the
+problem.
+
+### Why the key does not belong in the database
+
+**1. The database is not a secret store.** A record in a PocketBase
+collection is readable by anyone who can read the database file. In
+the embedded mode that is `pb_data/data.db` — a SQLite file that is
+copied, backed up and synced like any other data. PocketBase's
+`_superusers` and the API tokens are protected by the framework, but a
+record in a *base collection* is protected only by the API rules.
+
+**2. The rules do not help on a local database.** The embedded store
+runs with the full privileges of the process. A collection rule like
+"only the owner may read" protects the *API*, not the file. Anyone
+who can open the SQLite file can read the key.
+
+**3. The remote backend cannot hold it either.** `Remote.Create` can
+write, but a remote server needs a collection that the *server* owns,
+with rules that the current token satisfies. The template's
+`EnsureDictionaryCollection` is refused on the remote backend by
+design, and the preferences follow the same rule: `SavePreferences`
+returns `ErrPreferencesUnavailable` in remote mode. An agent key has
+the same shape of problem and the same answer.
+
+**4. There is already a mechanism for it.** The template reads the key
+from an **environment variable that the configuration names**
+(`api_key_env`). That is the standard mechanism, it is the one every
+deployment tool uses, and it keeps the secret out of every artifact
+the application produces: the database, the configuration file, the
+logs, and the backups.
+
+### The shape a working implementation would take
+
+If you want the *non-secret* settings persisted — which is a good
+idea, and it is what the guided setup produces — the implementation is
+small and it fits the existing pattern:
+
+```go
+// internal/pbstore/preferences.go
+type AgentPreferences struct {
+    Provider        string
+    Model           string
+    BaseURL         string
+    APIKeyEnv       string
+    PermissionMode  string
+    MaxSteps        int
+    SystemPrompt    string
+}
+
+// The key itself is not here. There is no field for it, and there
+// must not be one.
+```
+
+and a `_flint_agent_settings` collection with the same shape as
+`_flint_preferences`:
+
+```go
+func LoadAgentPreferences(ctx context.Context, store Store) (AgentPreferences, error)
+func SaveAgentPreferences(ctx context.Context, store Store, prefs AgentPreferences) error
+```
+
+`SaveAgentPreferences` refuses the remote backend, exactly like
+`SavePreferences` does.
+
+The precedence becomes:
+
+```
+flags  >  environment  >  the stored preferences  >  flint.toml
+```
+
+so a user who wants to override the stored setting for one run still
+can, with `FLINT_AGENT_PROVIDER` or the flag.
+
+### What we recommend
+
+**Persist the settings, not the key.** It gives the convenience of the
+guided setup — the provider and the model survive a restart — without
+putting a credential in a file that gets copied around.
+
+If you truly need the key stored, the honest options are:
+
+- **A local secret file** with `0600` permissions, outside the data
+  directory. Crush does this: it writes the key in plaintext to
+  `~/.crush/crush.json` with `0600`. It works, and it is not much
+  better than the environment variable.
+- **The PocketBase settings**, encrypted with
+  `embedded.encryption_env`. The embedded store already takes an
+  encryption key. ⚠️ But that encrypts the PocketBase *settings*, not
+  your records: a record in a collection is still plaintext in the
+  SQLite file. It does not solve this problem.
+- **The OS keychain** — `keyring`, `pass`, `secret-tool`. This is the
+  right answer on a desktop, and it does not fit a template that has to
+  run on a server and in a container.
+
+### A note on the guided setup
+
+The guided setup of the template is deliberately **not** a writer. It
+shows the configuration to copy and the variable to export, and it
+leaves both to you. A tool that rewrites `flint.toml` behind your
+back, or that puts a key in a database, is making a security decision
+on your behalf — and the guided setup is exactly the place where the
+user should be the one making it.
+
+## 9. Removing the agent
 
 The layer is self-contained. To take it out:
 
@@ -314,7 +548,7 @@ Then `make ci`.
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 **The agent page says "no agent is configured".**
 The provider or the model is missing. Check `flint.toml` and the
@@ -322,8 +556,26 @@ The provider or the model is missing. Check `flint.toml` and the
 are separate, and a value in one does not satisfy the other.
 
 **"unknown agent provider".**
-The provider is not one of the five the template builds. See
+The provider is not one the template builds. See
 [§3](#3-the-providers).
+
+**MiniMax: "invalid api key" or "authentication failed".**
+The two platforms have **separate accounts and separate keys**. A key
+from `platform.minimaxi.com` does not work against
+`api.minimax.io`, and the other way round. Check that `provider` and
+the key match: `minimax` for `api.minimax.cn`, `minimax-global` for
+`api.minimax.io`.
+
+**MiniMax: the model is refused.**
+MiniMax does not serve a models endpoint through the compatible API, so
+the template cannot discover the names. Use one of the current models:
+`MiniMax-M3.1-Flash` or `MiniMax-M3`. The older `MiniMax-M2.x` and
+`MiniMax-Text-01` models have been retired.
+
+**MiniMax: the thinking is not shown.**
+MiniMax returns the reasoning separately, in `reasoning_content`, and
+the final answer in `content`. The template shows the final answer —
+the reasoning is not rendered. Nothing is lost: the answer is complete.
 
 **The agent answers without using the tools.**
 The system prompt was replaced by one that does not ask for the tools.
@@ -350,7 +602,7 @@ created — usually a read-only data directory. The log says
 
 ---
 
-## 10. See also
+## 11. See also
 
 - [`book/ch22-agentic-layer.md`](../book/ch22-agentic-layer.md) — how
   the layer works, and why it is shaped that way.

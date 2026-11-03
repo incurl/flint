@@ -130,6 +130,7 @@ recipe, the files to touch, and the checks to run.
 | [`add-a-config-option.md`](docs/agents/add-a-config-option.md) | You need a new setting.                        |
 | [`add-a-sync.md`](docs/agents/add-a-sync.md)         | You want to pull remote data into the local cache.      |
 | [`add-an-agent-tool.md`](docs/agents/add-an-agent-tool.md) | You want the model to do something new.             |
+| [`AGENT_SETUP.md`](docs/AGENT_SETUP.md) | You want to *use* the agent: setup, providers, usage. |
 | [`debug-a-tui.md`](docs/agents/debug-a-tui.md)       | The UI is frozen, blank, or unresponsive.                |
 | [`verify.md`](docs/agents/verify.md)                 | Before you commit. Run this.                            |
 

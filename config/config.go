@@ -84,13 +84,14 @@ type Config struct {
 // The agent is optional: without a provider the template still runs,
 // and the agent page reports that no model is configured.
 type AgentConfig struct {
-	// Provider is the name of the provider: openai, openaicompat,
-	// openai-compatible, openrouter or local.
+	// Provider is the name of the provider: openai, minimax,
+	// minimax-global, openaicompat, openrouter or local.
 	//
 	// Only the OpenAI compatible providers are built in: they cover
-	// OpenAI itself, OpenRouter and any local server, and they do not
-	// pull the AWS and Google SDKs into the binary. A project that
-	// needs another provider adds it to newModel in cmd/tui/agent.go.
+	// OpenAI itself, MiniMax, OpenRouter and any local server, and they
+	// do not pull the AWS and Google SDKs into the binary. A project
+	// that needs another provider adds it to newModel in
+	// cmd/tui/agent.go.
 	Provider string `toml:"provider"`
 	// Model is the name of the model, for example "gpt-4o".
 	Model string `toml:"model"`

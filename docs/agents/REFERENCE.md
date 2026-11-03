@@ -527,7 +527,50 @@ func NewJSONEditor(t *theme.Theme) *JSONEditor
 func NewToast(t *theme.Theme) *Toast
 func NewStatusBar(t *theme.Theme) *StatusBar
 func NewPagination(t *theme.Theme, perPage int) *Pagination
+func NewAgentPanel(t *theme.Theme) *AgentPanel
+func NewAgentSetup(t *theme.Theme) *AgentSetup
 ```
+
+### The agent setup
+
+The guided setup of the agent (`internal/components/agentsetup.go`).
+It appears on the agent page when no model is configured, and it walks
+the user through the provider, the model and the key.
+
+```go
+const (
+	AgentSetupProvider = "provider"
+	AgentSetupModel    = "model"
+	AgentSetupKey      = "key"
+	AgentSetupDone     = "done"
+)
+
+func AgentSetupProviders() []AgentSetupProviderInfo
+
+func (s *AgentSetup) Update(msg tea.KeyPressMsg) (tea.Cmd, bool)
+func (s *AgentSetup) View() tea.View
+func (s *AgentSetup) Focus() tea.Cmd
+func (s *AgentSetup) SetSize(width, height int)
+
+// The result of the setup.
+func (s *AgentSetup) Provider() AgentSetupProviderInfo
+func (s *AgentSetup) Model() string
+func (s *AgentSetup) APIKey() string
+func (s *AgentSetup) KeyEnv() string
+func (s *AgentSetup) ConfigSnippet() string
+func (s *AgentSetup) Summary() string
+```
+
+Two rules hold it together:
+
+- **The key is masked.** It is typed in a `textinput` with
+  `EchoPassword`, so it never reaches the screen.
+- **The key is never written to a file.** `ConfigSnippet` returns the
+  TOML to copy, and it has no field for the key: a secret belongs in
+  the environment, not in a file that is copied around.
+
+`Update` returns whether the key was handled. An unhandled key belongs
+to the page.
 
 ### Toast
 
@@ -796,6 +839,8 @@ type Config struct {
 	Embedded EmbeddedConfig `toml:"embedded"`
 	Remote   RemoteConfig   `toml:"remote"`
 	Sync     SyncConfig     `toml:"sync"`
+	// Agent holds the language model settings.
+	Agent AgentConfig `toml:"agent"`
 }
 
 type EmbeddedConfig struct {
@@ -809,6 +854,34 @@ type EmbeddedConfig struct {
 	// JavaScript enables the PocketBase JavaScriptVM plugin.
 	JavaScript bool `toml:"javascript"`
 }
+
+// The agent settings. The agent is optional: without a provider the
+// application still runs.
+type AgentConfig struct {
+	Provider string `toml:"provider"`
+	Model    string `toml:"model"`
+	// BaseURL overrides the endpoint of the provider.
+	BaseURL string `toml:"base_url"`
+	// APIKeyEnv names the environment variable holding the API key.
+	//
+	// The key is NEVER read from the configuration file.
+	APIKeyEnv string `toml:"api_key_env"`
+	// SystemPrompt is the instruction given to the model.
+	SystemPrompt string `toml:"system_prompt"`
+	// PermissionMode is "ask" or "allow".
+	//
+	// Any value that is not "allow" falls back to "ask": a typo must
+	// not turn the questions off.
+	PermissionMode string `toml:"permission_mode"`
+	// MaxSteps bounds the model calls of a single run.
+	MaxSteps int `toml:"max_steps"`
+}
+```
+
+The supported providers are `minimax`, `minimax-global`, `openai`,
+`openaicompat` (alias `openai-compatible`), `openrouter` and `local`.
+The MiniMax ones have a fixed endpoint — `api.minimax.cn` and
+`api.minimax.io` — and read the key from `MINIMAX_API_KEY`.
 
 // The resolved JavaScript directories. They default to a "pb_hooks"
 // and a "pb_migrations" directory next to the data directory.

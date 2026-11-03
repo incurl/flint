@@ -184,6 +184,10 @@ func defaultAPIKeyEnv(provider string) string {
 		return "OPENAI_API_KEY"
 	case "openrouter":
 		return "OPENROUTER_API_KEY"
+	case "minimax", "minimax-cn", "minimax-china", "minimax-global", "minimax-intl", "minimax-io":
+		// Both MiniMax platforms use the same variable name: the
+		// accounts are separate, not the convention.
+		return "MINIMAX_API_KEY"
 	case "google":
 		return "GOOGLE_API_KEY"
 	case "azure":
@@ -195,12 +199,37 @@ func defaultAPIKeyEnv(provider string) string {
 	}
 }
 
+// The MiniMax endpoints.
+//
+// MiniMax runs two platforms: the Chinese one and the international
+// one. They have different hosts and different accounts, so they are
+// two providers rather than one with a configurable host.
+const (
+	// minimaxChinaURL is the OpenAI compatible endpoint of the Chinese
+	// platform.
+	minimaxChinaURL = "https://api.minimax.cn/v1"
+	// minimaxGlobalURL is the OpenAI compatible endpoint of the
+	// international platform.
+	minimaxGlobalURL = "https://api.minimax.io/v1"
+)
+
+// The MiniMax models.
+//
+// MiniMax does not expose a models endpoint through the compatible API,
+// so the name of the default is listed here. It is the model the
+// platform recommends for agents and tool use.
+const (
+	// minimaxDefaultModel is the model used when the configuration does
+	// not name one.
+	minimaxDefaultModel = "MiniMax-M3.1-Flash"
+)
+
 // newModel builds the language model of the configuration.
 //
 // The template ships the OpenAI compatible providers only: they cover
-// OpenAI itself, OpenRouter and any local server, and they do not pull
-// the AWS and Google SDKs into the binary. A downstream project that
-// needs another provider adds it here.
+// OpenAI itself, OpenRouter, MiniMax and any local server, and they do
+// not pull the AWS and Google SDKs into the binary. A downstream
+// project that needs another provider adds it here.
 func newModel(cfg *config.Config, apiKey string) (fantasy.LanguageModel, error) {
 	provider := strings.ToLower(cfg.Agent.Provider)
 
@@ -218,6 +247,26 @@ func newModel(cfg *config.Config, apiKey string) (fantasy.LanguageModel, error) 
 
 		return newProviderModel(cfg.Agent.Model, built)
 
+	case "minimax", "minimax-cn", "minimax-china":
+		// The Chinese platform. The endpoint is fixed, but a base URL
+		// in the configuration still wins: a proxy or a gateway is a
+		// legitimate reason to override it.
+		baseURL := minimaxChinaURL
+		if cfg.Agent.BaseURL != "" {
+			baseURL = cfg.Agent.BaseURL
+		}
+
+		return newCompatModel(cfg.Agent.Model, apiKey, baseURL)
+
+	case "minimax-global", "minimax-intl", "minimax-io":
+		// The international platform.
+		baseURL := minimaxGlobalURL
+		if cfg.Agent.BaseURL != "" {
+			baseURL = cfg.Agent.BaseURL
+		}
+
+		return newCompatModel(cfg.Agent.Model, apiKey, baseURL)
+
 	case "openaicompat", "openai-compatible", "openrouter", "local":
 		opts := []openaicompat.Option{openaicompat.WithAPIKey(apiKey)}
 		if cfg.Agent.BaseURL != "" {
@@ -234,6 +283,28 @@ func newModel(cfg *config.Config, apiKey string) (fantasy.LanguageModel, error) 
 	default:
 		return nil, fmt.Errorf("cmd/tui: unknown agent provider %q", cfg.Agent.Provider)
 	}
+}
+
+// newCompatModel builds a model from an OpenAI compatible endpoint.
+//
+// It is the path of the providers that only differ by their host: the
+// protocol is the same.
+func newCompatModel(modelID, apiKey, baseURL string) (fantasy.LanguageModel, error) {
+	opts := []openaicompat.Option{
+		openaicompat.WithAPIKey(apiKey),
+		openaicompat.WithBaseURL(baseURL),
+	}
+
+	built, err := openaicompat.New(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("cmd/tui: build the provider: %w", err)
+	}
+
+	if modelID == "" {
+		modelID = minimaxDefaultModel
+	}
+
+	return newProviderModel(modelID, built)
 }
 
 // newProviderModel returns the model of a provider.

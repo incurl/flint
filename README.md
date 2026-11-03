@@ -152,12 +152,18 @@ batch_size = 200
 
 # The agent is optional: without a provider the application still runs.
 [agent]
-provider = "openai"           # openai | openaicompat | openrouter | local
-model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY" # the key is read from the environment, never from the file
+provider = "minimax"         # minimax | minimax-global | openai | openrouter | local
+model = "MiniMax-M3.1-Flash"
+api_key_env = "MINIMAX_API_KEY" # the key is read from the environment, never from the file
 permission_mode = "ask"        # ask before every write, or allow
 max_steps = 12
 ```
+
+> **MiniMax** is the provider the template documents first. `minimax`
+> is the Chinese platform (`api.minimax.cn`) and `minimax-global` is
+> the international one (`api.minimax.io`). They have separate
+> accounts and separate keys. See
+> [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 | Flag                  | Environment variable        | Default          |
 | --------------------- | --------------------------- | ---------------- |

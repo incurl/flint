@@ -697,9 +697,9 @@ for i, line := range lines[:len(lines)-1] {
 
 ```toml
 [agent]
-provider = "openai"
-model = "gpt-4o"
-api_key_env = "OPENAI_API_KEY"
+provider = "minimax"
+model = "MiniMax-M3.1-Flash"
+api_key_env = "MINIMAX_API_KEY"
 permission_mode = "ask"
 max_steps = 12
 ```
@@ -707,9 +707,9 @@ max_steps = 12
 Or in the environment:
 
 ```bash
-export FLINT_AGENT_PROVIDER=openai
-export FLINT_AGENT_MODEL=gpt-4o
-export OPENAI_API_KEY=sk-...
+export FLINT_AGENT_PROVIDER=minimax
+export FLINT_AGENT_MODEL=MiniMax-M3.1-Flash
+export MINIMAX_API_KEY=...
 ```
 
 ⚠️ **The API key is never read from the configuration file.** The file
@@ -723,10 +723,18 @@ The template ships the **OpenAI compatible** providers:
 
 ```go
 case "openai":
+case "minimax", "minimax-cn", "minimax-china":
+case "minimax-global", "minimax-intl", "minimax-io":
 case "openaicompat", "openai-compatible", "openrouter", "local":
 ```
 
-They cover OpenAI itself, OpenRouter, and any local server.
+They cover OpenAI itself, MiniMax, OpenRouter, and any local server.
+
+MiniMax gets **two** names, because the platform runs in two places:
+the Chinese one (`api.minimax.cn`) and the international one
+(`api.minimax.io`). They have separate accounts and separate keys, so
+one name with a configurable host would hide a mistake that shows up
+as an authentication failure.
 
 ⚠️ **The other providers are heavy.** The Anthropic and the OpenRouter
 packages of the model library pull the AWS and the Google SDKs into the
@@ -735,11 +743,56 @@ downloading them. For a template that has to compile and download
 quickly, that is a poor trade. A downstream project that needs another
 provider adds it in one file.
 
+### The guided setup
+
+Without a provider, the agent page does not show a prompt that cannot
+work. It shows a **guided setup**: provider, then model, then key.
+
+```
+ Set up the agent
+
+ Which provider?
+
+ ▸ MiniMax
+    MiniMax, the Chinese platform. api.minimax.cn
+   MiniMax (global)
+    MiniMax, the international platform. api.minimax.io
+   …
+```
+
+The order is the order of the questions: the provider decides which
+models are offered, so it comes first.
+
+The last step shows what to copy:
+
+```
+ export MINIMAX_API_KEY="…"
+
+ And put this in flint.toml:
+
+   [agent]
+   provider = "minimax"
+   model = "MiniMax-M3.1-Flash"
+   api_key_env = "MINIMAX_API_KEY"
+```
+
+Two decisions are baked into it, and both are about the secret.
+
+**The key is masked.** It is typed in a `textinput` with
+`EchoPassword`, because the screen may be shared or recorded.
+
+**The key is never written anywhere.** The setup produces the
+configuration to copy and the variable to export, and it writes
+neither. A tool that rewrites `flint.toml` behind your back, or that
+puts a key in a database, is making a security decision on your
+behalf — and the setup is exactly where the user should be the one
+making it.
+
 ### The agent is optional
 
 Without a provider, the application still starts, and the agent page
-says that no model is configured. A template that cannot be run without
-an API key is not a template.
+offers the guided setup. A template that cannot be run without an API
+key is not a template.
 
 ## 22.12 Testing an agentic application
 
