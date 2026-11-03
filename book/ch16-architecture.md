@@ -670,7 +670,7 @@ store.
 - The root model **routes**, **owns the global chrome** and provides
   the **global hotkey layer**.
 - Cross-layer messages live in the **lower** layer.
-- The five extension points let you specialise the template **without
+- The seven extension points let you specialise the template **without
   modifying the core**.
 
 ## 16.13 Further reading
@@ -680,5 +680,6 @@ store.
 - `internal/pages/records.go` — the canonical page.
 - `internal/pages/common.go` — the cross-layer messages.
 - `internal/pbstore/store.go` — the contract.
+- `internal/agent/run.go` — the agent runner, the other kind of loop.
 
 Next: [Chapter 17 — The pbstore Pattern: One Interface, Two Backends](ch17-pbstore-pattern.md).

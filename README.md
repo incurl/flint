@@ -40,9 +40,13 @@ and the TUI scaffolding are already in place.
   `list`, `spinner`, `paginator`.
 - **One theme package.** Every style lives in `internal/theme`. Inline
   lipgloss literals are forbidden.
+- **An agentic layer.** A language model can read *and* write your
+  records through typed tools, behind a permission gate that asks
+  before every change. The conversations are stored in PocketBase, like
+  everything else.
 - **Extension points.** Custom record renderers, custom pages, custom
-  sync strategies and custom migrations — none of them require touching
-  the core packages.
+  sync strategies, custom agent tools and custom migrations — none of
+  them require touching the core packages.
 
 ## Use this template
 
@@ -88,18 +92,22 @@ the store. Pick one with `↑`/`↓` and `enter` to browse its records.
 
 ### Global hotkeys
 
-| Key     | Action                                             |
-| ------- | -------------------------------------------------- |
-| `1`–`6` | Switch page (home, records, detail, search, settings, sync) |
-| `r`     | Refresh the active page                            |
-| `s`     | Run a store health check                           |
-| `y`     | Trigger a remote → local sync (embedded mode)      |
-| `esc`   | Go back to the previous page                       |
-| `q`     | Quit                                               |
+| Key       | Action                                             |
+| --------- | -------------------------------------------------- |
+| `1`–`7`   | Switch page (home, records, detail, search, agent, settings, sync) |
+| `r`       | Refresh the active page                            |
+| `s`       | Run a store health check                           |
+| `y`       | Trigger a remote → local sync (embedded mode)      |
+| `esc`     | Go back to the previous page                       |
+| `q`       | Quit                                               |
 
 Page local shortcuts are namespaced and never conflict with the global
 layer: `/` filters the record list, `enter` opens a record, `r` toggles
 the raw JSON view on the detail page, `e` opens the JSON editor.
+
+The **agent** page (`7`) is modal while its prompt has the focus, so the
+global layer is suspended there: `enter` sends the prompt, `esc` cancels
+the run, and `y`/`n` answer a permission request.
 
 ## Embedded vs remote
 
@@ -140,6 +148,14 @@ collections = ["items", "vocab"]
 [sync]
 collections = ["vocab"]
 batch_size = 200
+
+# The agent is optional: without a provider the application still runs.
+[agent]
+provider = "openai"           # openai | openaicompat | openrouter | local
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY" # the key is read from the environment, never from the file
+permission_mode = "ask"        # ask before every write, or allow
+max_steps = 12
 ```
 
 | Flag                  | Environment variable        | Default          |
@@ -155,6 +171,12 @@ batch_size = 200
 | `--sync-collections`  | `FLINT_SYNC_COLLECTIONS`    | none             |
 | `--sync-batch-size`   | `FLINT_SYNC_BATCH_SIZE`     | `100`            |
 | `--migrate-only`      | —                           | `false`          |
+| `FLINT_AGENT_PROVIDER`       | —                  | none             |
+| `FLINT_AGENT_MODEL`          | —                  | none             |
+| `FLINT_AGENT_BASE_URL`       | —                  | none             |
+| `FLINT_AGENT_API_KEY_ENV`    | —                  | per provider     |
+| `FLINT_AGENT_PERMISSION_MODE`| —                  | `ask`            |
+| `FLINT_AGENT_MAX_STEPS`      | —                  | `12`             |
 
 > **Security:** never commit an API token. Use `FLINT_REMOTE_TOKEN` or an
 > untracked config file.
@@ -172,9 +194,11 @@ internal/
   app/             root Bubble Tea model, global routing, status bar wiring
   pbstore/         the Store interface + the embedded and remote backends
   components/      reusable components: record card, JSON viewer/editor, toast, status bar
-  pages/           the isolated screens: home, records, detail, search, settings, sync
+  pages/           the isolated screens: home, records, detail, search, agent, settings, sync
   theme/           the lipgloss palette and the layout helpers
   state/           the volatile runtime state (active page, health, sync)
+  agent/           the agentic layer: the tool registry, the runs, the permission gate
+  session/         the conversations of the agent, stored in PocketBase
 examples/
   wikidata/        a complete domain adapter built on the core packages
 docs/              the architecture and the extension guides
@@ -196,6 +220,8 @@ The scaffold is deliberately generic. It fits projects such as:
 - **Wikidata / RDF item and property browsers** — see
   [`examples/wikidata/`](examples/wikidata/).
 - **Audit and annotation tools** over structured JSON records.
+- **Agentic assistants** that answer questions about the data — and
+  change it, with the user's approval.
 
 ## Documentation
 
@@ -203,7 +229,7 @@ The scaffold is deliberately generic. It fits projects such as:
   invariants, the gotchas and the verification loop. Start here.
 - [`docs/agents/`](docs/agents/) — task recipes for agents: add a page, add a
   collection, add a renderer, add a command, add a config option, add a sync,
-  debug a TUI, verify.
+  add an agent tool, debug a TUI, verify.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the TEA flow, the
   package boundaries, what you may modify.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — a guided tour.

@@ -79,6 +79,22 @@ Module path: `charm.land/lipgloss/v2`
 
 Repository: <https://github.com/pocketbase/pocketbase>
 
+### Fantasy — the model layer
+
+| File                              | What it holds                          |
+| --------------------------------- | -------------------------------------- |
+| `agent.go`                        | The agent loop, the step handling      |
+| `tool.go`                         | The tool interface, the schema         |
+| `content.go`                      | The messages, the parts, the roles     |
+| `model.go`                        | The model interface, the calls         |
+| `provider.go`                     | The provider interface                 |
+| `schema/schema.go`                | The schema generated from a struct     |
+| `providers/`                      | The provider implementations          |
+
+Repository: <https://github.com/charmbracelet/fantasy>
+
+Module path: `charm.land/fantasy`
+
 ## The official documentation
 
 | Resource                                     | URL                                              |
@@ -195,6 +211,11 @@ references:
 | **View**            | The string the model renders                                |
 | **Daemon**          | A background process                                        |
 | **Sentinel error**  | A package-level error value used with `errors.Is`           |
+| **Tool**            | A capability a model can invoke                             |
+| **Schema**          | The JSON description of the arguments of a tool             |
+| **Permission gate** | The check that stands between a model and a write           |
+| **Turn**            | One exchange: a prompt and the answer                       |
+| **Conversation**    | The turns of a session, stored in PocketBase                |
 
 ## The chapters of this book, at a glance
 
@@ -214,9 +235,16 @@ references:
 | 12 | Hooks, Validation, and the Life Cycle      | Always call `e.Next()`                              |
 | 13 | Migrations                                   | Filename order is execution order                   |
 | 14 | Embedded or Server                          | Same library, two deployments                      |
-| 15 | Architecture for TUI + Database Apps       | The layering and its rules                          |
-| 16 | The pbstore Pattern                         | One interface, two backends                         |
-| 17 | Sync, Caching, and Offline-First           | The explicit sync and its invariants                |
-| 18 | Testing Terminal Applications              | No terminal required                                |
-| 19 | Performance                                 | I/O in the render path is the #1 bug                |
-| 20 | Shipping                                    | Configuration, shutdown, packaging                  |
+| 15 | The JavaScript Extension                    | The server can be extended without a rebuild       |
+| 16 | Architecture for TUI + Database Apps       | The layering and its rules                          |
+| 17 | The pbstore Pattern                         | One interface, two backends                         |
+| 18 | Sync, Caching, and Offline-First           | The explicit sync and its invariants                |
+| 19 | Testing Terminal Applications              | No terminal required                                |
+| 20 | Performance                                 | I/O in the render path is the #1 bug                |
+| 21 | Shipping                                    | Configuration, shutdown, packaging                  |
+| 22 | The Agentic Layer                           | The model drives, the gate protects                 |
+| 23 | Extension Points                            | Reach them without editing the core                 |
+| 24 | Patterns and Practices                      | The recurring problems and their solutions          |
+| 25 | Advanced Patterns                           | Workers, modals, undo, imports                     |
+| 26 | Domain Patterns                             | Model the data before the screens                  |
+| 27 | Creative Ideas                              | What you could build on top                        |

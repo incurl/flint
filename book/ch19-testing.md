@@ -629,6 +629,25 @@ func TestModelErrorHandling(t *testing.T) {
 }
 ```
 
+### Testing the agent
+
+The agentic layer adds one row to the table, and it is not the one you
+would expect:
+
+| Priority | What                                   | How                        |
+| --------- | -------------------------------------- | -------------------------- |
+| 1         | The **agent tools**                    | A real embedded database    |
+| 2         | The **permission gate**                | A requester that refuses   |
+
+⚠️ **Test the tool, not the model.** The tools are ordinary store
+calls against a real embedded PocketBase, and that is where the
+behaviour lives. The model decides *when* to call a tool, not *what the
+tool does* — so a test that mocks the tool has tested nothing.
+
+The model itself goes behind an interface, and then a scripted fake
+drives a whole turn without a network. That is the subject of
+[Chapter 22](ch22-agentic-layer.md).
+
 ## 19.11 CI
 
 The template's CI runs:

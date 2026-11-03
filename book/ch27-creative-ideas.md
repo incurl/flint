@@ -1,4 +1,4 @@
-# Chapter 26 — Creative Ideas and Geek Playgrounds
+# Chapter 27 — Creative Ideas and Geek Playgrounds
 
 This chapter is deliberately different. The previous chapters were
 about building things correctly. This one is about **what you could
@@ -8,7 +8,7 @@ it.
 Every idea here is buildable with the template as it stands. Some need
 one new package; some need a new page; none need to modify the core.
 
-## 26.1 The time machine
+## 27.1 The time machine
 
 **The idea.** A tool that shows you how a dataset *changes over time*.
 
@@ -45,7 +45,7 @@ Then a page that takes two timestamps and renders the diff with
 machine* for the data. For a vocabulary that is being curated, it shows
 exactly what the curators changed and when.
 
-## 26.2 The diff viewer
+## 27.2 The diff viewer
 
 **The idea.** Two records side by side, with the differences
 highlighted.
@@ -100,11 +100,11 @@ unchanged. It reads instantly.
 *local* copy — so you can see what the sync is about to do before you
 do it. That is the "preview" mode from Chapter 24.
 
-## 26.3 The graph explorer
+## 27.3 The graph explorer
 
 **The idea.** A TUI for exploring a knowledge graph.
 
-The knowledge graph shape from Chapter 25 gives you the edges. Now
+The knowledge graph shape from Chapter 26 gives you the edges. Now
 render them.
 
 ```
@@ -181,7 +181,7 @@ are one column each, but a label may contain wide CJK characters.
 **The interaction.** `enter` on a node expands it. `/` searches the
 graph for an entity. `esc` collapses.
 
-## 26.4 The REPL
+## 27.4 The REPL
 
 **The idea.** Give the user a query language, live.
 
@@ -236,7 +236,7 @@ output of the REPL:
 That is a small command language on top of the filter grammar. It is
 the same idea as `psql` or `sqlite3`, but for a domain.
 
-## 26.5 The database inspector
+## 27.5 The database inspector
 
 **The idea.** A `sqlite3`-style tool for PocketBase, in the terminal.
 
@@ -311,7 +311,7 @@ type SchemaInspector interface {
 }
 ```
 
-## 26.6 The TUI dashboard
+## 27.6 The TUI dashboard
 
 **The idea.** A live dashboard of a PocketBase instance, in the
 terminal.
@@ -361,7 +361,7 @@ the Unicode block characters:
 ▁▂▃▅▆▇█▇▆▅▃▂▁
 ```
 
-## 26.7 The TUI log viewer
+## 27.7 The TUI log viewer
 
 **The idea.** `less`, but for a PocketBase instance.
 
@@ -397,11 +397,11 @@ embedded app directly.
 ⚠️ **The logs grow.** PocketBase has a cron job that cleans them up
 (`__pbLogsCleanup__`, every 6 hours). Do not re-implement it.
 
-## 26.8 The template engine
+## 27.8 The template engine
 
 **The idea.** Let the user define *how* a record is rendered.
 
-The renderer interface (Chapter 22) is a Go interface. But a user
+The renderer interface (Chapter 23) is a Go interface. But a user
 might want to change the layout without recompiling. A tiny template
 language does it:
 
@@ -439,7 +439,7 @@ templates come from an untrusted source.
 **The real use.** It lets a *user* customise the display without a
 developer. For a team tool, that is sometimes exactly what is needed.
 
-## 26.9 The keyboard-driven interface
+## 27.9 The keyboard-driven interface
 
 **The idea.** Hide the mouse entirely; make the keyboard the whole
 interface.
@@ -504,7 +504,7 @@ case prefixExpiredMsg:
 **The payoff.** A tool that a power user never needs the mouse for is
 a tool they use ten times faster.
 
-## 26.10 The multi-pane layout
+## 27.10 The multi-pane layout
 
 **The idea.** The screen is split; each pane has its own focus; the
 keys are routed to the focused pane.
@@ -573,7 +573,7 @@ func (p *RecordsPane) Keys() []string {
 *explicit* modes, toggled by a key. `tab` switches the focus. The
 detail pane is read-only, so it only handles `j`/`k` for scrolling.
 
-## 26.11 The themable status bar
+## 27.11 The themable status bar
 
 **The idea.** The status bar is the most valuable real estate in the
 application. Make it configurable.
@@ -631,7 +631,7 @@ type StatusBarConfig struct {
 }
 ```
 
-## 26.12 The self-documenting UI
+## 27.12 The self-documenting UI
 
 **The idea.** The application explains itself.
 
@@ -688,7 +688,7 @@ func (s *Embedded) Describe(ctx context.Context, collection string) (string, err
 }
 ```
 
-## 26.13 The live preview
+## 27.13 The live preview
 
 **The idea.** As you type a filter, show the matching records
 *without* waiting for a round trip — by evaluating the filter against
@@ -717,7 +717,7 @@ query completes.
 The value: the UI responds instantly, and the user gets a feel for
 the filter before committing.
 
-## 26.14 The terminal as a spreadsheet
+## 27.14 The terminal as a spreadsheet
 
 **The idea.** A grid that behaves like a spreadsheet: arrow keys move
 between cells, `enter` edits, and the changes are written back.
@@ -767,7 +767,7 @@ the whole edit session. With the per-cell writes, a half-finished edit
 leaves the data half-updated.
 
 ⚠️ **For a real spreadsheet, you need a batch update.** Add it as an
-optional interface (Chapter 24, §24.13):
+optional interface (Chapter 25, §25.13):
 
 ```go
 type BulkStore interface {
@@ -777,7 +777,7 @@ type BulkStore interface {
 
 ⚠️ **The UI is the easy part; the transaction is the hard part.**
 
-## 26.15 The offline-first PWA in a terminal
+## 27.15 The offline-first PWA in a terminal
 
 **The idea.** The ultimate version of the template: a terminal
 application that is *also* a web application, with the same codebase.
@@ -821,7 +821,7 @@ database. Do not bind it to a public interface.
 dashboard for the occasional administrator. The same data, the same
 schema, the same migrations.
 
-## 26.16 The plugin system
+## 27.16 The plugin system
 
 **The idea.** Let the user extend the application with their own code,
 at runtime, without recompiling.
@@ -890,7 +890,7 @@ url = "https://example.org/records/{{ .id }}"
 
 That gives 80% of the value with 0% of the risk.
 
-## 26.17 The build-your-own-UI generator
+## 27.17 The build-your-own-UI generator
 
 **The idea.** Generate a TUI from a schema.
 
@@ -922,7 +922,7 @@ them immediately.
 data. That means the page cannot use a static `table.Columns` list —
 it must rebuild it when the collection changes.
 
-## 26.18 The TUI that explains itself
+## 27.18 The TUI that explains itself
 
 **The idea.** A `--debug` mode that shows the message flow.
 
@@ -975,7 +975,38 @@ message is not free. Only do it when the debug mode is on.
 behaves unexpectedly. "What messages actually arrived?" is the
 question you always end up asking.
 
-## 26.19 The idea list
+## 27.19 The agent that knows your domain
+
+**The idea.** The template ships an agent that reads and writes the
+records through generic tools. A domain agent knows the *shape* of your
+data.
+
+```go
+registry.Register(agent.NewGuardedTool(
+    NewResolveTermTool(store),
+    gate,
+    "Resolve a term against the external vocabulary, following the "+
+        "preferred labels of the collection.",
+))
+```
+
+**Why it matters.** The generic agent can count your records and list
+them. It cannot know that a term is *deprecated* because it is absent
+from the labels table, or that a record is *incomplete* because it has
+no source. Those are the rules of your domain, and they belong in
+tools.
+
+⚠️ **A domain tool needs a domain tool description.** The model reads
+the description to decide when to call it. "Resolves a term" is not
+enough; "use it when the user asks whether a term is valid, current or
+missing a label" is.
+
+**The extension.** A tool that *proposes* a change and lets the user
+review the diff before approving it — the same shape as the permission
+request, but with the payload of the change in it.
+
+## 27.20 The idea list
+
 
 Here is a grab-bag of smaller ideas, for inspiration.
 
@@ -996,12 +1027,12 @@ Here is a grab-bag of smaller ideas, for inspiration.
 | **Tag cloud**       | The most-used tags, rendered as a cloud              |
 | **Heatmap**         | The record activity over the last year                |
 | **Fuzzy finder**    | A `fzf`-like search over the whole database          |
-| **TUI + web**       | The embedded mode with the dashboard enabled (§26.15) |
-| **Plugin**          | The runtime-loaded extensions (§26.16)                |
-| **Schema-driven**   | The generated pages (§26.17)                         |
-| **Debug overlay**   | The message stream (§26.18)                          |
+| **TUI + web**       | The embedded mode with the dashboard enabled (§27.15) |
+| **Plugin**          | The runtime-loaded extensions (§27.16)                |
+| **Schema-driven**   | The generated pages (§27.17)                         |
+| **Debug overlay**   | The message stream (§27.18)                          |
 
-## 26.20 How to pick one
+## 27.21 How to pick one
 
 ⚠️ **Do not start with the geek ideas.** They are the *last* thing you
 build, not the first.
@@ -1013,26 +1044,31 @@ The order:
 2. The renderer        (the display)
 3. The core pages      (the workflow)
 4. The quality         (the tests, the errors, the performance)
-5. THEN the geek ideas (the polish)
+5. The agent           (the model, the tools, the gate)
+6. THEN the geek ideas (the polish)
 ```
 
 An application with a beautiful command palette and a broken filter is
 worse than an application with a plain interface that works.
 
-## 26.21 Exercises
+⚠️ **The agent comes after the quality, not before.** A model that calls
+your tools before your error paths are tested will find the bugs — and
+it will find them in the data.
 
-1. Build the **diff viewer** (§26.2). It is about fifty lines and it
+## 27.22 Exercises
+
+1. Build the **diff viewer** (§27.2). It is about fifty lines and it
    is immediately useful.
-2. Build the **REPL** (§26.4). It teaches the filter grammar.
-3. Build the **schema inspector** (§26.5).
-4. Build the **TUI dashboard** (§26.6).
-5. Build the **graph explorer** (§26.3) on top of the Wikidata example.
-6. Build the **debug overlay** (§26.18). You will use it the next time
+2. Build the **REPL** (§27.4). It teaches the filter grammar.
+3. Build the **schema inspector** (§27.5).
+4. Build the **TUI dashboard** (§27.6).
+5. Build the **graph explorer** (§27.3) on top of the Wikidata example.
+6. Build the **debug overlay** (§27.18). You will use it the next time
    something misbehaves.
-7. Build the **self-documenting `--describe`** (§26.12).
-8. Pick three ideas from §26.19 and implement them.
+7. Build the **self-documenting `--describe`** (§27.12).
+8. Pick three ideas from §27.20 and implement them.
 
-## 26.22 What you learned
+## 27.23 What you learned
 
 - The **time machine**: the history collection turns a browser into a
   time machine.
@@ -1055,7 +1091,7 @@ worse than an application with a plain interface that works.
   is safer and nearly as good.
 - **Build the core first, the geek ideas last.**
 
-## 26.23 Further reading
+## 27.24 Further reading
 
 - `charmbracelet/gum` — the "tunable" helpers for lists and tables.
 - `charm.land/lipgloss/v2` — the layout and the borders.

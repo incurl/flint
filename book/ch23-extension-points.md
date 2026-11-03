@@ -1,6 +1,6 @@
-# Chapter 22 — Extension Points: A Catalogue
+# Chapter 23 — Extension Points: A Catalogue
 
-## 22.1 What an extension point is
+## 23.1 What an extension point is
 
 An extension point is a **seam** in the architecture where a downstream
 project can substitute its own behaviour without modifying the core.
@@ -12,10 +12,10 @@ it is a patch that happens to be called a hook.
 > **An extension point must be reachable without editing the core
 > files.**
 
-The Flint template has five. This chapter catalogues them, shows what
+The Flint template has seven. This chapter catalogues them, shows what
 each one costs, and explains when to use which.
 
-## 22.2 The five extension points
+## 23.2 The extension points
 
 | # | Extension point          | Lives in                    | Reached by                    |
 | - | ------------------------ | --------------------------- | ----------------------------- |
@@ -31,13 +31,19 @@ There is a sixth, unofficial one that turns out to matter a lot:
 | - | ------------------------ | --------------------------- | ----------------------------- |
 | 6 | The **store**           | `internal/pbstore`          | `openStore(cfg)`              |
 
+And a seventh, added by the agentic layer:
+
+| # | Extension point          | Lives in                    | Reached by                    |
+| - | ------------------------ | --------------------------- | ----------------------------- |
+| 7 | The **agent tools**     | `internal/agent`            | `registry.Register(tool)`     |
+
 The first one has a runtime variant worth calling out: the record
 renderer can also be **overridden by a script** in `flint_hooks/`,
-without a Go rebuild. See §22.3.
+without a Go rebuild. See §23.3.
 
 Let us examine each.
 
-## 22.3 The record renderer
+## 23.3 The record renderer
 
 ### The interface
 
@@ -257,7 +263,7 @@ The last row is the one to keep in mind: **neither** renderer is
 portable to a server, because rendering is a client concern. Only the
 data hooks in `pb_hooks/` are.
 
-## 22.4 The pages
+## 23.4 The pages
 
 ### What a page is
 
@@ -421,7 +427,7 @@ discoverable: a reader of `internal/app` no longer sees the list of
 pages. For a template whose *purpose* is to be extended, that trade is
 worth making. But it is a change to the core, so it is your call.
 
-## 22.5 The migrations
+## 23.5 The migrations
 
 ### The interface
 
@@ -508,7 +514,7 @@ func Migrations() []core.Migration {
 ⚠️ **The migration filenames must sort after the system ones.** Use a
 timestamp prefix (Chapter 13).
 
-## 22.6 The sync strategy
+## 23.6 The sync strategy
 
 ### The interface
 
@@ -585,7 +591,7 @@ Reach for a custom `Store` only when you need a fundamentally
 different data flow — a different backend, a merge policy the built-in
 one cannot express, or a sync that is not record-oriented.
 
-## 22.7 The theme
+## 23.7 The theme
 
 ### The interface
 
@@ -724,7 +730,7 @@ type Theme struct {
 This is the mechanism for adding a *new kind of content* to the
 application without touching the components that render it.
 
-## 22.8 The store
+## 23.8 The store
 
 ### The interface
 
@@ -777,18 +783,68 @@ implementing twelve methods, with the right semantics (the contexts,
 the error wrapping, the allowlist). Read the interface documentation
 carefully.
 
-## 22.9 The extension matrix
+## 23.9 The agent tools
+
+The agentic layer (Chapter 22) added a seventh extension point: the
+**tools** the model can call.
+
+### The interface
+
+The seam is the `Tool` interface, and it is small on purpose:
+
+```go
+type Tool interface {
+    Name() string
+    Description() string
+    Run(ctx context.Context, input string) (string, error)
+}
+```
+
+### What a downstream project can do
+
+**Add a tool** that reaches a part of the domain the template does not
+know about:
+
+```go
+registry.Register(agent.NewGuardedTool(
+    NewResolveTermTool(store),
+    gate,
+    "Resolve a term against the external vocabulary.",
+))
+```
+
+**Replace a tool** by registering one with the same name: the registry
+keeps the registration order and replaces the tool.
+
+**Remove a tool** by not registering it. The registry is what the
+model sees, so a tool that is not in it does not exist for the model.
+
+### The cost
+
+**Low.** A tool is one file and one registration.
+
+⚠️ **A mutating tool goes behind the gate.** The `NewGuardedTool`
+wrapper is what makes the user approve the call. A mutating tool
+registered without it writes without asking, and the agent page will
+never show the request.
+
+⚠️ **The description is the contract with the model.** A tool whose
+description is vague will be called at the wrong moment, and the
+symptom is a model that ignores your data — not an error.
+
+## 23.10 The extension matrix
 
 | Extension point | Cost  | Touches the core? | Reversible? |
 | --------------- | ----- | ----------------- | ----------- |
 | The renderer    | Low   | No                | Yes         |
 | The migrations  | Zero  | No                | Yes         |
 | The theme       | Low   | Yes (one file)    | Yes         |
+| The agent tools | Low   | No                | Yes         |
 | The pages       | Medium| Yes (two files)   | Yes         |
 | The sync        | High  | No (implement)    | Yes         |
 | The store       | High  | No (implement)    | Yes         |
 
-## 22.10 The order to extend in
+## 23.11 The order to extend in
 
 ⚠️ **Do not start with the store.** The temptation is to build the
 data layer first, because it feels like the "real" work. But the store
@@ -810,7 +866,7 @@ expensive**, because every page that touches it has to be revisited.
 Rebuilding the renderer is cheap, because it is a single injected
 object.
 
-## 22.11 A worked example: adding a domain
+## 23.12 A worked example: adding a domain
 
 Let us walk through adding a "measurement units" domain to the
 template, in the order above.
@@ -973,12 +1029,12 @@ func TestRenderer(t *testing.T) {
 }
 ```
 
-## 22.12 Exercises
+## 23.13 Exercises
 
-1. Implement the `SectionedRenderer` optional interface from §22.3 and
+1. Implement the `SectionedRenderer` optional interface from §23.3 and
    render grouped sections in the record card.
 
-2. Implement the page registry from §22.4 and move the existing pages
+2. Implement the page registry from §23.4 and move the existing pages
    into it. Measure how many lines of `internal/app/app.go` you
    removed.
 
@@ -993,14 +1049,16 @@ func TestRenderer(t *testing.T) {
    configuration validation accepts it.
 
 6. Extend the template with a domain of your own, following the
-   six-step procedure in §22.11.
+   six-step procedure in §23.12.
 
-## 22.13 What you learned
+## 23.14 What you learned
 
 - An extension point must be **reachable without editing the core**.
-- The template has **six**: the renderer, the migrations, the theme,
-  the pages, the sync and the store.
+- The template has **seven**: the renderer, the migrations, the theme,
+  the pages, the sync, the store and the agent tools.
 - The **renderer** is the cheapest and the most widely used.
+- The **agent tools** are cheap too, and a mutating one belongs behind
+  the permission gate.
 - The **pages** are the most awkward; a registry makes them one line.
 - The **migrations** are free — `cmd/tui/main.go` is yours.
 - The **sync** and the **store** are expensive, and you rarely need them.
@@ -1009,11 +1067,11 @@ func TestRenderer(t *testing.T) {
 - Add capabilities with **optional interfaces** (type assertions), not
   by breaking the published ones.
 
-## 22.14 Further reading
+## 23.15 Further reading
 
 - `internal/components/recordcard.go` — the `RecordRenderer` interface.
 - `internal/app/app.go` — the injection points.
 - `examples/wikidata/` — a complete worked extension.
 - `internal/pbstore/store.go` — the `Store` contract.
 
-Next: [Chapter 23 — Patterns and Practices](ch23-patterns-and-practices.md).
+Next: [Chapter 24 — Patterns and Practices](ch24-patterns-and-practices.md).

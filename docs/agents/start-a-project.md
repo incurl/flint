@@ -173,6 +173,30 @@ rm -rf .idea
 
 Keep `.github/workflows/ci.yml` — it is a good CI.
 
+### The agent is optional
+
+The agentic layer — `internal/agent`, `internal/session` and the agent
+page — is **optional**. Without a provider the application starts, and
+the agent page says that no model is configured.
+
+Keep it if your application benefits from a model that can read and
+change your data. If it does not, remove it:
+
+1. Delete `internal/agent/` and `internal/session/`.
+2. Delete `internal/pages/agent.go` and its test.
+3. Remove the `agentPage` field from `Model`, and the cases in
+   `View`, `updateActivePage` and `hints()`.
+4. Remove the `PageAgent` constant from `internal/state/state.go`, and
+   from `AllPages()`.
+5. Remove the `7` hotkey in `handleGlobalKey`.
+6. Remove the `[agent]` section from the configuration, and the
+   `AgentConfig` from `config/config.go`.
+7. Remove the `charm.land/fantasy` dependency: `go mod tidy`.
+
+⚠️ **The `charm.land/fantasy` dependency is the reason to remove it.**
+The provider SDKs make the build slower, and a template that has to
+compile quickly is worth more than a feature you do not use.
+
 ---
 
 ## Step 11 — verify

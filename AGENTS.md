@@ -280,6 +280,7 @@ detail, and chapter 17 explains the `pbstore` pattern.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)   | How the pieces fit, and what is safe to change. |
 | [`docs/PBSTORE_GUIDE.md`](docs/PBSTORE_GUIDE.md) | The data layer in depth.              |
 | [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) | First run, first change.           |
-| [`book/ch22-extension-points.md`](book/ch22-extension-points.md) | The extension catalogue.   |
-| [`book/ch23-patterns-and-practices.md`](book/ch23-patterns-and-practices.md) | Idiomatic patterns.  |
+| [`book/ch22-agentic-layer.md`](book/ch22-agentic-layer.md) | The agentic layer: the tools, the gate, the conversations. |
+| [`book/ch23-extension-points.md`](book/ch23-extension-points.md) | The extension catalogue.   |
+| [`book/ch24-patterns-and-practices.md`](book/ch24-patterns-and-practices.md) | Idiomatic patterns.  |
 | [`book/appendix-d-troubleshooting.md`](book/appendix-d-troubleshooting.md) | Symptom → cause → fix. |

@@ -153,10 +153,16 @@ type Store interface {
     Delete(ctx context.Context, collection, id string) error
     Count(ctx context.Context, collection, filter string) (int, error)
     EnsureDictionaryCollection(ctx context.Context, name string, fields []DictionaryField) (Collection, error)
+    EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
     SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error)
     Close() error
 }
 ```
+
+`EnsureCollection` creates a collection with the fields the application
+needs. The embedded backend creates it; the remote backend cannot, and
+returns an error — there, the collections are created by a migration on
+the server.
 
 **Safe to change:** the internals of `embedded.go` and `remote.go`, the
 helper functions in `queries.go`, the `DictionaryField` and `SyncRequest`
@@ -209,6 +215,45 @@ an import cycle.
 active collection, the connection health, the sync status. It is
 **never persisted** — anything that must survive a restart belongs in a
 PocketBase collection.
+
+### `internal/agent` — the agentic layer
+
+The agent runs a turn: it calls a model, the model calls **tools**, the
+tools read and write the store. It knows nothing about the UI — it
+publishes *events*, and the page draws them.
+
+```text
+internal/pages/agent.go  ──events──►  internal/agent
+       ▲                                │
+       └──────── permission request ────┘
+```
+
+Three rules hold it together:
+
+- **The agent never draws.** It publishes `agent.Event` values; the page
+  turns them into entries. This is what makes the layer testable
+  without a terminal.
+- **The UI never sees the model.** The page receives `AgentEventMsg`,
+  `AgentDoneMsg` and `AgentPermissionMsg`.
+- **The tools are ordinary store calls.** They go through `pbstore`,
+  so the two backends work the same way.
+
+The mutating tools go behind a **permission gate**. A gate that cannot
+ask the user **refuses** — a missing requester is an error, never a
+silent approval.
+
+The loop itself belongs to `charm.land/fantasy`: the template adds the
+tools, the events, the gate and the conversation.
+
+### `internal/session` — the conversations
+
+The turns of a conversation live in PocketBase, in two collections:
+`_flint_sessions` and `_flint_messages`. A turn is stored as JSON,
+because it carries the text, the tool calls and their results — not a
+flat record.
+
+The embedded backend creates the collections on demand; the remote one
+cannot, and `session.Migrations()` creates them on the server.
 
 ## The data layer
 

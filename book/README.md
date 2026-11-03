@@ -23,7 +23,8 @@ confidently.
 | Comfortable with PocketBase as a server      | Part II, Chapter 11    |
 | A Go developer who has never embedded a DB    | Chapter 10             |
 | **Ready to build your own application**      | **Part IV**            |
-| **Looking for something to build**           | **Chapter 26**         |
+| **Looking for something to build**           | **Chapter 27**         |
+| **Wants the model to drive the app**       | **Chapter 22**         |
 | **Want to run hooks on a PocketBase server**  | **Chapter 15**         |
 
 ## How to read it
@@ -35,14 +36,16 @@ PocketBase, read Chapters 1–7 and 17–21.
 **Part IV is the "now what?" part.** It is for the moment when you have
 read the rest and want to build *your* application:
 
-- **Chapter 22** catalogues the extension points, with their costs.
-- **Chapter 23** is the pattern library — the recurring problems and
+- **Chapter 22** is the agentic layer: the tools, the permission gate
+  and the persisted conversations.
+- **Chapter 23** catalogues the extension points, with their costs.
+- **Chapter 24** is the pattern library — the recurring problems and
   their solutions.
-- **Chapter 24** covers the advanced patterns: background workers,
+- **Chapter 25** covers the advanced patterns: background workers,
   modals, command palettes, undo, virtualised lists, imports.
-- **Chapter 25** is about the *data*: the four domain shapes and how to
+- **Chapter 26** is about the *data*: the four domain shapes and how to
   model them.
-- **Chapter 26** is the playground: twenty-odd ideas you could build on
+- **Chapter 27** is the playground: twenty-odd ideas you could build on
   top of the template, from a diff viewer to a graph explorer.
 
 Every chapter ends with:
@@ -78,6 +81,8 @@ template lives at `github.com/incurl/flint`.
 | `internal/pbstore/`     | The data layer                                 |
 | `internal/theme/`       | The styles                                     |
 | `internal/state/`       | The runtime state                              |
+| `internal/agent/`       | The agentic layer: tools, runs, permissions     |
+| `internal/session/`     | The conversations of the agent                 |
 | `config/`               | The configuration loader                       |
 | `examples/wikidata/`    | A complete domain adapter                      |
 
@@ -125,11 +130,12 @@ make run        # start the TUI
 
 ### Part IV — Extending the Template
 
-22. [Extension Points: A Catalogue](ch22-extension-points.md)
-23. [Patterns and Practices](ch23-patterns-and-practices.md)
-24. [Advanced Patterns](ch24-advanced-patterns.md)
-25. [Domain Patterns](ch25-domain-patterns.md)
-26. [Creative Ideas and Geek Playgrounds](ch26-creative-ideas.md)
+22. [The Agentic Layer: When the Model Drives](ch22-agentic-layer.md)
+23. [Extension Points: A Catalogue](ch23-extension-points.md)
+24. [Patterns and Practices](ch24-patterns-and-practices.md)
+25. [Advanced Patterns](ch25-advanced-patterns.md)
+26. [Domain Patterns](ch26-domain-patterns.md)
+27. [Creative Ideas and Geek Playgrounds](ch27-creative-ideas.md)
 
 ### Appendices
 

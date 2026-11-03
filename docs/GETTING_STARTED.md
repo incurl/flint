@@ -243,7 +243,56 @@ embedded database:
 Press `ctrl+r` to run it. The records are matched by id, so repeating the
 sync refreshes them instead of duplicating them.
 
-## 8. Before you publish
+## 8. Turn on the agent
+
+The **agent** page (`7`) lets a language model work with your records.
+It is **optional**: without a provider the application still starts, and
+the page says that no model is configured.
+
+Set the provider and the model:
+
+```toml
+# flint.toml
+[agent]
+provider = "openai"            # openai | openaicompat | openrouter | local
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+permission_mode = "ask"         # ask before every write, or allow
+```
+
+Or in the environment:
+
+```bash
+export FLINT_AGENT_PROVIDER=openai
+export FLINT_AGENT_MODEL=gpt-4o
+export OPENAI_API_KEY=sk-...
+```
+
+The key is read from the **environment variable the configuration
+names**, never from the configuration file itself.
+
+Press `7`, type a question, and press `enter`:
+
+```
+  How many vocabularies have no label?
+```
+
+The model looks at the data through the tools, and the answer streams
+in. When it wants to *change* something, the page asks first:
+
+```
+  The agent wants to Create a new record in the collection.
+  {"collection":"vocab","fields":{"key":"alpha"}}
+  y allow · n deny
+```
+
+`y` runs the write; `n` refuses it and the model is told, so it can
+explain or try something else.
+
+The conversations are stored in PocketBase, so a turn continues where
+the last one stopped.
+
+## 9. Before you publish
 
 ```bash
 make fmt-check   # the formatting must be clean
@@ -265,4 +314,5 @@ Then update:
 | ---------------------------- | ----------------------------------------------- |
 | The TEA flow, the boundaries | [`ARCHITECTURE.md`](ARCHITECTURE.md)            |
 | The store, the params        | [`PBSTORE_GUIDE.md`](PBSTORE_GUIDE.md)          |
+| The agent, the tools         | [`agents/add-an-agent-tool.md`](agents/add-an-agent-tool.md) |
 | A complete domain adapter    | [`examples/wikidata/`](../examples/wikidata/)   |

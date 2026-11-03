@@ -211,6 +211,90 @@ func (m *Model) inputFocused() bool {
 }
 ```
 
+## The agent page says "no agent is configured"
+
+**Cause:** no provider is configured, so the application starts without
+one. The agent is optional by design.
+
+**Fix:** set the provider and the model.
+
+```toml
+[agent]
+provider = "openai"
+model = "gpt-4o"
+api_key_env = "OPENAI_API_KEY"
+```
+
+The key is read from the **environment variable the configuration
+names**, never from the configuration file.
+
+## The agent refuses every write
+
+**Cause:** the permission gate has no requester, or the mode is `ask`
+and nobody answered.
+
+A gate that cannot ask **refuses** — that is the design, not a bug: an
+agent that writes to the data of the user must not do it by default.
+The error is `agent: no permission requester: create_record`.
+
+**Fix:** wire a requester, or set the mode explicitly.
+
+```toml
+[agent]
+permission_mode = "allow"
+```
+
+⚠️ **`allow` approves every write without asking.** Use it only for an
+unattended run.
+
+## The agent ignores the data
+
+**Cause:** usually the description of the tool, not the tool.
+
+The model reads the description to decide when to call a tool. A vague
+description produces a model that calls the wrong tool, or none.
+
+**Fix:** say what the tool does, *when* to use it, and what the
+arguments mean. And put the argument descriptions in the struct tags:
+the model never sees the comments.
+
+```go
+Collection string `json:"collection" description:"The name of the collection to list the records of."`
+```
+
+## The agent repeats the same call forever
+
+**Cause:** the step bound is too high, or the tool returns a result the
+model cannot act on.
+
+**Fix:** lower `max_steps`, and look at what the tool returns. A tool
+that answers the same thing every time will be called the same number
+of times.
+
+```toml
+[agent]
+max_steps = 6
+```
+
+## The conversations are not remembered
+
+**Cause:** the collections do not exist, or the run has no session.
+
+The embedded backend creates them on demand; the remote backend cannot,
+and `session.Migrations()` creates them on the server.
+
+**Fix:** for a remote server, add the migrations of the session package
+to the server's migration list.
+
+## The build is slow after adding the agent
+
+**Cause:** the provider SDKs. The Anthropic and the OpenRouter packages
+of the model library pull the AWS and the Google SDKs into the binary.
+
+**Fix:** use an OpenAI compatible provider. The template ships those
+only, for exactly this reason. A downstream project that needs another
+provider adds it in one file — and accepts the build time.
+
 ## The status bar overlaps itself
 
 **Symptoms:** the hints run into the page name.
