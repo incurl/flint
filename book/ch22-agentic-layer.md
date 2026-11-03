@@ -1,5 +1,10 @@
 # Chapter 22 — The Agentic Layer: When the Model Drives
 
+> **Want to use it rather than build it?** The setup and usage guide is
+> [`docs/AGENT_SETUP.md`](../docs/AGENT_SETUP.md): the providers, the
+> settings, the tools, the troubleshooting, and how to take the layer
+> out again. This chapter is about *how it works*.
+
 ## 22.1 The problem
 
 So far the model has been a *reader*: the user types a filter, the
@@ -877,5 +882,7 @@ what the spinner is for.
 - `internal/pages/agent.go` — the chat screen.
 - `cmd/tui/agent.go` — the provider configuration.
 - `docs/agents/add-an-agent-tool.md` — the recipe for adding a tool.
+- `docs/AGENT_SETUP.md` — the setup and usage guide: the providers, the
+  settings, the tools, the troubleshooting.
 
 Next: [Chapter 23 — Extension Points: A Catalogue](ch23-extension-points.md).

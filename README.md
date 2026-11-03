@@ -234,6 +234,8 @@ The scaffold is deliberately generic. It fits projects such as:
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — the TEA flow, the
   package boundaries, what you may modify.
 - [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md) — a guided tour.
+- [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md) — the agentic layer: how to
+  turn it on, configure it, use it, and remove it.
 - [`docs/PBSTORE_GUIDE.md`](docs/PBSTORE_GUIDE.md) — how to use the store,
   compose the native params, build dictionaries and caches.
 - [`examples/wikidata/`](examples/wikidata/) — a complete domain adapter

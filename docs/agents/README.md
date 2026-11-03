@@ -38,6 +38,17 @@ the components, the config, and the PocketBase APIs the template uses.
 
 ---
 
+## The guides
+
+| Guide                                          | What it covers                                  |
+| ---------------------------------------------- | ----------------------------------------------- |
+| [`../GETTING_STARTED.md`](../GETTING_STARTED.md) | A guided tour of the application.              |
+| [`../AGENT_SETUP.md`](../AGENT_SETUP.md)         | The agentic layer: turning it on, configuring it, using it, removing it. |
+| [`../PBSTORE_GUIDE.md`](../PBSTORE_GUIDE.md)     | The data layer in depth.                       |
+| [`../ARCHITECTURE.md`](../ARCHITECTURE.md)       | How the pieces fit.                            |
+
+---
+
 ## Why this exists
 
 A template is only useful if a developer — or an agent — can change it

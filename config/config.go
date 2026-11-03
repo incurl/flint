@@ -84,10 +84,15 @@ type Config struct {
 // The agent is optional: without a provider the template still runs,
 // and the agent page reports that no model is configured.
 type AgentConfig struct {
-	// Provider is the name of the provider: anthropic, openai,
-	// openaicompat, openrouter, google, bedrock, azure or vercel.
+	// Provider is the name of the provider: openai, openaicompat,
+	// openai-compatible, openrouter or local.
+	//
+	// Only the OpenAI compatible providers are built in: they cover
+	// OpenAI itself, OpenRouter and any local server, and they do not
+	// pull the AWS and Google SDKs into the binary. A project that
+	// needs another provider adds it to newModel in cmd/tui/agent.go.
 	Provider string `toml:"provider"`
-	// Model is the name of the model, for example "claude-sonnet-4".
+	// Model is the name of the model, for example "gpt-4o".
 	Model string `toml:"model"`
 	// BaseURL is the endpoint of the provider.
 	//
@@ -104,6 +109,9 @@ type AgentConfig struct {
 	SystemPrompt string `toml:"system_prompt"`
 	// PermissionMode tells how the mutating tools are gated: "ask" or
 	// "allow".
+	//
+	// "ask" is the default, and any value that is not "allow" falls
+	// back to it: a typo must not turn the questions off.
 	PermissionMode string `toml:"permission_mode"`
 	// MaxSteps bounds the number of model calls of a single run.
 	MaxSteps int `toml:"max_steps"`

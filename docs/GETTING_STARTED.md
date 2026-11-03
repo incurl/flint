@@ -249,6 +249,9 @@ The **agent** page (`7`) lets a language model work with your records.
 It is **optional**: without a provider the application still starts, and
 the page says that no model is configured.
 
+> The full guide — every provider, every setting, the tools, the
+> troubleshooting — is in [`AGENT_SETUP.md`](AGENT_SETUP.md).
+
 Set the provider and the model:
 
 ```toml
