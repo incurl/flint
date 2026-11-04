@@ -273,27 +273,47 @@ func (s *Service) Messages(ctx context.Context, sessionID string, limit int) ([]
 		return nil, errors.New("session: no store configured")
 	}
 
-	query := pbstore.Query{
-		Collection: MessagesCollection,
-		Filter:     FieldSessionID + " = '" + sessionID + "'",
-		Sort:       "created",
-		Page:       1,
-		PerPage:    100,
+	// The messages are read page by page.
+	//
+	// A single page holds a hundred messages, and a conversation that
+	// grew past that would be truncated: the model would see the first
+	// hundred turns and never the ones after them, and the compaction
+	// would measure a conversation that is not the one the user had.
+	const perPage = 1000
+
+	out := make([]Message, 0, perPage)
+
+	for page := 1; ; page++ {
+		query := pbstore.Query{
+			Collection: MessagesCollection,
+			Filter:     FieldSessionID + " = '" + sessionID + "'",
+			Sort:       "created",
+			Page:       page,
+			PerPage:    perPage,
+		}
+
+		result, err := s.store.List(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, record := range result.Records {
+			out = append(out, *messageFromRecord(record))
+		}
+
+		// The last page is reached when it holds fewer messages than
+		// it can, or when the store says there is no page after it.
+		if len(result.Records) < perPage || page >= result.TotalPages {
+			break
+		}
+
+		if limit > 0 && len(out) >= limit {
+			break
+		}
 	}
 
-	if limit > 0 && limit < query.PerPage {
-		query.PerPage = limit
-	}
-
-	result, err := s.store.List(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]Message, 0, len(result.Records))
-
-	for _, record := range result.Records {
-		out = append(out, *messageFromRecord(record))
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
 	}
 
 	return out, nil
