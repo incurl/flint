@@ -154,6 +154,12 @@ type AgentPage struct {
 	// It is read from the runner after every turn: the list belongs to
 	// the conversation, and the model owns it.
 	todos []agent.Todo
+	// scroller shows the conversation.
+	//
+	// The conversation grows without a bound, and the page has a
+	// height: the scroller shows the part of it that fits, and it
+	// follows the end while the reader is there.
+	scroller *components.Scroller
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -207,6 +213,7 @@ func NewAgentPage(
 		theme:    t,
 		input:    input,
 		spinner:  spinner.New(),
+		scroller: components.NewScroller(10),
 	}
 
 	// The setup is offered when there is no model: the runner always
@@ -289,6 +296,18 @@ func (p *AgentPage) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		if handled {
 			return cmd
 		}
+	}
+
+	// The content is prepared before the keys are handled: a scroll
+	// has to act on the conversation as it is now, not on the one of
+	// the last frame.
+	p.prepareConversation()
+
+	// The scroll keys belong to the conversation. They are handled
+	// before the prompt, so that a reader who scrolls up does not type
+	// into the prompt instead.
+	if cmd, handled := p.scroller.Update(msg); handled {
+		return cmd
 	}
 
 	switch msg.String() {
@@ -695,42 +714,115 @@ func (p *AgentPage) View() tea.View {
 	var b []string
 
 	b = append(b, p.theme.Title.Render("Agent"))
-	b = append(b, "")
 
 	if p.mode.IsPlan() {
 		b = append(b, p.theme.Warning.Render("plan mode — the agent reads the records and proposes a plan, it does not change them."))
-		b = append(b, "")
 	}
+
+	// The conversation is scrolled: it grows without a bound, and the
+	// page has a height. The scroller shows the part that fits, and it
+	// follows the end while the reader is there.
+	p.prepareConversation()
+
+	b = append(b, p.scroller.View())
+
+	if p.running {
+		b = append(b, p.theme.Muted.Render(p.spinner.View()+" working…"))
+	}
+
+	if p.planReady {
+		b = append(b, p.theme.Success.Render("The plan is ready."))
+		b = append(b, p.theme.Muted.Render("enter implement it · esc dismiss it"))
+	} else {
+		b = append(b, p.todoView()...)
+		b = append(b, p.input.View())
+	}
+
+	b = append(b, p.theme.Help.Render(p.helpLine()))
+
+	return tea.NewView(joinLines(b))
+}
+
+// prepareConversation puts the conversation in the scroller.
+//
+// It is called before the keys are handled and before the page is
+// drawn: a scroll has to act on the conversation as it is now.
+func (p *AgentPage) prepareConversation() {
+	p.scroller.SetSize(p.width, p.conversationHeight())
+	p.scroller.SetContent(joinLines(p.conversationLines()))
+}
+
+// conversationLines renders the conversation of the page.
+//
+// It is the content of the scroller: the whole conversation, not the
+// part that fits.
+func (p *AgentPage) conversationLines() []string {
+	var b []string
 
 	if len(p.entries) == 0 {
 		b = append(b, p.theme.Muted.Render("Ask about your records. The agent reads and writes them through the tools."))
 		b = append(b, "")
+
+		return b
 	}
 
 	for _, entry := range p.entries {
 		b = append(b, p.renderEntry(entry)...)
 	}
 
-	b = append(b, "")
+	return b
+}
+
+// conversationHeight returns the height the conversation gets.
+//
+// The header, the input, the task list and the help line take the rest
+// of the page.
+func (p *AgentPage) conversationHeight() int {
+	// The title, the plan banner, the input, the help line and the
+	// blank lines around them.
+	chrome := 5
+
+	if p.mode.IsPlan() {
+		chrome++
+	}
 
 	if p.running {
-		b = append(b, p.theme.Muted.Render(p.spinner.View()+" working…"))
-		b = append(b, "")
+		chrome++
 	}
 
 	if p.planReady {
-		b = append(b, p.theme.Success.Render("The plan is ready."))
-		b = append(b, p.theme.Muted.Render("enter implement it · esc dismiss it"))
-		b = append(b, "")
+		chrome += 2
 	} else {
-		b = append(b, p.todoView()...)
-		b = append(b, p.input.View())
-		b = append(b, "")
+		chrome += len(p.todoView())
 	}
 
-	b = append(b, p.theme.Help.Render("tab plan/act · enter send · esc cancel/clear · ctrl+c quit"))
+	height := p.height - chrome
 
-	return tea.NewView(joinLines(b))
+	// A page that has not been sized yet still shows its conversation:
+	// the height falls back to the content.
+	if p.height <= 0 {
+		return len(p.entries) * 2
+	}
+
+	if height < 1 {
+		height = 1
+	}
+
+	return height
+}
+
+// helpLine returns the help of the page.
+//
+// The scroll keys are advertised only when the conversation overflows:
+// a key that does nothing is noise.
+func (p *AgentPage) helpLine() string {
+	line := "tab plan/act · enter send · esc cancel/clear · ctrl+c quit"
+
+	if p.scroller.AtBottom() {
+		return line
+	}
+
+	return "pgup/pgdn scroll · " + line
 }
 
 // todoView renders the task list of the conversation.
@@ -839,13 +931,12 @@ func (p *AgentPage) resize() {
 		return
 	}
 
-	// The header, the conversation and the help line take up the rest.
-	inputHeight := 5
-
-	if p.height > 0 && p.height-inputHeight > 3 {
-		inputHeight = p.height - inputHeight
-	}
-
+	// The input keeps a fixed height: the conversation takes the rest,
+	// and a prompt that grows with the page leaves nothing for it.
 	p.input.SetWidth(p.width)
-	p.input.SetHeight(inputHeight)
+	p.input.SetHeight(3)
+
+	// The scroller is sized in the view, because the height it gets
+	// depends on what else is on the page.
+	p.scroller.SetSize(p.width, p.conversationHeight())
 }

@@ -35,6 +35,11 @@ type AgentPanel struct {
 	width int
 	// height is the available rendering height.
 	height int
+	// scroller shows the conversation.
+	//
+	// The panel is a window on the conversation: it shows the recent
+	// work, and the reader can scroll back through the older messages.
+	scroller *Scroller
 }
 
 // AgentPanelEntry is one line of the panel.
@@ -56,7 +61,7 @@ func NewAgentPanel(t *theme.Theme) *AgentPanel {
 		t = theme.Default()
 	}
 
-	return &AgentPanel{theme: t, width: AgentPanelWidth}
+	return &AgentPanel{theme: t, width: AgentPanelWidth, scroller: NewScroller(10)}
 }
 
 // SetEntries replaces the conversation of the panel.
@@ -71,6 +76,27 @@ func (p *AgentPanel) SetEntries(entries []AgentPanelEntry) {
 func (p *AgentPanel) SetSize(width, height int) {
 	p.width = width
 	p.height = height
+
+	p.scroller.SetSize(width, p.scrollerHeight())
+}
+
+// Update handles the keys that scroll the conversation.
+//
+// The panel is read-only, so the pager keys are all it needs.
+func (p *AgentPanel) Update(msg tea.Msg) (tea.Cmd, bool) {
+	return p.scroller.Update(msg)
+}
+
+// scrollerHeight returns the height the conversation gets.
+//
+// The header takes one line.
+func (p *AgentPanel) scrollerHeight() int {
+	height := p.height - 1
+	if height < 1 {
+		height = 1
+	}
+
+	return height
 }
 
 // View renders the panel.
@@ -125,18 +151,6 @@ func (p *AgentPanel) lines() []string {
 		rendered = append(rendered, p.renderEntry(entry)...)
 	}
 
-	// The header takes one line, and the border takes none.
-	available := p.height - 1
-	if available < 1 {
-		available = 1
-	}
-
-	if len(rendered) > available {
-		// The oldest lines are dropped: the panel is a window on the
-		// recent work, not a log.
-		rendered = rendered[len(rendered)-available:]
-	}
-
 	out := make([]string, 0, len(rendered)+1)
 	out = append(out, p.theme.Subtitle.Render("Agent"))
 
@@ -144,7 +158,14 @@ func (p *AgentPanel) lines() []string {
 		return append(out, p.theme.Muted.Render("No conversation yet."))
 	}
 
-	return append(out, rendered...)
+	// The conversation is scrolled: the panel shows the recent work,
+	// and the reader can scroll back through the older messages.
+	p.scroller.SetSize(p.width, p.scrollerHeight())
+	p.scroller.SetContent(strings.Join(rendered, "\n"))
+
+	out = append(out, strings.Split(p.scroller.View(), "\n")...)
+
+	return out
 }
 
 // renderEntry renders one entry of the conversation.

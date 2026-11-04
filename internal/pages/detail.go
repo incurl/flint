@@ -183,6 +183,12 @@ func (p *DetailPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	updated, cmd := p.viewer.Update(msg)
 	p.viewer = updated.(*components.JSONViewer)
 
+	// The card scrolls its fields. The keys are the pager ones, and
+	// they are handled before the viewer, which has its own.
+	if cmd, handled := p.card.Update(msg); handled {
+		return p, cmd
+	}
+
 	return p, cmd
 }
 
@@ -333,4 +339,8 @@ func (p *DetailPage) resize() {
 	p.viewer.SetSize(p.width, viewerHeight)
 	p.editor.SetSize(p.width, p.height-6)
 	p.card.SetWidth(p.width)
+
+	// The card holds the title, the summary and the fields, and the
+	// viewer holds the raw JSON below it: they share the page.
+	p.card.SetHeight(p.height - viewerHeight - 4)
 }

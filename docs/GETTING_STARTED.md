@@ -320,6 +320,9 @@ both.
 
 Press `ctrl+b` again to close it.
 
+The panel is a window on the conversation: it shows the recent work, and
+`pgup` / `pgdown` scroll back through the older messages.
+
 The toggle is a global hotkey, and the global layer is suspended while
 a text input has the focus. It therefore does not work on the agent
 page or the search page, where an input always has the focus. The

@@ -151,6 +151,14 @@ func (p *HomePage) View() tea.View {
 	b = append(b, p.theme.Subtitle.Render("Collections"))
 	b = append(b, "")
 
+	// The list is as long as the number of collections, and the page
+	// has a height: the window follows the cursor, and the collections
+	// around it are shown.
+	//
+	// The cursor owns the up and down keys, so the list is not a
+	// scroller: a scroller would fight the cursor for them.
+	rows := make([]string, 0, len(p.runtime.Collections))
+
 	for i, c := range p.runtime.Collections {
 		marker := "  "
 
@@ -161,13 +169,45 @@ func (p *HomePage) View() tea.View {
 		}
 
 		label := fmt.Sprintf("%-28s %s", c.Name, c.Type)
-		b = append(b, style.Render(marker+label))
+		rows = append(rows, style.Render(marker+label))
 	}
 
+	b = append(b, p.collectionWindow(rows)...)
 	b = append(b, "")
 	b = append(b, p.theme.Help.Render("↑/↓ select · enter open · 2 records · / search"))
 
 	return tea.NewView(joinLines(b))
+}
+
+// collectionWindow returns the rows that fit, with the cursor in view.
+//
+// The window follows the cursor: it shows the collections around it,
+// and it keeps the cursor in sight when the list is taller than the
+// page.
+func (p *HomePage) collectionWindow(rows []string) []string {
+	// The chrome around the list: the title, the mode line, the blank
+	// line, the subtitle, the blank line, the blank line before the
+	// help line, and the help line.
+	height := p.height - 7
+	if height < 1 {
+		height = 1
+	}
+
+	if len(rows) <= height {
+		return rows
+	}
+
+	// The window starts at the cursor, and it moves with it.
+	start := p.cursor - height/2
+	if start < 0 {
+		start = 0
+	}
+
+	if start+height > len(rows) {
+		start = len(rows) - height
+	}
+
+	return rows[start : start+height]
 }
 
 // Refresh reloads the list of the available collections.

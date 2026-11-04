@@ -767,6 +767,19 @@ func (r *Runner) CancelAll()
 func (r *Runner) Busy() bool
 func (r *Runner) AddPublisher(publisher Publisher)
 
+// The scroller. It shows a block of content that is taller than the
+// space it has, and it follows the end while the reader is there.
+func NewScroller(height int) *Scroller
+func (s *Scroller) SetSize(width, height int)
+func (s *Scroller) SetContent(content string)
+func (s *Scroller) Content() string
+func (s *Scroller) AtBottom() bool
+func (s *Scroller) Follow() bool
+func (s *Scroller) SetFollow(follow bool)
+func (s *Scroller) GotoBottom()
+func (s *Scroller) Update(msg tea.Msg) (tea.Cmd, bool)
+func (s *Scroller) View() string
+
 // The model of the runner. It can be replaced while the application
 // runs: the guided setup installs one, so that the agent works without
 // a restart.

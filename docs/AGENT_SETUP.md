@@ -231,6 +231,10 @@ Press `7` to open the agent page, type a question, and press `enter`.
 
 - `enter` — send the prompt.
 - `tab` — switch between the **plan** mode and the **act** mode.
+- `pgup` / `pgdown` — scroll the conversation. The page **follows the
+  end** while you are there: a new answer appears and you see it.
+  Scrolling up takes over, and scrolling back to the end gives it
+  back.
 - `esc` — cancel a running turn, or clear the prompt.
 - `ctrl+b` — open the side panel, on a terminal of at least 121
   columns. The panel shows the conversation next to the records. The

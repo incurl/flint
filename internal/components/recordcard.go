@@ -191,6 +191,13 @@ type RecordCard struct {
 	record *pbstore.Record
 	// width is the available rendering width.
 	width int
+	// height is the available rendering height.
+	height int
+	// scroller shows the fields.
+	//
+	// A record has as many fields as the collection has, and the page
+	// has a height: the scroller shows the part that fits.
+	scroller *Scroller
 }
 
 // NewRecordCard creates a record card component.
@@ -205,7 +212,7 @@ func NewRecordCard(t *theme.Theme, renderer RecordRenderer) *RecordCard {
 		renderer = &DefaultRecordRenderer{}
 	}
 
-	return &RecordCard{theme: t, renderer: renderer}
+	return &RecordCard{theme: t, renderer: renderer, scroller: NewScroller(10)}
 }
 
 // SetRenderer replaces the renderer used to format the record.
@@ -226,6 +233,24 @@ func (c *RecordCard) Record() *pbstore.Record { return c.record }
 // SetWidth sets the available rendering width.
 func (c *RecordCard) SetWidth(width int) { c.width = width }
 
+// SetHeight sets the height the card gets.
+//
+// The fields are scrolled: a record with many fields does not fit on
+// a page.
+func (c *RecordCard) SetHeight(height int) {
+	if height < 1 {
+		height = 1
+	}
+
+	c.height = height
+	c.scroller.SetSize(c.width, height)
+}
+
+// Update handles the keys that scroll the fields.
+func (c *RecordCard) Update(msg tea.Msg) (tea.Cmd, bool) {
+	return c.scroller.Update(msg)
+}
+
 // View renders the card.
 //
 // The layout adapts to the available width: the field name and value are
@@ -245,22 +270,46 @@ func (c *RecordCard) View() tea.View {
 	rows := c.renderer.Fields(c.record)
 	stacked := c.width > 0 && c.width < 48
 
+	fields := make([]string, 0, len(rows))
+
 	for _, row := range rows {
 		if stacked {
-			b.WriteString(c.theme.Label.Render(row.Name))
-			b.WriteString("\n")
-			b.WriteString("  " + c.theme.Value.Render(row.Value))
-			b.WriteString("\n")
+			fields = append(fields,
+				c.theme.Label.Render(row.Name),
+				"  "+c.theme.Value.Render(row.Value),
+			)
 
 			continue
 		}
 
 		label := c.theme.Label.Render(padRight(row.Name, 14))
-		b.WriteString(label + c.theme.Value.Render(row.Value))
-		b.WriteString("\n")
+		fields = append(fields, label+c.theme.Value.Render(row.Value))
 	}
 
-	return tea.NewView(b.String())
+	// The fields are scrolled: a record with many fields does not fit
+	// on a page, and the ones at the end are the ones the reader came
+	// for.
+	c.scroller.SetSize(c.width, c.scrollerHeight(len(fields)))
+	c.scroller.SetContent(strings.Join(fields, "\n"))
+
+	return tea.NewView(b.String() + c.scroller.View())
+}
+
+// scrollerHeight returns the height the fields get.
+//
+// The title, the summary and the blank lines take the rest of the
+// card.
+func (c *RecordCard) scrollerHeight(fields int) int {
+	height := c.height - 4
+	if height < 1 {
+		height = 1
+	}
+
+	if height > fields && fields > 0 {
+		return fields
+	}
+
+	return height
 }
 
 // padRight pads a string with spaces up to the requested width.

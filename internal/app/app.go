@@ -511,6 +511,18 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		// the page, which may use it for something else.
 		return nil, false
 
+	case "pgup", "pgdown", "ctrl+u", "ctrl+d":
+		// The panel is a window on the conversation, and the reader
+		// scrolls it. The key is only taken when the panel is open:
+		// on the agent page the page has the conversation.
+		if m.panel.visible {
+			if cmd, handled := m.panel.panel.Update(msg); handled {
+				return cmd, true
+			}
+		}
+
+		return nil, false
+
 	case "+", "=":
 		return m.zoom(theme.ScaleZoomIn), true
 

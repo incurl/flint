@@ -279,6 +279,16 @@ Three rules catch most mistakes:
   which says nothing about the variable that holds the key, and sends
   the user looking for a header that was never there. `agent.NewModel`
   refuses the empty key, and the error names the variable to export.
+- **A page that renders more lines than the terminal has is cut off,
+  and the lines at the end are the ones that are lost.** The agent
+  conversation, the settings rows and the record fields all grow
+  without a bound, so they are scrolled. `components.Scroller` is a
+  viewport that **follows the end** while the reader is there: a
+  conversation is read from its last line. Scrolling up takes over,
+  and scrolling back gives it back.
+- **The content of a scroller is prepared before the keys are
+  handled.** A scroll has to act on the conversation as it is now, not
+  on the one of the last frame.
 - **The runner's model can be replaced while the application runs.**
   `Runner.SetModel` installs it, and `Run` reads the current one at the
   start of every turn — a run already in flight keeps the model it
