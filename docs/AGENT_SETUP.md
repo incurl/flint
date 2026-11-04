@@ -448,6 +448,7 @@ data.
 | `get_record`        | Fetches one record                | no     |
 | `search_records`    | Searches the records of a collection | no   |
 | `count_records`     | Counts the records of a collection | no     |
+| `todos`             | Manages the task list of the turn | no     |
 | `create_record`     | Creates a record                  | **yes** |
 | `update_record`     | Updates a record                  | **yes** |
 | `delete_record`     | Deletes a record                  | **yes** |
@@ -481,6 +482,32 @@ Two bounds keep a runaway model from exhausting the process:
 
 - A tool call is cut off after **30 seconds**.
 - A listing tool returns at most **100 records**, and 30 by default.
+
+### The task list
+
+The `todos` tool gives the model a structured list of the steps of a
+turn. The page shows it above the prompt:
+
+```
+ To-do 1/3
+ ✓ Find the records with no label
+ → Proposing a label
+ · Write the summary
+```
+
+Each task has a status — `pending`, `in_progress` or `completed` — and
+an *active form*, the same task in the present continuous. The active
+form is what is shown while the task runs: "Proposing a label" reads
+better than "Propose a label" next to a spinner.
+
+The list belongs to the conversation and lives **in memory**: it
+organises a turn, it is not something to keep between runs. A task
+without a status is `pending`, and a task without an active form gets
+one derived from its content.
+
+The tool is not gated: it changes nothing of the data, it changes what
+the model is doing, and the user sees it. It is available in the plan
+mode too — a plan is a list of steps.
 
 ### The arguments
 

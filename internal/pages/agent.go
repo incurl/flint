@@ -149,6 +149,11 @@ type AgentPage struct {
 	// It is the text that the approval carries over into the acting
 	// run, so that the model knows what it is implementing.
 	planText string
+	// todos holds the task list of the conversation.
+	//
+	// It is read from the runner after every turn: the list belongs to
+	// the conversation, and the model owns it.
+	todos []agent.Todo
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -550,6 +555,10 @@ func (p *AgentPage) applyDone(msg AgentDoneMsg) tea.Cmd {
 		p.appendText(msg.Text)
 	}
 
+	// The task list belongs to the conversation, and the model owns it:
+	// it is read again after every turn.
+	p.refreshTodos()
+
 	// A planning run that ends with the marker leaves a plan that waits
 	// for the approval. The markers themselves are not shown: they are
 	// instructions to the model, not content for the user.
@@ -565,6 +574,20 @@ func (p *AgentPage) applyDone(msg AgentDoneMsg) tea.Cmd {
 	}
 
 	return nil
+}
+
+// refreshTodos reads the task list of the conversation.
+//
+// The list is in the runner, because the tool that writes it belongs to
+// the runner.
+func (p *AgentPage) refreshTodos() {
+	if p.runner == nil {
+		p.todos = nil
+
+		return
+	}
+
+	p.todos = p.runner.Todos(p.sessionID)
 }
 
 // stripPlanMarkers removes the plan markers from the conversation.
@@ -700,6 +723,7 @@ func (p *AgentPage) View() tea.View {
 		b = append(b, p.theme.Muted.Render("enter implement it · esc dismiss it"))
 		b = append(b, "")
 	} else {
+		b = append(b, p.todoView()...)
 		b = append(b, p.input.View())
 		b = append(b, "")
 	}
@@ -707,6 +731,46 @@ func (p *AgentPage) View() tea.View {
 	b = append(b, p.theme.Help.Render("tab plan/act · enter send · esc cancel/clear · ctrl+c quit"))
 
 	return tea.NewView(joinLines(b))
+}
+
+// todoView renders the task list of the conversation.
+//
+// It is above the prompt: it is what the agent is doing right now, and
+// the user watches it while the agent works.
+//
+// The list is only shown when it has something to say. An empty list
+// is noise, and a model that writes one for every question would fill
+// the screen with it.
+func (p *AgentPage) todoView() []string {
+	if len(p.todos) == 0 {
+		return nil
+	}
+
+	completed, total := agent.TodoProgress(p.todos)
+
+	var b []string
+
+	b = append(b, p.theme.Muted.Render(fmt.Sprintf("To-do %d/%d", completed, total)))
+
+	for _, todo := range agent.SortTodos(p.todos) {
+		text := todo.Content
+		if todo.Status == agent.TodoInProgress && todo.ActiveForm != "" {
+			text = todo.ActiveForm
+		}
+
+		switch todo.Status {
+		case agent.TodoCompleted:
+			b = append(b, p.theme.Muted.Render("  ✓ "+text))
+		case agent.TodoInProgress:
+			b = append(b, p.theme.Accent.Render("  → "+text))
+		default:
+			b = append(b, p.theme.Muted.Render("  · "+text))
+		}
+	}
+
+	b = append(b, "")
+
+	return b
 }
 
 // viewWithPermission renders the page while a request is pending.

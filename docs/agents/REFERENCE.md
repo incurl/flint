@@ -721,6 +721,35 @@ func (r *Registry) ToolNamesFor(mode Mode) []string
 
 // The store tools.
 func RegisterStoreTools(registry *Registry, store pbstore.Store, gate *Gate)
+
+// The task list. It belongs to the conversation of the run, which the
+// tool finds in the context.
+func RegisterTodosTool(registry *Registry, runner *Runner)
+func NewTodosTool(store *todoStore) Tool
+func (r *Runner) Todos(sessionID string) []Todo
+
+type Todo struct {
+	Content    string `json:"content"`
+	Status     string `json:"status"`
+	ActiveForm string `json:"active_form"`
+}
+
+const ToolTodos = "todos"
+
+const (
+	TodoPending    = "pending"
+	TodoInProgress = "in_progress"
+	TodoCompleted  = "completed"
+)
+
+func SortTodos(todos []Todo) []Todo
+func TodoProgress(todos []Todo) (completed, total int)
+
+// The session id travels in the context: a tool that belongs to a
+// conversation needs to know which one, and the signature of a tool
+// does not carry it.
+func WithSessionID(ctx context.Context, sessionID string) context.Context
+func SessionIDFrom(ctx context.Context) string
 func NewListRecordsTool(store pbstore.Store) Tool
 func NewGetRecordTool(store pbstore.Store) Tool
 func NewSearchRecordsTool(store pbstore.Store) Tool

@@ -395,3 +395,59 @@ func TestAgentPageDismissesThePlan(t *testing.T) {
 		t.Errorf("the plan is still waiting:\n%s", page.View().Content)
 	}
 }
+
+// TestAgentPageShowsTheTaskList verifies that the task list is shown
+// above the prompt.
+//
+// The list is what the agent is doing right now, and the user watches
+// it while the agent works.
+func TestAgentPageShowsTheTaskList(t *testing.T) {
+	registry := agent.NewRegistry()
+	runner := agent.NewRunner(agent.Options{Registry: registry, Model: &answerModel{text: "ok"}})
+
+	agent.RegisterTodosTool(registry, runner)
+
+	tool, _ := registry.Get(agent.ToolTodos)
+
+	ctx := agent.WithSessionID(context.Background(), "s1")
+
+	input := `{"todos":[
+		{"content":"Find the records with no label","status":"completed","active_form":""},
+		{"content":"Propose a label","status":"in_progress","active_form":"Proposing a label"},
+		{"content":"Write the summary","status":"pending","active_form":""}
+	]}`
+
+	if _, err := tool.Run(ctx, input); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	page = updated.(*pages.AgentPage)
+
+	// A turn is started, so that the page knows the run it belongs to.
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	// The page reads the list when a turn ends.
+	updated, _ = page.Update(pages.AgentDoneMsg{RunID: "run-1", SessionID: "s1"})
+	page = updated.(*pages.AgentPage)
+
+	view := page.View().Content
+
+	if !strings.Contains(view, "To-do 1/3") {
+		t.Errorf("the progress line is missing:\n%s", view)
+	}
+
+	if !strings.Contains(view, "Proposing a label") {
+		t.Errorf("the task in progress is missing:\n%s", view)
+	}
+
+	if !strings.Contains(view, "Find the records with no label") {
+		t.Errorf("the finished task is missing:\n%s", view)
+	}
+}

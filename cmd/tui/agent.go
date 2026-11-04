@@ -76,6 +76,10 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 	})
 	runner.AddPublisher(publisher)
 
+	// The task list is a tool of the runner: the runner owns the lists
+	// of the conversations.
+	agent.RegisterTodosTool(registry, runner)
+
 	// The model is the only part that needs a provider. Without one the
 	// runner has no model, and the guided setup installs one later.
 	if cfg.Agent.Provider == "" || cfg.Agent.Model == "" {

@@ -154,6 +154,11 @@ type Runner struct {
 	// while the application runs: a setup that configures a model does
 	// not need a restart.
 	model fantasy.LanguageModel
+	// todos holds the task lists of the conversations.
+	//
+	// It is in memory: the task list organises a turn, it is not
+	// something the user needs to keep between runs.
+	todos *todoStore
 	// modeMu guards the mode.
 	modeMu sync.RWMutex
 	// mode is the mode of the next run.
@@ -181,7 +186,20 @@ func NewRunner(options Options) *Runner {
 		options: options,
 		active:  map[string]context.CancelFunc{},
 		model:   options.Model,
+		todos:   newTodoStore(),
 	}
+}
+
+// Todos returns the task list of a conversation.
+//
+// It is empty when the conversation has no list, and it is what the
+// page shows above the prompt.
+func (r *Runner) Todos(sessionID string) []Todo {
+	if sessionID == "" {
+		return nil
+	}
+
+	return r.todos.get(sessionID)
 }
 
 // Model returns the language model of the next run.
@@ -324,6 +342,11 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 	// both stop the model call and the tools.
 	runCtx, cancel := context.WithTimeout(ctx, r.options.Timeout)
 	defer cancel()
+
+	// The session id travels in the context: a tool that belongs to a
+	// conversation — the task list — needs to know which one, and the
+	// tool signature does not carry it.
+	runCtx = WithSessionID(runCtx, request.SessionID)
 
 	r.mu.Lock()
 	r.active[request.RunID] = cancel

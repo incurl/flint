@@ -57,6 +57,9 @@ var readOnlyTools = []string{
 	ToolSearchRecords,
 	ToolCountRecords,
 	ToolListCollections,
+	// The task list changes nothing of the data. It is what the plan
+	// is made of, so the planning mode needs it.
+	ToolTodos,
 }
 
 // mutatingTools are the tools that change the data.

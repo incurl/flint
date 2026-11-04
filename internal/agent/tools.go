@@ -211,6 +211,18 @@ func RegisterStoreTools(registry *Registry, store pbstore.Store, gate *Gate) {
 	registry.Register(NewGuardedTool(NewDeleteRecordTool(store), gate, deleteRecordApproval))
 }
 
+// RegisterTodosTool registers the task list tool.
+//
+// The tool is not gated: it changes nothing of the data. It changes
+// what the model is doing, and the user sees it.
+func RegisterTodosTool(registry *Registry, runner *Runner) {
+	if registry == nil || runner == nil {
+		return
+	}
+
+	registry.Register(NewTodosTool(runner.todos))
+}
+
 // The approvals the user reads.
 //
 // They say what the call would do, because the user has to decide
