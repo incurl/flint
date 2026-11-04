@@ -149,3 +149,50 @@ func TestTheKeyIsOnTheRequest(t *testing.T) {
 		t.Errorf("the Authorization header is %q, want %q", capture.auth[0], "Bearer sk-the-key")
 	}
 }
+
+// TestTheKeyIsTrimmed verifies that a key with whitespace is cleaned
+// up before it goes into the Authorization header.
+//
+// The header is compared byte for byte, so a trailing space makes the
+// key wrong -- and the provider answers with the same message it
+// answers with when the key is empty or invalid.
+func TestTheKeyIsTrimmed(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		key  string
+		want string
+	}{
+		{"a plain key", "sk-the-key", "Bearer sk-the-key"},
+		{"a trailing space", "sk-the-key ", "Bearer sk-the-key"},
+		{"a trailing newline", "sk-the-key\n", "Bearer sk-the-key"},
+		{"surrounding spaces", "  sk-the-key  ", "Bearer sk-the-key"},
+		{"the Bearer prefix", "Bearer sk-the-key", "Bearer sk-the-key"},
+		{"the Bearer prefix, lower case", "bearer sk-the-key", "Bearer sk-the-key"},
+		{"the Bearer prefix and a space", "Bearer  sk-the-key", "Bearer sk-the-key"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			capture := &hostCapture{}
+
+			model, err := agent.NewModelWithClient(agent.ProviderConfig{
+				Provider: "minimax",
+				Model:    "MiniMax-M3.1-Flash",
+				APIKey:   test.key,
+			}, capture)
+			if err != nil {
+				t.Fatalf("NewModelWithClient() error = %v", err)
+			}
+
+			_, _ = model.Generate(context.Background(), fantasy.Call{
+				Prompt: fantasy.Prompt{fantasy.NewUserMessage("hi")},
+			})
+
+			if len(capture.auth) == 0 {
+				t.Fatal("the model made no request")
+			}
+
+			if capture.auth[0] != test.want {
+				t.Errorf("the Authorization header is %q, want %q", capture.auth[0], test.want)
+			}
+		})
+	}
+}

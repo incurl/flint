@@ -384,3 +384,30 @@ func TestAgentSetupReportsTheWriteError(t *testing.T) {
 		t.Errorf("the view does not show the error:\n%s", setup.View().Content)
 	}
 }
+
+// TestTheTypedKeyIsTrimmed verifies that a key with a trailing space is
+// cleaned up.
+//
+// A pasted key carries one, and a trailing space makes the
+// Authorization header wrong. The provider answers with a message about
+// the header, and the user is sent looking for a header that was there
+// all along.
+func TestTheTypedKeyIsTrimmed(t *testing.T) {
+	setup := components.NewAgentSetup(theme.Default())
+	setup.SetSize(80, 24)
+
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	_, _ = setup.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+
+	for _, r := range "sk-the-key " {
+		_, _ = setup.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+
+	if got := setup.APIKey(); got != "sk-the-key" {
+		t.Errorf("the key is %q, want it without the trailing space", got)
+	}
+
+	if got := setup.Settings().APIKey; got != "sk-the-key" {
+		t.Errorf("the key of the settings is %q, want it without the trailing space", got)
+	}
+}

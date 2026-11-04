@@ -821,27 +821,60 @@ The provider is not one the template builds. See
 [§3](#3-the-providers).
 
 **"Please carry the API secret key in the 'Authorization' field".**
-The request was made **without an `Authorization` header**, which means
-the key was empty. The message is about the header, but the problem is
-the variable that holds the key.
+The provider refused the key. ⚠️ **The message is misleading**: it is
+the *same* message for a key that is empty, one that is invalid, one
+that belongs to the other platform, and one that carries a stray
+space. It names the header, and the header is not the problem.
 
-Check that the variable is exported in the shell the application runs
-from, and that its name matches `api_key_env`:
+Run the diagnostic — it tells the four apart:
 
 ```bash
-printenv MINIMAX_API_KEY
+flint --check-agent
 ```
 
-The application refuses to build a model without a key, so this is
-caught before the request — the error names the variable to export:
+```
+The agent configuration:
 
+  provider    minimax
+  model       MiniMax-M3.1-Flash
+  base_url    https://api.minimax.io/v1
+  api_key_env MINIMAX_API_KEY
+
+The key:
+
+  variable    MINIMAX_API_KEY
+  exported    true
+  length      42
+  trimmed     false
+
+Testing the key against https://api.minimax.io/v1 ...
+
+The key works.
 ```
-agent: no API key for the provider "minimax": export MINIMAX_API_KEY
-```
+
+It reports the endpoint in effect — the one the application resolved,
+even when the configuration leaves it empty — and it says whether the
+variable is exported, whether it is empty, and whether the key had
+whitespace around it.
 
 ⚠️ **A key exported in another shell is not visible.** The variable has
 to be exported in the shell that starts the application, or in its
 profile. A `.env` file is not read.
+
+**The key is trimmed before it is sent.** A pasted key carries a
+trailing space, and a trailing space makes the `Authorization` header
+wrong — which the provider answers with the message above. The
+diagnostic says so:
+
+```
+  trimmed     true
+
+The key had whitespace around it. It is trimmed before it is sent.
+```
+
+A key that already carries the `Bearer ` prefix is accepted too: the
+client adds the prefix itself, so it would otherwise be sent as
+`Bearer Bearer ...`.
 
 **MiniMax: "insufficient balance" or "invalid api key".**
 The two platforms have **separate accounts, separate keys and separate

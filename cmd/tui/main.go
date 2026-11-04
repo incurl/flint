@@ -84,6 +84,12 @@ func run() error {
 		}
 	}()
 
+	// The check-agent mode reports the agent configuration and tests the
+	// key, then exits. It needs no store: the key is not in it.
+	if flags.CheckAgent {
+		return checkAgent(cfg, os.Stdout)
+	}
+
 	// The migrate-only mode applies the migrations and exits: the store
 	// has already run them while it was opened.
 	if flags.MigrateOnly {

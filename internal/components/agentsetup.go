@@ -235,7 +235,9 @@ func (s *AgentSetup) Settings() AgentSetupSettings {
 		Model:     s.Model(),
 		BaseURL:   provider.BaseURL,
 		APIKeyEnv: provider.KeyEnv,
-		APIKey:    s.keyInput.Value(),
+		// The key is trimmed: a pasted key carries a trailing space,
+		// and a trailing space makes the Authorization header wrong.
+		APIKey: strings.TrimSpace(s.keyInput.Value()),
 	}
 }
 
@@ -316,7 +318,12 @@ func (s *AgentSetup) Model() string {
 }
 
 // APIKey returns the key the user typed.
-func (s *AgentSetup) APIKey() string { return s.keyInput.Value() }
+//
+// It is trimmed: a pasted key carries a trailing space, and a trailing
+// space makes the Authorization header wrong. The provider answers with
+// a message about the header, and the user is sent looking for a
+// header that was there all along.
+func (s *AgentSetup) APIKey() string { return strings.TrimSpace(s.keyInput.Value()) }
 
 // SetSize sets the available rendering area.
 func (s *AgentSetup) SetSize(width, height int) {

@@ -159,3 +159,20 @@ func TestTheKeyVariableCanBeChanged(t *testing.T) {
 		t.Errorf("the error does not name the variable: %v", err)
 	}
 }
+
+// TestTheKeyFromTheEnvironmentIsTrimmed verifies that a key with a
+// trailing newline is cleaned up.
+//
+// A variable that holds a pasted key often carries one, and it makes
+// the Authorization header wrong.
+func TestTheKeyFromTheEnvironmentIsTrimmed(t *testing.T) {
+	t.Setenv("MINIMAX_API_KEY", "sk-the-key\n")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = "minimax"
+	cfg.Agent.Model = agent.MinimaxDefaultModel
+
+	if got := agentAPIKey(cfg); got != "sk-the-key" {
+		t.Errorf("agentAPIKey() = %q, want it without the trailing newline", got)
+	}
+}

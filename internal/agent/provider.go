@@ -94,7 +94,9 @@ func newModel(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageMod
 	// message says nothing about the variable that holds the key, and
 	// nothing about the fact that the variable is empty: the user is
 	// sent looking for a header that was never there.
-	if needsAPIKey(provider) && strings.TrimSpace(cfg.APIKey) == "" {
+	cfg.APIKey = normaliseKey(cfg.APIKey)
+
+	if needsAPIKey(provider) && cfg.APIKey == "" {
 		return nil, fmt.Errorf("%w for the provider %q", ErrNoAPIKey, cfg.Provider)
 	}
 
@@ -163,6 +165,29 @@ func newModel(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageMod
 	default:
 		return nil, fmt.Errorf("agent: unknown provider %q", cfg.Provider)
 	}
+}
+
+// normaliseKey cleans up a key that was typed or pasted.
+//
+// The key goes into an Authorization header, and the header is
+// compared byte for byte: a trailing space makes the key wrong, and
+// the provider answers with a message about the header -- the same
+// message it answers with when the key is empty or invalid. The user
+// is then looking for a header that was there all along.
+//
+// A pasted key often carries a trailing space or a newline, and it
+// sometimes carries the "Bearer " prefix that the provider's own
+// documentation shows.
+func normaliseKey(key string) string {
+	key = strings.TrimSpace(key)
+
+	// The prefix is added by the client, so a key that carries it
+	// would be sent as "Bearer Bearer ...".
+	if len(key) > 7 && strings.EqualFold(key[:7], "Bearer ") {
+		key = strings.TrimSpace(key[7:])
+	}
+
+	return key
 }
 
 // needsAPIKey reports whether a provider needs an API key.

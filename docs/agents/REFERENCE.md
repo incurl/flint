@@ -1060,7 +1060,7 @@ CLI flags: `--mode`, `--theme`, `--per-page`, `--log-level`,
 `--javascript`, `--encryption-env`, `--dev`,
 `--remote-url`, `--remote-token`, `--remote-collections`, `--collections`,
 `--sync-collections`, `--sync-batch-size`, `--sync-max-records`,
-`--migrate-only`, `--config`.
+`--migrate-only`, `--check-agent`, `--config`.
 
 ---
 

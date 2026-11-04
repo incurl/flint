@@ -179,6 +179,7 @@ max_steps = 12
 | `--sync-collections`  | `FLINT_SYNC_COLLECTIONS`    | none             |
 | `--sync-batch-size`   | `FLINT_SYNC_BATCH_SIZE`     | `100`            |
 | `--migrate-only`      | —                           | `false`          |
+| `--check-agent`       | —                           | `false`          |
 | `FLINT_AGENT_PROVIDER`       | —                  | none             |
 | `FLINT_AGENT_MODEL`          | —                  | none             |
 | `FLINT_AGENT_BASE_URL`       | —                  | none             |
@@ -192,6 +193,12 @@ max_steps = 12
 > **`--migrate-only`** applies the embedded migrations and exits without
 > starting the TUI. It is what `make pb-migrate` runs, and it is handy in a
 > deployment pipeline that separates the migration step from the run step.
+
+> **`--check-agent`** reports the effective agent configuration and tests
+> the API key, then exits. It is the diagnostic for "why does the
+> provider refuse my key?": the provider answers with the same message
+> for an empty key, an invalid one, one of the other platform and one
+> with a stray space, and the check tells them apart.
 
 ## Project layout
 

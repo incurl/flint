@@ -58,6 +58,16 @@ type Flags struct {
 	// MigrateOnly asks the application to apply the migrations and exit
 	// without starting the TUI.
 	MigrateOnly bool
+	// CheckAgent asks the application to check the agent configuration
+	// and the API key, and to exit without starting the TUI.
+	//
+	// It is the diagnostic for the question that has no good answer
+	// otherwise: why does the provider refuse the key? The answer is
+	// the same for a key that is empty, one that is invalid, one that
+	// belongs to the other platform and one that carries a stray
+	// space -- the provider answers with a message about the
+	// Authorization header, and the header is not the problem.
+	CheckAgent bool
 }
 
 // ParseFlags parses the command line arguments.
@@ -95,6 +105,7 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.IntVar(&flags.SyncBatchSize, "sync-batch-size", 0, "number of records fetched per sync request")
 	fs.IntVar(&flags.SyncMaxRecords, "sync-max-records", 0, "maximum number of records synced per collection")
 	fs.BoolVar(&flags.MigrateOnly, "migrate-only", false, "apply the embedded migrations and exit without starting the TUI")
+	fs.BoolVar(&flags.CheckAgent, "check-agent", false, "check the agent configuration and the API key, then exit")
 
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "flint — a Bubble Tea + PocketBase TUI scaffold\n\n")

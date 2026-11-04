@@ -193,7 +193,12 @@ func agentAPIKey(cfg *config.Config) string {
 		return ""
 	}
 
-	return os.Getenv(name)
+	// The key is trimmed: a variable that holds a pasted key often
+	// carries a trailing newline, and a trailing newline makes the
+	// Authorization header wrong. The provider answers with a message
+	// about the header, and the user is sent looking for a header that
+	// was there all along.
+	return strings.TrimSpace(os.Getenv(name))
 }
 
 // defaultAPIKeyEnv returns the conventional environment variable of a

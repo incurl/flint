@@ -267,6 +267,12 @@ Three rules catch most mistakes:
   came from `FLINT_AGENT_PROVIDER` does not belong in a file. The file
   is written with `0600` and atomically, and the API key is never in
   it — only the name of the variable that holds it.
+- **The provider's "carry the API secret key" message is useless.**
+  It is the same for a key that is empty, one that is invalid, one
+  that belongs to the other platform and one with a stray space. The
+  key is trimmed before it is sent — a pasted key carries a trailing
+  space, and the header is compared byte for byte — and
+  `flint --check-agent` tells the causes apart.
 - **A provider that needs a key is refused one that has none.** An
   empty key produces a request with **no `Authorization` header at
   all**, and the provider answers with a message about the header —
