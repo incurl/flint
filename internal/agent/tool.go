@@ -224,3 +224,64 @@ func (r *Registry) AgentTools() []fantasy.AgentTool {
 
 	return out
 }
+
+// AgentToolsFor returns the tools of a mode, wrapped for the model
+// library.
+//
+// In [ModePlan] the tools that change the data are left out: the model
+// does not see them, so it cannot call them. The restriction is
+// structural, not a request in the prompt.
+//
+// A tool that the template does not know is treated as mutating, so a
+// downstream project that adds a tool is safe by default: it is
+// withheld from the planning mode unless it says otherwise.
+func (r *Registry) AgentToolsFor(mode Mode) []fantasy.AgentTool {
+	tools := r.Tools()
+	out := make([]fantasy.AgentTool, 0, len(tools))
+
+	for _, tool := range tools {
+		if mode.IsPlan() && r.withheldInPlan(tool.Name()) {
+			continue
+		}
+
+		out = append(out, NewWrappedTool(tool))
+	}
+
+	return out
+}
+
+// withheldInPlan reports whether a tool is withheld from the planning
+// mode.
+//
+// The tools the template knows about are classified explicitly. An
+// unknown tool is withheld: a planning mode that let an unknown tool
+// through would be a planning mode that could change the data.
+func (r *Registry) withheldInPlan(name string) bool {
+	for _, tool := range readOnlyTools {
+		if tool == name {
+			return false
+		}
+	}
+
+	return true
+}
+
+// ToolNamesFor returns the names of the tools of a mode.
+//
+// It is what the planning prompt advertises: the prompt lists the
+// tools the run actually has, so it can never promise a tool the model
+// cannot call.
+func (r *Registry) ToolNamesFor(mode Mode) []string {
+	names := r.Names()
+	out := make([]string, 0, len(names))
+
+	for _, name := range names {
+		if mode.IsPlan() && r.withheldInPlan(name) {
+			continue
+		}
+
+		out = append(out, name)
+	}
+
+	return out
+}

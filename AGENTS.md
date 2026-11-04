@@ -267,6 +267,15 @@ Three rules catch most mistakes:
   started with. This is what lets the guided setup make the agent work
   without a restart. The key it uses is held in memory and never
   written to a file.
+- **The plan mode is a restriction, not a request.** In `ModePlan` the
+  tools that change the data are not in the tool list at all, so the
+  model cannot call them — a prompt would only ask it not to. A tool
+  the template does not know is withheld too, so a downstream project
+  is safe by default.
+- **A stuck run is stopped early.** `MaxSteps` is the budget, and the
+  loop detection is the diagnosis: the same call, with the same
+  arguments, returning the same answer more than five times in ten
+  steps ends the run with `ErrLoopDetected`.
 - **`internal/` is not importable from outside the module.** Downstream
   projects use the template's own packages by copying them in, or by
   keeping everything in one module.

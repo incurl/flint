@@ -154,6 +154,13 @@ type Runner struct {
 	// while the application runs: a setup that configures a model does
 	// not need a restart.
 	model fantasy.LanguageModel
+	// modeMu guards the mode.
+	modeMu sync.RWMutex
+	// mode is the mode of the next run.
+	//
+	// Like the model, it is read at the start of every run, so the
+	// user can switch between planning and acting without restarting.
+	mode Mode
 }
 
 // NewRunner returns a runner with the given options.
@@ -185,6 +192,28 @@ func (r *Runner) Model() fantasy.LanguageModel {
 	defer r.modelMu.RUnlock()
 
 	return r.model
+}
+
+// Mode returns the mode of the next run.
+//
+// It is [ModeAct] unless it was changed.
+func (r *Runner) Mode() Mode {
+	r.modeMu.RLock()
+	defer r.modeMu.RUnlock()
+
+	return r.mode
+}
+
+// SetMode changes the mode of the next run.
+//
+// The mode is read at the start of every run, so the change takes
+// effect on the next one: a run that is already in flight keeps the
+// mode it started with.
+func (r *Runner) SetMode(mode Mode) {
+	r.modeMu.Lock()
+	defer r.modeMu.Unlock()
+
+	r.mode = mode
 }
 
 // SetModel replaces the language model of the next run.
@@ -327,12 +356,24 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 		}
 	}
 
+	// The mode is read here, like the model: it may have been changed
+	// since the runner was built.
+	mode := r.Mode()
+
 	opts := []fantasy.AgentOption{
-		fantasy.WithTools(r.options.Registry.AgentTools()...),
+		fantasy.WithTools(r.options.Registry.AgentToolsFor(mode)...),
 	}
 
-	if r.options.SystemPrompt != "" {
-		opts = append(opts, fantasy.WithSystemPrompt(r.options.SystemPrompt))
+	// The prompt follows the mode. In the planning mode it is the
+	// planning prompt, which lists the tools the run actually has.
+	systemPrompt := r.options.SystemPrompt
+
+	if mode.IsPlan() {
+		systemPrompt = PlanPrompt(r.options.Registry.ToolNamesFor(mode))
+	}
+
+	if systemPrompt != "" {
+		opts = append(opts, fantasy.WithSystemPrompt(systemPrompt))
 	}
 
 	// The step bound is what stops a model that keeps calling a tool
@@ -340,6 +381,10 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 	opts = append(opts, fantasy.WithStopConditions(func(steps []fantasy.StepResult) bool {
 		return len(steps) >= r.options.MaxSteps
 	}))
+
+	// The loop detection stops a run that repeats the same call, which
+	// the step bound would only stop much later.
+	opts = append(opts, fantasy.WithStopConditions(hasLoop))
 
 	agent := fantasy.NewAgent(model, opts...)
 
@@ -384,6 +429,13 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 	// The conversation is written back, so that the next turn of the
 	// same session continues it.
 	r.record(runCtx, request, conversation, final, text)
+
+	// A run that got stuck still produced an answer, and the answer is
+	// worth keeping. The error tells the caller that the agent stopped
+	// early, so that it can say so.
+	if result != nil && hasLoop(result.Steps) {
+		return final, ErrLoopDetected
+	}
 
 	return final, nil
 }

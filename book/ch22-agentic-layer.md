@@ -867,6 +867,130 @@ if runner == nil || runner.Model() == nil {
 }
 ```
 
+### The plan mode
+
+The agent can be asked for a plan before it changes anything. The
+mechanism is small, and it is worth understanding, because it is the
+difference between a prompt and a guarantee.
+
+A **prompt** that says "do not change anything" is a request. Models
+follow instructions well, but they follow them probabilistically, and
+a long conversation can drift. A **tool that is not registered**
+cannot be called at all.
+
+So the plan mode is implemented in the registry:
+
+```go
+// AgentToolsFor returns the tools of a mode, wrapped for the model
+// library.
+//
+// In [ModePlan] the tools that change the data are left out: the model
+// does not see them, so it cannot call them.
+func (r *Registry) AgentToolsFor(mode Mode) []fantasy.AgentTool {
+	tools := r.Tools()
+	out := make([]fantasy.AgentTool, 0, len(tools))
+
+	for _, tool := range tools {
+		if mode.IsPlan() && r.withheldInPlan(tool.Name()) {
+			continue
+		}
+
+		out = append(out, NewWrappedTool(tool))
+	}
+
+	return out
+}
+```
+
+⚠️ **An unknown tool is withheld too.** The classification is a list
+of the read-only tools, and anything that is not on it is treated as
+mutating. A downstream project that adds a tool is therefore safe by
+default: it stays out of the plan mode until it says otherwise.
+
+The prompt follows the mode, and it lists the tools the run actually
+has — it is generated from the registry, so it can never promise a
+tool the model cannot call:
+
+```go
+systemPrompt := r.options.SystemPrompt
+
+if mode.IsPlan() {
+	systemPrompt = PlanPrompt(r.options.Registry.ToolNamesFor(mode))
+}
+```
+
+#### The handoff
+
+A plan is a proposal, so it waits for the approval. The model marks
+the end of the plan with a marker, and the page watches for it:
+
+```
+<!-- FLINT_PLAN_START -->
+# Plan
+1. Read the four records with no label.
+2. Propose a label for each one.
+<!-- FLINT_PLAN_READY -->
+```
+
+The markers are HTML comments: they survive the markdown rendering as
+nothing at all, so the plan the user reads is clean. They are
+instructions to the model, not content for the user, and the page
+strips them before showing the plan.
+
+When the marker appears, the page offers the approval:
+
+```
+ The plan is ready.
+ enter implement it · esc dismiss it
+```
+
+And the approval carries the plan over into the next run:
+
+```go
+// approvePlan carries the plan over into an acting run.
+//
+// It is the handoff: the mode returns to acting, and the plan becomes
+// the first message of the run that implements it. The user does not
+// have to copy the plan, and the model does not have to be told
+// twice.
+func (p *AgentPage) approvePlan() tea.Cmd {
+	p.mode = agent.ModeAct
+	// ...
+	prompt := "Implement this plan:\n\n" + plan
+	p.input.SetValue(prompt)
+
+	return p.send()
+}
+```
+
+### The loop detection
+
+`MaxSteps` is a budget: twelve model calls, whatever they are. It is
+blunt — twelve calls that make progress is a normal turn, and twelve
+calls that are literally the same is a minute of the user's money
+burned for nothing.
+
+So there is a second bound, and it is a diagnosis. Each step is
+hashed — the tool call, its arguments and its result — and the run
+stops when the same hash appears too often in the recent steps:
+
+```go
+const (
+	loopWindowSize = 10
+	loopMaxRepeats = 5
+)
+```
+
+The hash pairs every call with its **result**, and that is the part
+that matters. A model that calls the same tool with the same arguments
+but gets a *different* answer is making progress — it is learning
+something — and the detection leaves it alone. Only a model that asks
+the same question and gets the same answer every time is stuck.
+
+The run ends with `ErrLoopDetected`, and the answer the model produced
+is kept: the user wants to know what happened, not just that
+something went wrong.
+
 ### The example file
 
 The last step offers to write the file, and the offer is worth

@@ -133,6 +133,22 @@ type AgentPage struct {
 	// the user through the provider, the model and the key instead of
 	// showing a prompt that cannot work.
 	setup *components.AgentSetup
+	// mode is the mode of the next run.
+	//
+	// It is [agent.ModeAct] normally, and [agent.ModePlan] when the
+	// user asked for a plan. The mode decides which tools the model can
+	// call, so it is the page that changes it.
+	mode agent.Mode
+	// planReady reports whether a plan is waiting for the approval.
+	//
+	// It is set when a planning run finishes with the end marker, and
+	// cleared when the plan is approved or dismissed.
+	planReady bool
+	// planText holds the plan of the last planning run.
+	//
+	// It is the text that the approval carries over into the acting
+	// run, so that the model knows what it is implementing.
+	planText string
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -278,13 +294,29 @@ func (p *AgentPage) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			return p.cancel()
 		}
 
+		// The escape key dismisses a plan that waits for the approval.
+		if p.planReady {
+			p.planReady = false
+			p.planText = ""
+
+			return toastCmd(components.ToastInfo, "the plan was dismissed")
+		}
+
 		p.input.Reset()
 		p.input.Blur()
 
 		return nil
+	case "tab":
+		return p.toggleMode()
 	case "enter":
 		if p.running {
 			return nil
+		}
+
+		// A plan that waits for the approval is implemented by the
+		// next run: the enter key is the approval.
+		if p.planReady {
+			return p.approvePlan()
 		}
 
 		return p.send()
@@ -324,6 +356,67 @@ func (p *AgentPage) handlePermissionKey(msg tea.KeyPressMsg) tea.Cmd {
 
 		return AgentPermissionDecisionMsg{ID: id, Decision: decision}
 	}
+}
+
+// toggleMode switches between the planning and the acting mode.
+//
+// The mode is the page's, because it decides what the user is doing:
+// a plan is a proposal, and an action is a change. The runner is told
+// about it, and the runner gives the model the tools of the mode.
+//
+// A run that is already in flight keeps the mode it started with.
+func (p *AgentPage) toggleMode() tea.Cmd {
+	if p.running {
+		return toastCmd(components.ToastInfo, "wait for the run to finish")
+	}
+
+	if p.mode.IsPlan() {
+		p.mode = agent.ModeAct
+	} else {
+		p.mode = agent.ModePlan
+	}
+
+	if p.runner != nil {
+		p.runner.SetMode(p.mode)
+	}
+
+	if p.mode.IsPlan() {
+		return toastCmd(components.ToastInfo, "plan mode: the agent cannot change the records")
+	}
+
+	return toastCmd(components.ToastInfo, "act mode: the agent can change the records")
+}
+
+// Mode returns the mode of the next run.
+func (p *AgentPage) Mode() agent.Mode { return p.mode }
+
+// approvePlan carries the plan over into an acting run.
+//
+// It is the handoff: the mode returns to acting, and the plan becomes
+// the first message of the run that implements it. The user does not
+// have to copy the plan, and the model does not have to be told twice.
+func (p *AgentPage) approvePlan() tea.Cmd {
+	p.mode = agent.ModeAct
+	p.planReady = false
+
+	if p.runner != nil {
+		p.runner.SetMode(p.mode)
+	}
+
+	plan := strings.TrimSpace(p.planText)
+	p.planText = ""
+
+	// The prompt carries the plan, so that the model knows what it is
+	// implementing even when the conversation is short.
+	prompt := "Implement the plan."
+
+	if plan != "" {
+		prompt = "Implement this plan:\n\n" + plan
+	}
+
+	p.input.SetValue(prompt)
+
+	return p.send()
 }
 
 // send starts a run with the text of the prompt.
@@ -457,7 +550,33 @@ func (p *AgentPage) applyDone(msg AgentDoneMsg) tea.Cmd {
 		p.appendText(msg.Text)
 	}
 
+	// A planning run that ends with the marker leaves a plan that waits
+	// for the approval. The markers themselves are not shown: they are
+	// instructions to the model, not content for the user.
+	if p.mode.IsPlan() && agent.HasPlanReady(msg.Text) {
+		p.planReady = true
+		p.planText = agent.StripPlanMarkers(msg.Text)
+
+		// The markers are removed from the conversation too, so that
+		// the plan that is approved is the plan the user read.
+		p.stripPlanMarkers()
+
+		return toastCmd(components.ToastInfo, "the plan is ready: press enter to implement it")
+	}
+
 	return nil
+}
+
+// stripPlanMarkers removes the plan markers from the conversation.
+//
+// The markers are an instruction to the model. The user reads the plan,
+// not the scaffolding around it.
+func (p *AgentPage) stripPlanMarkers() {
+	for i := range p.entries {
+		if p.entries[i].Role == agentRoleAssistant {
+			p.entries[i].Text = agent.StripPlanMarkers(p.entries[i].Text)
+		}
+	}
 }
 
 // PanelEntries returns the conversation in the form the side panel
@@ -555,6 +674,11 @@ func (p *AgentPage) View() tea.View {
 	b = append(b, p.theme.Title.Render("Agent"))
 	b = append(b, "")
 
+	if p.mode.IsPlan() {
+		b = append(b, p.theme.Warning.Render("plan mode — the agent reads the records and proposes a plan, it does not change them."))
+		b = append(b, "")
+	}
+
 	if len(p.entries) == 0 {
 		b = append(b, p.theme.Muted.Render("Ask about your records. The agent reads and writes them through the tools."))
 		b = append(b, "")
@@ -571,9 +695,16 @@ func (p *AgentPage) View() tea.View {
 		b = append(b, "")
 	}
 
-	b = append(b, p.input.View())
-	b = append(b, "")
-	b = append(b, p.theme.Help.Render("enter send · esc cancel/clear · ctrl+c quit"))
+	if p.planReady {
+		b = append(b, p.theme.Success.Render("The plan is ready."))
+		b = append(b, p.theme.Muted.Render("enter implement it · esc dismiss it"))
+		b = append(b, "")
+	} else {
+		b = append(b, p.input.View())
+		b = append(b, "")
+	}
+
+	b = append(b, p.theme.Help.Render("tab plan/act · enter send · esc cancel/clear · ctrl+c quit"))
 
 	return tea.NewView(joinLines(b))
 }

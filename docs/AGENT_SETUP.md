@@ -215,9 +215,50 @@ Press `7` to open the agent page, type a question, and press `enter`.
 ```
 
 - `enter` — send the prompt.
+- `tab` — switch between the **plan** mode and the **act** mode.
 - `esc` — cancel a running turn, or clear the prompt.
 - `ctrl+b` — open the side panel, on a terminal of at least 121
   columns. The panel shows the conversation next to the records.
+
+### The plan mode
+
+`tab` switches the agent between two modes. In the **act** mode it
+reads and writes the records, and the permission gate asks before
+every change. In the **plan** mode it reads the records and proposes
+what it would do, and it **cannot change anything**:
+
+```
+ Agent
+
+ plan mode — the agent reads the records and proposes a plan, it does not change them.
+```
+
+Ask it what you want, and it produces a plan:
+
+```
+ you: which records are missing a label?
+ → search_records {"collection":"vocab","filter":"label = ''"}
+ # Plan
+
+ 1. Read the 4 records with no label.
+ 2. Look up the label of their key in the reference collection.
+ 3. Propose the label for each one.
+
+ The plan is ready.
+ enter implement it · esc dismiss it
+```
+
+Read it, then press `enter` to have it carried out, or `esc` to
+dismiss it.
+
+⚠️ **The restriction is structural, not a request.** In the plan mode
+the tools that change the data are **not in the tool list at all** —
+the model does not see them, so it cannot call them. A prompt that
+said "do not change anything" would be a request, and a request can
+be ignored; a tool that is not registered cannot be called at all.
+
+That is why the mode is implemented in the registry and not in the
+prompt: see § *The tools* below, and `internal/agent/mode.go`.
 
 ### The permission gate
 
@@ -414,6 +455,28 @@ data.
 The read tools are not gated: they cannot change anything. The write
 tools are, because they change the data of the user.
 
+**The plan mode takes the three write tools out of the list
+altogether.** They are not gated in that mode — they are absent, so
+the model cannot call them:
+
+```go
+// internal/agent/tool.go
+func (r *Registry) AgentToolsFor(mode Mode) []fantasy.AgentTool {
+	// ...
+	for _, tool := range tools {
+		if mode.IsPlan() && r.withheldInPlan(tool.Name()) {
+			continue
+		}
+		// ...
+	}
+}
+```
+
+⚠️ **A tool the template does not know is withheld too.** A
+downstream project that adds a tool is safe by default: it is kept
+out of the plan mode until it is classified as read-only. The
+classification lives in `readOnlyTools` in `internal/agent/mode.go`.
+
 Two bounds keep a runaway model from exhausting the process:
 
 - A tool call is cut off after **30 seconds**.
@@ -486,6 +549,31 @@ The default prompt is in `defaultAgentSystemPrompt` in
 
 `max_steps` is the important one: a model that keeps calling a tool
 that returns the same result will never stop on its own.
+
+### The loop detection
+
+`max_steps` is a **budget**: twelve model calls, whatever they are.
+It is blunt. Twelve calls that make progress is a normal turn; twelve
+calls that are literally the same is a minute of the user's money
+burned for nothing.
+
+So there is a second bound, and it is a **diagnosis**. The agent
+hashes each step — the tool call, its arguments and its result — and
+when the same hash appears more than five times in the last ten steps,
+the run stops:
+
+| Bound                | Default | Where                    |
+| -------------------- | ------- | ------------------------ |
+| The same call repeats | 5 in 10 steps | `loopMaxRepeats` |
+
+A model that calls the same tool with the same arguments and gets the
+same answer is stuck. A model that calls it with *different*
+arguments, or that gets a *different* answer, is making progress — and
+the detection leaves it alone.
+
+The run ends with `ErrLoopDetected`, and the page says so. The answer
+the model produced is kept: the user wants to know what happened, not
+just that something went wrong.
 
 ---
 

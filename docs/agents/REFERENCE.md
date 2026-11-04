@@ -712,6 +712,13 @@ func (r *Registry) Tools() []Tool
 func (r *Registry) Get(name string) (Tool, error)
 func (r *Registry) Names() []string
 
+// The tools of a mode. In the plan mode the tools that change the
+// data are left out: the model does not see them, so it cannot call
+// them.
+func (r *Registry) AgentTools() []fantasy.AgentTool
+func (r *Registry) AgentToolsFor(mode Mode) []fantasy.AgentTool
+func (r *Registry) ToolNamesFor(mode Mode) []string
+
 // The store tools.
 func RegisterStoreTools(registry *Registry, store pbstore.Store, gate *Gate)
 func NewListRecordsTool(store pbstore.Store) Tool
@@ -736,6 +743,39 @@ func (r *Runner) AddPublisher(publisher Publisher)
 // a restart.
 func (r *Runner) Model() fantasy.LanguageModel
 func (r *Runner) SetModel(model fantasy.LanguageModel) error
+
+// The mode of the runner. It decides which tools the model can call.
+func (r *Runner) Mode() Mode
+func (r *Runner) SetMode(mode Mode)
+
+// The modes.
+type Mode int
+
+const (
+	// ModeAct reads and writes the records.
+	ModeAct Mode = iota
+	// ModePlan reads the records and proposes a plan. It cannot
+	// change anything.
+	ModePlan
+)
+
+func (m Mode) String() string
+func (m Mode) IsPlan() bool
+
+// The plan. The model wraps its plan in the markers, and the page
+// recognises the end one to offer the plan for approval.
+const PlanStartMarker = "<!-- FLINT_PLAN_START -->"
+const PlanReadyMarker = "<!-- FLINT_PLAN_READY -->"
+
+func PlanPrompt(tools []string) string
+func HasPlanReady(text string) bool
+func StripPlanMarkers(text string) string
+
+// The loop detection. It stops a run that repeats the same call.
+var ErrLoopDetected error
+
+func IsLoopDetected(err error) bool
+func IsMutatingTool(name string) bool
 
 // The providers.
 type ProviderConfig struct {

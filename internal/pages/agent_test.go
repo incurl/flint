@@ -222,3 +222,176 @@ func TestAgentPageDeniesPermission(t *testing.T) {
 		t.Errorf("the decision is %v, want deny", decision.Decision)
 	}
 }
+
+// TestAgentPageTogglesTheMode verifies that the tab key switches
+// between the planning and the acting mode.
+//
+// The mode decides what the model can do, so the page is what owns
+// it.
+func TestAgentPageTogglesTheMode(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: "ok"}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	page = updated.(*pages.AgentPage)
+
+	if page.Mode() != agent.ModeAct {
+		t.Fatalf("the mode is %q, want act", page.Mode())
+	}
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	if page.Mode() != agent.ModePlan {
+		t.Errorf("the mode is %q, want plan", page.Mode())
+	}
+
+	if runner.Mode() != agent.ModePlan {
+		t.Errorf("the runner is in %q mode, want plan", runner.Mode())
+	}
+
+	if !strings.Contains(page.View().Content, "plan mode") {
+		t.Errorf("the page does not show the mode:\n%s", page.View().Content)
+	}
+
+	// And back.
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	if page.Mode() != agent.ModeAct {
+		t.Errorf("the mode is %q, want act", page.Mode())
+	}
+}
+
+// TestAgentPageShowsThePlanForApproval verifies that a finished plan
+// waits for the approval.
+//
+// The plan is a proposal: the user reads it and decides.
+func TestAgentPageShowsThePlanForApproval(t *testing.T) {
+	plan := "# Plan\n\nCreate the missing records.\n\n" + agent.PlanReadyMarker
+
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: plan}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, cmd := page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	if cmd == nil {
+		t.Fatal("the page did not return a command for the prompt")
+	}
+
+	updated, _ = page.Update(cmd())
+	page = updated.(*pages.AgentPage)
+
+	view := page.View().Content
+
+	if !strings.Contains(view, "The plan is ready") {
+		t.Errorf("the page does not offer the plan:\n%s", view)
+	}
+
+	if !strings.Contains(view, "Create the missing records.") {
+		t.Errorf("the plan is not shown:\n%s", view)
+	}
+
+	// The markers are scaffolding: the user reads the plan, not them.
+	if strings.Contains(view, agent.PlanReadyMarker) {
+		t.Errorf("the marker is still on the screen:\n%s", view)
+	}
+}
+
+// TestAgentPageApprovesThePlan verifies the handoff.
+//
+// The enter key approves the plan, and the run that follows carries
+// the plan: the user does not have to copy it.
+func TestAgentPageApprovesThePlan(t *testing.T) {
+	plan := "# Plan\n\nCreate the missing records.\n\n" + agent.PlanReadyMarker
+
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: plan}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, cmd := page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(cmd())
+	page = updated.(*pages.AgentPage)
+
+	// The approval is the enter key.
+	updated, cmd = page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	if cmd == nil {
+		t.Fatal("the approval did not return a command")
+	}
+
+	// The mode is back to acting: the plan is about to be implemented.
+	if page.Mode() != agent.ModeAct {
+		t.Errorf("the mode is %q, want act", page.Mode())
+	}
+
+	updated, _ = page.Update(cmd())
+	page = updated.(*pages.AgentPage)
+
+	view := page.View().Content
+
+	// The prompt that was sent carries the plan.
+	if !strings.Contains(view, "Create the missing records.") {
+		t.Errorf("the plan was not carried over:\n%s", view)
+	}
+
+	if !strings.Contains(view, "Implement this plan") {
+		t.Errorf("the run does not implement the plan:\n%s", view)
+	}
+}
+
+// TestAgentPageDismissesThePlan verifies that the escape key dismisses
+// a plan that waits for the approval.
+func TestAgentPageDismissesThePlan(t *testing.T) {
+	plan := "# Plan\n\nDo the thing.\n\n" + agent.PlanReadyMarker
+
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: plan}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 100, Height: 40})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, cmd := page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(cmd())
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	page = updated.(*pages.AgentPage)
+
+	if strings.Contains(page.View().Content, "The plan is ready") {
+		t.Errorf("the plan is still waiting:\n%s", page.View().Content)
+	}
+}
