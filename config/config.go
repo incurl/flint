@@ -132,6 +132,16 @@ type AgentConfig struct {
 	PermissionMode string `toml:"permission_mode"`
 	// MaxSteps bounds the number of model calls of a single run.
 	MaxSteps int `toml:"max_steps"`
+	// ContextWindow is the size of the context window of the model, in
+	// tokens.
+	//
+	// It is what the compaction is measured against: a conversation is
+	// summarised when the context window is nearly full, and not before.
+	//
+	// Zero means the window is unknown, and the compaction falls back
+	// to a character count. A model that reports its window through
+	// the provider -- the ones that do -- needs no configuration.
+	ContextWindow int `toml:"context_window"`
 }
 
 // EmbeddedConfig holds the embedded store settings.
@@ -344,6 +354,7 @@ func (c *Config) SettingsRows() [][2]string {
 			[2]string{"agent.provider", c.Agent.Provider},
 			[2]string{"agent.model", c.Agent.Model},
 			[2]string{"agent.permission_mode", c.Agent.PermissionMode},
+			[2]string{"agent.context_window", fmt.Sprintf("%d", c.Agent.ContextWindow)},
 		)
 
 		// The endpoint is shown because it is the setting that is
@@ -566,6 +577,12 @@ func applyEnv(cfg *Config) {
 	if v := os.Getenv(EnvPrefix + "AGENT_MAX_STEPS"); v != "" {
 		if n, err := parseInt(v); err == nil {
 			cfg.Agent.MaxSteps = n
+		}
+	}
+
+	if v := os.Getenv(EnvPrefix + "AGENT_CONTEXT_WINDOW"); v != "" {
+		if n, err := parseInt(v); err == nil {
+			cfg.Agent.ContextWindow = n
 		}
 	}
 

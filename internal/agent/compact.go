@@ -17,11 +17,12 @@ import (
 // the summary untouched.
 const (
 	// CompactThreshold is the number of characters the conversation may
-	// hold before it is summarised.
+	// hold before it is summarised, when the context window of the model
+	// is unknown.
 	//
-	// It is a rough measure, and a rough measure is the right one: the
-	// exact number of tokens depends on the model and on the
-	// tokenizer, and a template cannot know either.
+	// It is a rough measure, and a rough measure is the right one for a
+	// window nobody knows: the exact number of tokens depends on the
+	// model and on the tokenizer.
 	CompactThreshold = 24_000
 
 	// CompactKeep is the number of turns that are kept as they are.
@@ -30,6 +31,22 @@ const (
 	// model needs them verbatim: a summary of the last exchange loses
 	// the details the model is about to act on.
 	CompactKeep = 6
+
+	// compactLargeWindow is the context window above which the reserve
+	// is a fixed number of tokens rather than a share of the window.
+	//
+	// A window of a million tokens does not need a fifth of itself kept
+	// free: a fixed reserve is what a conversation actually needs.
+	compactLargeWindow = 100_000
+
+	// compactLargeReserve is the room left free in a large window.
+	compactLargeReserve = 16_000
+
+	// compactSmallRatio is the share of a small window kept free.
+	//
+	// A fifth of the window is room for one answer and the tool calls
+	// that go with it.
+	compactSmallRatio = 0.2
 )
 
 // The summary prompt.
@@ -83,7 +100,7 @@ func (r *Runner) Compact(ctx context.Context, sessionID string) error {
 		return nil
 	}
 
-	if conversationSize(messages) <= CompactThreshold {
+	if !r.needsCompaction(sessionID, messages) {
 		return nil
 	}
 
@@ -108,17 +125,60 @@ func (r *Runner) Compact(ctx context.Context, sessionID string) error {
 	// The summary is stored as a message of the conversation, so that
 	// it survives a restart and the next turn sees it.
 	//
-	// It says how many turns it replaces, so that the loader knows
-	// which ones it stands for.
+	// The conversation is pointed at it, so that the loader reads the
+	// summary and the turns after it.
 	//
 	// The summaries of the earlier compactions are left in the store:
 	// they are the history of the conversation, and deleting them would
-	// lose what the user did. The loader uses the latest one, so the
-	// model sees one summary and not a pile of them.
-	conversation.AppendSummary(ctx, 0, len(older), summary)
+	// lose what the user did. The conversation points at the latest one,
+	// so the model sees one summary and not a pile of them.
+	if _, err := conversation.AppendSummary(ctx, 0, summary); err != nil {
+		return fmt.Errorf("agent: store the summary: %w", err)
+	}
 
 	return nil
 }
+
+// needsCompaction reports whether a conversation is full.
+//
+// The measure is the context window of the model, when it is known: a
+// conversation is summarised when the room left in the window is down
+// to the reserve, and not before. A window of a million tokens holds a
+// lot of conversation, and summarising it at six thousand tokens would
+// cost a model call for every few turns.
+//
+// When the window is unknown the character count decides, which is a
+// rough measure and the right one for a model that does not say.
+func (r *Runner) needsCompaction(sessionID string, messages []session.Message) bool {
+	window := r.options.ContextWindow
+
+	if window <= 0 {
+		return conversationSize(messages) > CompactThreshold
+	}
+
+	// The tokens the conversation holds: what the provider reported for
+	// the last turn, plus what the turns it has not seen yet will cost.
+	used := r.usage(sessionID)
+	if used <= 0 {
+		// Nothing has been reported yet: the characters are the only
+		// thing there is to go on.
+		used = int(float64(conversationSize(messages)) * tokensPerCharacter)
+	}
+
+	reserve := compactLargeReserve
+	if window <= compactLargeWindow {
+		reserve = int(float64(window) * compactSmallRatio)
+	}
+
+	return window-used <= reserve
+}
+
+// tokensPerCharacter is the rough number of tokens a character is worth.
+//
+// It is a quarter, the usual figure for English prose: four characters
+// to a token. It is only used when the provider has not reported a
+// usage yet.
+const tokensPerCharacter = 0.25
 
 // summarise asks the model for a summary of the turns.
 func (r *Runner) summarise(ctx context.Context, model fantasy.LanguageModel, messages []session.Message) (string, error) {
@@ -183,7 +243,7 @@ func summarisePrompt(messages []session.Message) string {
 			// conversation: it carries what happened before the turns
 			// that are summarised here. Leaving it out would lose it.
 			b.WriteString("summary of the earlier turns: ")
-			b.WriteString(summaryText(message.Text))
+			b.WriteString(strings.TrimSpace(message.Text))
 			b.WriteString("\n\n")
 		}
 	}

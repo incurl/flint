@@ -50,6 +50,12 @@ const (
 	FieldContent = "content"
 	// FieldTurn is the number of the turn the message belongs to.
 	FieldTurn = "turn"
+	// FieldSummary is the identifier of the message that summarises the
+	// conversation.
+	//
+	// It is a pointer, not a count: the conversation knows the message
+	// it starts from, and the loader reads from there.
+	FieldSummary = "summary"
 )
 
 // ErrNotFound is returned when a session does not exist.
@@ -132,6 +138,13 @@ type Session struct {
 	ID string
 	// Title is the name of the session.
 	Title string
+	// Summary is the identifier of the message that summarises the
+	// conversation.
+	//
+	// It is empty when the conversation was never compacted. When it
+	// is not, the turns before it are the ones the summary stands
+	// for, and the model sees the summary and the turns after it.
+	Summary string
 	// Created is the creation timestamp.
 	Created time.Time
 	// Updated is the last update timestamp.
@@ -157,6 +170,29 @@ func (s *Service) CreateSession(ctx context.Context, title string) (*Session, er
 	}
 
 	return sessionFromRecord(record), nil
+}
+
+// SetSummary points the session at the message that summarises it.
+//
+// It is the door the compaction uses: the conversation keeps the turns
+// that came before, and the model sees the summary and the turns after
+// it.
+//
+// An empty identifier clears the pointer: the conversation is whole
+// again.
+func (s *Service) SetSummary(ctx context.Context, sessionID, messageID string) error {
+	if s.store == nil {
+		return errors.New("session: no store configured")
+	}
+
+	_, err := s.store.Update(ctx, SessionsCollection, sessionID, map[string]any{
+		FieldSummary: messageID,
+	})
+	if err != nil {
+		return fmt.Errorf("session: set the summary: %w", err)
+	}
+
+	return nil
 }
 
 // Session returns the session with the given id.
@@ -319,6 +355,36 @@ func (s *Service) Messages(ctx context.Context, sessionID string, limit int) ([]
 	return out, nil
 }
 
+// MessagesFromSummary returns the messages of a conversation, from the
+// summary on.
+//
+// It is the tail a compacted conversation actually sends: the summary
+// and the turns that came after it. The turns before the summary are
+// in the store -- they are the history of the conversation -- and the
+// summary stands for them.
+//
+// A conversation without a summary is returned whole, and so is one
+// whose summary is gone: the pointer is stale, and the whole
+// conversation is what the model saw before.
+func (s *Service) MessagesFromSummary(ctx context.Context, sessionID, summaryID string) ([]Message, error) {
+	messages, err := s.Messages(ctx, sessionID, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	if summaryID == "" {
+		return messages, nil
+	}
+
+	for i, message := range messages {
+		if message.ID == summaryID {
+			return messages[i:], nil
+		}
+	}
+
+	return messages, nil
+}
+
 // sessionFromRecord converts a stored record into a session.
 func sessionFromRecord(record *pbstore.Record) *Session {
 	if record == nil {
@@ -326,8 +392,9 @@ func sessionFromRecord(record *pbstore.Record) *Session {
 	}
 
 	out := &Session{
-		ID:    record.ID,
-		Title: record.StringField(FieldTitle),
+		ID:      record.ID,
+		Title:   record.StringField(FieldTitle),
+		Summary: record.StringField(FieldSummary),
 	}
 
 	if created, err := record.TimeField("created"); err == nil {

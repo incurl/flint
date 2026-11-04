@@ -67,9 +67,10 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 	}
 
 	runner := agent.NewRunner(agent.Options{
-		Registry:     registry,
-		SystemPrompt: systemPrompt,
-		MaxSteps:     cfg.Agent.MaxSteps,
+		Registry:      registry,
+		SystemPrompt:  systemPrompt,
+		MaxSteps:      cfg.Agent.MaxSteps,
+		ContextWindow: cfg.Agent.ContextWindow,
 		// The history is a template: the run replaces it with the
 		// conversation it names, because the page creates one on the
 		// first turn.

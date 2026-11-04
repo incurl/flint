@@ -319,7 +319,24 @@ in the log.
 
 A conversation that grows too long does not fit in the context window
 of the model, and the run fails. So the conversation is **summarised**
-when it passes 24 000 characters, before it is read:
+before it is read.
+
+**The measure is the context window, when it is known.** Set
+`context_window` to the number of tokens the model holds, and the
+conversation is summarised when the room left is down to the reserve —
+16 000 tokens for a window over 100 000, and a fifth of the window
+below that. The tokens are the ones the provider reported for the last
+turn, so they are the model's own count and not an estimate.
+
+```toml
+[agent]
+context_window = 1000000   # MiniMax M3.1 holds a million tokens
+```
+
+⚠️ **Without it the character count decides** — 24 000 characters,
+which is about 6 000 tokens. That is a rough measure and the right one
+for a model that does not say, but it summarises a conversation that
+would fit a large window many times over.
 
 - The older turns are replaced by a summary the model writes itself.
 - The last six turns are kept as they are: they are the ones the

@@ -2,8 +2,6 @@ package agent
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"strings"
 
 	"charm.land/fantasy"
@@ -58,7 +56,15 @@ func (h *History) Load(ctx context.Context) []fantasy.Message {
 		return nil
 	}
 
-	messages, err := h.service.Messages(ctx, h.sessionID, 0)
+	// The conversation knows the message it starts from: the summary
+	// of the earlier turns, when it was compacted.
+	summaryID := ""
+
+	if current, err := h.service.Session(ctx, h.sessionID); err == nil && current != nil {
+		summaryID = current.Summary
+	}
+
+	messages, err := h.service.MessagesFromSummary(ctx, h.sessionID, summaryID)
 	if err != nil {
 		return nil
 	}
@@ -69,105 +75,11 @@ func (h *History) Load(ctx context.Context) []fantasy.Message {
 	// the past, the kept turns carry the present.
 	out := make([]fantasy.Message, 0, len(messages))
 
-	for _, message := range compacted(messages) {
+	for _, message := range messages {
 		out = append(out, historyMessage(message))
 	}
 
 	return out
-}
-
-// compacted returns the messages the model has to see.
-//
-// It is the **latest** summary of the conversation, followed by the
-// turns that were kept.
-//
-// The summary stands for the turns it replaces: it says how many of
-// them there were, and they are the first ones of the conversation.
-// The turns that were kept are the ones between them and the summary.
-//
-// The summary is stored at the end of the conversation, because it is
-// written when the conversation grows. The turns it replaces are
-// still in the store -- they are the history of the conversation, and
-// deleting them would lose what the user did -- so the loader has to
-// know where the summary starts.
-//
-// A conversation that was compacted twice holds two summaries, and the
-// second one covers the turns the first one covered as well: the model
-// sees one summary and the turns that came after it.
-//
-// A conversation that was never compacted is returned whole.
-func compacted(messages []session.Message) []session.Message {
-	// The index of the latest summary.
-	latest := -1
-
-	for i, message := range messages {
-		if message.Role == session.RoleSummary {
-			latest = i
-		}
-	}
-
-	if latest < 0 {
-		return messages
-	}
-
-	// The summary stands for the first turns of the conversation.
-	replaces := summaryReplaces(messages[latest].Text)
-	if replaces > latest {
-		replaces = latest
-	}
-
-	// The summary, then the turns that were kept.
-	out := make([]session.Message, 0, latest-replaces+1)
-	out = append(out, messages[latest])
-
-	out = append(out, messages[replaces:latest]...)
-
-	return out
-}
-
-// summaryReplaces reads the number of turns a summary replaces.
-//
-// It is zero when the text does not carry the number, which is the
-// case for a summary that was written by hand.
-func summaryReplaces(text string) int {
-	const prefix = "[summary of the earlier "
-
-	if !strings.HasPrefix(text, prefix) {
-		return 0
-	}
-
-	end := strings.Index(text, " turns]")
-	if end < 0 {
-		return 0
-	}
-
-	count, err := strconv.Atoi(text[len(prefix):end])
-	if err != nil {
-		return 0
-	}
-
-	return count
-}
-
-// summaryMarker opens the text of a summary.
-//
-// It carries the number of the turns the summary replaces, so that the
-// loader knows where the summary sits: the summary is stored at the
-// end of the conversation, and the turns it replaces are before it.
-//
-// The marker is hidden from the model: it is stripped before the
-// message is given to it.
-func summaryMarker(replaces int) string {
-	return fmt.Sprintf("[summary of the earlier %d turns]", replaces)
-}
-
-// summaryText returns the text of a summary, without the marker.
-func summaryText(text string) string {
-	if index := strings.Index(text, "\n\n"); index >= 0 {
-		return strings.TrimSpace(text[index+2:])
-	}
-
-	return strings.TrimSpace(text)
 }
 
 // AppendUser records the prompt of the user.
@@ -192,10 +104,34 @@ func (h *History) AppendTool(ctx context.Context, turn int, name, input, output 
 // they are the history of the conversation, and deleting them would
 // lose what the user did.
 //
-// The number of the turns it replaces is written in the summary, so
-// that the loader knows where the summary sits among the turns.
-func (h *History) AppendSummary(ctx context.Context, turn, replaces int, text string) {
-	h.append(ctx, turn, session.RoleSummary, summaryMarker(replaces)+"\n\n"+text, "", "", "")
+// The conversation is pointed at the summary, so that the loader reads
+// the summary and the turns after it -- and not the turns the summary
+// stands for.
+//
+// It returns the identifier of the summary message.
+func (h *History) AppendSummary(ctx context.Context, turn int, text string) (string, error) {
+	if h == nil {
+		return "", nil
+	}
+
+	written, err := h.service.AppendMessage(ctx, h.sessionID, session.Message{
+		Role: session.RoleSummary,
+		Turn: turn,
+		Text: text,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	if written == nil {
+		return "", nil
+	}
+
+	if err := h.service.SetSummary(ctx, h.sessionID, written.ID); err != nil {
+		return "", err
+	}
+
+	return written.ID, nil
 }
 
 // append writes a message to the conversation.
@@ -225,11 +161,10 @@ func historyMessage(message session.Message) fantasy.Message {
 
 	case session.RoleSummary:
 		// The summary is given to the model as a user message: it is
-		// the context of the conversation, not a question. The marker
-		// is stripped: it is for the application, not for the model.
+		// the context of the conversation, not a question.
 		return fantasy.Message{
 			Role:    fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{fantasy.TextPart{Text: summaryText(message.Text)}},
+			Content: []fantasy.MessagePart{fantasy.TextPart{Text: strings.TrimSpace(message.Text)}},
 		}
 
 	case session.RoleAssistant:

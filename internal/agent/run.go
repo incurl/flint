@@ -119,6 +119,14 @@ type Options struct {
 	//
 	// Zero uses [DefaultRunTimeout].
 	Timeout time.Duration
+	// ContextWindow is the size of the context window of the model, in
+	// tokens.
+	//
+	// It is what the compaction is measured against: a conversation is
+	// summarised when the window is nearly full, and not before. Zero
+	// means the window is unknown, and the compaction falls back to a
+	// character count.
+	ContextWindow int
 }
 
 // DefaultMaxSteps is the number of model calls a run makes when the
@@ -146,6 +154,13 @@ type Runner struct {
 	active map[string]context.CancelFunc
 	// publishers holds the subscribers of the events.
 	publishers []Publisher
+	// usageMu guards the usage.
+	usageMu sync.Mutex
+	// usages holds the tokens the provider reported for a conversation.
+	//
+	// It is what the compaction is measured against: the window minus
+	// the tokens the conversation took is the room left for the answer.
+	usages map[string]int
 	// modelMu guards the model.
 	modelMu sync.RWMutex
 	// model is the language model of the next run.
@@ -187,7 +202,39 @@ func NewRunner(options Options) *Runner {
 		active:  map[string]context.CancelFunc{},
 		model:   options.Model,
 		todos:   newTodoStore(),
+		usages:  map[string]int{},
 	}
+}
+
+// usage returns the tokens the provider reported for a conversation.
+//
+// It is zero when the provider never reported one, which is the case
+// for the first turn of a conversation and for a provider that does not
+// count.
+func (r *Runner) usage(sessionID string) int {
+	if sessionID == "" {
+		return 0
+	}
+
+	r.usageMu.Lock()
+	defer r.usageMu.Unlock()
+
+	return r.usages[sessionID]
+}
+
+// setUsage records the tokens a turn took.
+//
+// The tokens are the ones the provider reported: they are the only
+// measure that knows the tokenizer of the model.
+func (r *Runner) setUsage(sessionID string, tokens int) {
+	if sessionID == "" || tokens <= 0 {
+		return
+	}
+
+	r.usageMu.Lock()
+	defer r.usageMu.Unlock()
+
+	r.usages[sessionID] = tokens
 }
 
 // Todos returns the task list of a conversation.
@@ -456,6 +503,13 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 	}
 
 	r.publish(Event{RunID: request.RunID, Kind: EventFinished})
+
+	// The tokens the turn took are recorded: they are what the
+	// compaction is measured against, and they are the only measure
+	// that knows the tokenizer of the model.
+	if result != nil {
+		r.setUsage(request.SessionID, int(result.TotalUsage.InputTokens+result.TotalUsage.OutputTokens))
+	}
 
 	final := resultText(result, text)
 

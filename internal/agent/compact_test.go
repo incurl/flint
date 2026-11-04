@@ -356,3 +356,104 @@ func messageText(message fantasy.Message) string {
 
 	return text
 }
+
+// TestALargeContextWindowIsNotCompactedEarly verifies that a
+// conversation that fits in a large context window is left alone.
+//
+// A window of a million tokens holds a lot of conversation, and
+// summarising it at six thousand tokens would cost a model call for
+// every few turns.
+func TestALargeContextWindowIsNotCompactedEarly(t *testing.T) {
+	store := newStore(t)
+	service := session.NewService(store)
+	ctx := context.Background()
+
+	created, err := service.CreateSession(ctx, "chat")
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	// A conversation that is over the character threshold but far
+	// under a million tokens.
+	if err := longConversation(service, created.ID); err != nil {
+		t.Fatalf("longConversation() error = %v", err)
+	}
+
+	model := &fakeModel{}
+
+	runner := agent.NewRunner(agent.Options{
+		Model:         model,
+		History:       agent.NewHistory(service, ""),
+		ContextWindow: 1_000_000,
+	})
+
+	if err := runner.Compact(ctx, created.ID); err != nil {
+		t.Fatalf("Compact() error = %v", err)
+	}
+
+	if model.calls != 0 {
+		t.Errorf("the model was called %d times, want 0", model.calls)
+	}
+}
+
+// TestANearlyFullContextWindowIsCompacted verifies that a conversation
+// that is nearly full is summarised.
+//
+// The measure is what the provider reported for the last turn: it is
+// the only measure that knows the tokenizer of the model.
+func TestANearlyFullContextWindowIsCompacted(t *testing.T) {
+	store := newStore(t)
+	service := session.NewService(store)
+	ctx := context.Background()
+
+	created, err := service.CreateSession(ctx, "chat")
+	if err != nil {
+		t.Fatalf("CreateSession() error = %v", err)
+	}
+
+	// A short conversation: the character estimate is far under the
+	// window, so only the reported tokens can trigger the compaction.
+	for i := range 10 {
+		_, err := service.AppendMessage(ctx, created.ID, session.Message{
+			Role: session.RoleUser,
+			Turn: i + 1,
+			Text: "a short question",
+		})
+		if err != nil {
+			t.Fatalf("AppendMessage() error = %v", err)
+		}
+	}
+
+	// The turn reports a usage that nearly fills the window.
+	model := &fakeModel{turns: [][]fantasy.StreamPart{
+		textTurnWithUsage("ok", fantasy.Usage{InputTokens: 29_000, OutputTokens: 1_000}),
+		textTurn("THE SUMMARY"),
+	}}
+
+	runner := agent.NewRunner(agent.Options{
+		Model:         model,
+		History:       agent.NewHistory(service, ""),
+		ContextWindow: 32_000,
+	})
+
+	// The turn that reports the usage has to go first -- it is the turn
+	// the compaction is measured after.
+	if _, err := runner.Run(ctx, agent.RunRequest{
+		RunID:     "r0",
+		Prompt:    "a question",
+		SessionID: created.ID,
+	}); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	// The count before the compaction: the run itself made a call.
+	before := model.calls
+
+	if err := runner.Compact(ctx, created.ID); err != nil {
+		t.Fatalf("Compact() error = %v", err)
+	}
+
+	if model.calls != before+1 {
+		t.Errorf("the compaction made %d model calls, want 1", model.calls-before)
+	}
+}

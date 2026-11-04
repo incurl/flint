@@ -314,11 +314,21 @@ Three rules catch most mistakes:
   model cannot call them — a prompt would only ask it not to. A tool
   the template does not know is withheld too, so a downstream project
   is safe by default.
-- **A summary stands for the turns it replaces.** The summary says
-  how many turns it replaces, and the loader uses the *latest* one: a
-  conversation that was compacted twice holds two summaries, and the
-  model sees one summary and the turns after it. The summary of an
-  earlier compaction is part of the prompt of the next one.
+- **The conversation points at its summary.** `Session.Summary` holds
+  the id of the message that summarises it, and the loader reads from
+  that message on — `MessagesFromSummary`, the tail a compacted
+  conversation actually sends. The turns before it stay in the store:
+  they are the history of the conversation.
+- **A conversation is read page by page.** A single page holds a
+  hundred messages, and a conversation read with one page is silently
+  truncated — the model sees the first hundred turns and never the
+  ones after them, and the compaction measures a conversation that is
+  not the one the user had.
+- **The compaction is measured in tokens when the window is known.**
+  `context_window` is the size of the model's window, and the tokens
+  are the ones the provider reported — the only measure that knows the
+  tokenizer. Without a window the character count decides, which is a
+  rough measure that summarises far too early for a large model.
 - **A stuck run is stopped early.** `MaxSteps` is the budget, and the
   loop detection is the diagnosis: the same call, with the same
   arguments, returning the same answer more than five times in ten

@@ -73,11 +73,24 @@ func (m *fakeModel) Stream(context.Context, fantasy.Call) (fantasy.StreamRespons
 
 // textTurn returns a scripted turn that streams text and stops.
 func textTurn(text string) []fantasy.StreamPart {
+	return textTurnWithUsage(text, fantasy.Usage{})
+}
+
+// textTurnWithUsage returns a scripted turn that reports a usage.
+//
+// The tokens are what the compaction is measured against, so a test
+// that puts a conversation near the end of its window reports them the
+// way a provider does.
+func textTurnWithUsage(text string, usage fantasy.Usage) []fantasy.StreamPart {
 	return []fantasy.StreamPart{
 		{Type: fantasy.StreamPartTypeTextStart, ID: "t1"},
 		{Type: fantasy.StreamPartTypeTextDelta, ID: "t1", Delta: text},
 		{Type: fantasy.StreamPartTypeTextEnd, ID: "t1"},
-		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+		{
+			Type:         fantasy.StreamPartTypeFinish,
+			FinishReason: fantasy.FinishReasonStop,
+			Usage:        usage,
+		},
 	}
 }
 

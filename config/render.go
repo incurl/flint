@@ -144,6 +144,11 @@ func renderAgent(b *strings.Builder, cfg *Config) {
 	b.WriteString("\n")
 	b.WriteString("# The bound of the model calls of a single turn. 0 uses the default.\n")
 	fmt.Fprintf(b, "max_steps = %d\n", cfg.Agent.MaxSteps)
+	b.WriteString("\n")
+	b.WriteString("# The size of the context window of the model, in tokens. The\n")
+	b.WriteString("# conversation is summarised when it is nearly full. 0 turns the\n")
+	b.WriteString("# token measure off, and falls back to a character count.\n")
+	fmt.Fprintf(b, "context_window = %d\n", cfg.Agent.ContextWindow)
 }
 
 // formatStringList renders a list of strings as a TOML array.
