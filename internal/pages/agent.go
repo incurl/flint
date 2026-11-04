@@ -225,6 +225,20 @@ func NewAgentPage(
 	return page
 }
 
+// SetSize sets the size of the page.
+//
+// The application calls it with the space the page really has: the
+// height above the status bar, and the width the panel leaves.
+//
+// The window size message is not enough: it carries the size of the
+// terminal, and the page is not the whole terminal.
+func (p *AgentPage) SetSize(width, height int) {
+	p.width = width
+	p.height = height
+
+	p.resize()
+}
+
 // Init implements [tea.Model].
 func (p *AgentPage) Init() tea.Cmd {
 	if p.setup != nil {
@@ -778,37 +792,64 @@ func (p *AgentPage) conversationLines() []string {
 // The header, the input, the task list and the help line take the rest
 // of the page.
 func (p *AgentPage) conversationHeight() int {
-	// The title, the plan banner, the input, the help line and the
-	// blank lines around them.
-	chrome := 5
-
-	if p.mode.IsPlan() {
-		chrome++
-	}
-
-	if p.running {
-		chrome++
-	}
-
-	if p.planReady {
-		chrome += 2
-	} else {
-		chrome += len(p.todoView())
-	}
-
-	height := p.height - chrome
-
 	// A page that has not been sized yet still shows its conversation:
 	// the height falls back to the content.
 	if p.height <= 0 {
 		return len(p.entries) * 2
 	}
 
+	height := p.height - p.chromeHeight()
 	if height < 1 {
 		height = 1
 	}
 
 	return height
+}
+
+// chromeHeight returns the height the page uses for everything but the
+// conversation.
+//
+// The counts are the *rendered* heights: the prompt is as tall as it
+// renders, and the task list is as tall as its entries. A page that
+// guesses them renders too many lines, and the lines at the end are
+// the ones that fall off the screen.
+func (p *AgentPage) chromeHeight() int {
+	// The title, the plan banner, the prompt, the help line and the
+	// blank line between the conversation and the prompt.
+	height := 5
+
+	if p.mode.IsPlan() {
+		height++
+	}
+
+	if p.running {
+		height++
+	}
+
+	if p.planReady {
+		// The "the plan is ready" line and its hint.
+		height += 2
+	} else {
+		// The task list, and the prompt.
+		height += len(p.todoView())
+		height += p.promptHeight()
+	}
+
+	return height
+}
+
+// promptHeight returns the height the prompt renders.
+//
+// It is the height of the input, and the height of the input is what
+// the last resize set: a prompt that is three lines tall is three
+// lines tall, and the page has to leave the room for it.
+func (p *AgentPage) promptHeight() int {
+	lines := strings.Count(p.input.View(), "\n") + 1
+	if lines < 1 {
+		return 1
+	}
+
+	return lines
 }
 
 // helpLine returns the help of the page.

@@ -232,6 +232,12 @@ Three rules catch most mistakes:
   must not advertise it there, and a panel left open when the user
   navigates to such a page has to be closed: the key that closes it
   does not work there.
+- **A page is not the whole terminal.** The status bar takes a line
+  at the bottom, and the panel takes a column on the right. The pages
+  are told the space they have: the root model forwards the width and
+  the height it computed, not the size of the terminal. A page that
+  thinks it has the whole terminal renders one line too many, and the
+  prompt at the bottom of the page falls off the screen.
 - **Two columns have to add up.** `theme.SplitWidth` returns the two
   widths *without* the gap, so the body is padded to
   `bodyWidth + gap`. Lip Gloss does not pad the lines of a bordered

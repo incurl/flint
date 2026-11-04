@@ -84,6 +84,13 @@ type Model struct {
 	// pageWidth is the width the pages get, which is narrower than the
 	// terminal when the panel is visible.
 	pageWidth int
+	// pageHeight is the height the pages get.
+	//
+	// It is the height above the status bar: the status bar spans the
+	// whole width at the bottom, and a page that thinks it has the
+	// whole terminal renders one line too many — the prompt at the
+	// bottom of the page falls off.
+	pageHeight int
 	// quitting reports whether the application is shutting down.
 	quitting bool
 }
@@ -213,6 +220,12 @@ func (m *Model) installModel(settings components.AgentSetupSettings) error {
 	return nil
 }
 
+// AgentPage returns the agent page.
+//
+// It is the door to the conversation: a caller that embeds the
+// application drives the page directly.
+func (m *Model) AgentPage() *pages.AgentPage { return m.agentPage }
+
 // SetConfigPath sets the path the configuration file is written to.
 //
 // The guided setup of the agent writes an example configuration file,
@@ -265,6 +278,16 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// renders a table needs to know how much room it has.
 		if m.pageWidth != m.width {
 			msg.Width = m.pageWidth
+		}
+
+		// And the height they have, which is the height above the
+		// status bar.
+		//
+		// A page that thinks it has the whole terminal renders one
+		// line too many, and the prompt at the bottom of the page
+		// falls off the screen.
+		if m.pageHeight != m.height {
+			msg.Height = m.pageHeight
 		}
 
 	case tea.KeyPressMsg:
@@ -918,6 +941,17 @@ func (m *Model) resize() {
 	// The pages are told about the narrower width, so that the record
 	// table and the JSON viewer adapt to it.
 	m.pageWidth = m.panel.pageWidth()
+
+	// And about the height they have: the status bar takes a line, so a
+	// page that thinks it has the whole terminal renders one line too
+	// many, and the prompt at the bottom of the page falls off.
+	m.pageHeight = m.panel.contentHeight()
+
+	// The agent page is told the size it has. The window size message
+	// carries the size of the terminal, and the page is not the whole
+	// terminal: the status bar takes a line, and the panel takes a
+	// column.
+	m.agentPage.SetSize(m.pageWidth, m.pageHeight)
 }
 
 // joinLines renders a list of lines as a single block.

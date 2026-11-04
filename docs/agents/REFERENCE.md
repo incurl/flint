@@ -963,6 +963,9 @@ const (
   whose viewport is narrower than its columns renders *empty*.
 - The page is told about the narrower width with a `tea.WindowSizeMsg`
   that carries the width of the page, not the width of the terminal.
+  The height is forwarded the same way: the status bar takes a line,
+  and a page that thinks it has the whole terminal renders one line
+  too many.
 - The panel shows the conversation of the agent page. The events of a
   run reach the agent page whatever page is displayed, so a run keeps
   streaming after the user navigates away.
