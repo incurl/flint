@@ -265,3 +265,104 @@ func TestTheAgentPageFollowsTheEndAgain(t *testing.T) {
 		t.Errorf("the page still says it can be scrolled:\n%s", view)
 	}
 }
+
+// TestThePlanModeKeepsThePlanIntact verifies that a plan is not
+// mangled by the wrapping.
+//
+// The content of the scroller is wrapped before it reaches the
+// viewport, and the viewport counts the lines again: a blank line that
+// is counted twice becomes two blank lines, and the plan of the model
+// grows a line for every step it has.
+func TestThePlanModeKeepsThePlanIntact(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: "ok"}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	page = updated.(*pages.AgentPage)
+
+	// The plan mode.
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	if page.Mode() != agent.ModePlan {
+		t.Fatalf("the mode is %q, want plan", page.Mode())
+	}
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	plan := "# Plan\n\n1. Do this.\n2. Do that.\n\n" + agent.PlanReadyMarker
+
+	updated, _ = page.Update(pages.AgentDoneMsg{RunID: "run-1", Text: plan, SessionID: "s1"})
+	page = updated.(*pages.AgentPage)
+
+	view := page.View().Content
+
+	// The plan is ready for the approval.
+	if !strings.Contains(view, "The plan is ready") {
+		t.Errorf("the plan is not ready:\n%s", view)
+	}
+
+	// The markers are not shown: they are instructions to the model.
+	if strings.Contains(view, agent.PlanReadyMarker) {
+		t.Errorf("the marker is on the screen:\n%s", view)
+	}
+
+	// The steps are there, each on its own line.
+	if !strings.Contains(view, "1. Do this.") || !strings.Contains(view, "2. Do that.") {
+		t.Errorf("the steps are missing:\n%s", view)
+	}
+}
+
+// TestThePlanApprovalSwitchesToActMode verifies the handoff.
+//
+// The mode returns to acting, and the plan becomes the first message
+// of the run that implements it.
+func TestThePlanApprovalSwitchesToActMode(t *testing.T) {
+	runner := agent.NewRunner(agent.Options{Model: &answerModel{text: "ok"}})
+
+	page := pages.NewAgentPage(runner, nil, nil, state.NewRuntime(), theme.Default())
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 80, Height: 20})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: 'h', Text: "h"})
+	page = updated.(*pages.AgentPage)
+
+	updated, _ = page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	plan := "# Plan\n\n1. Do this.\n\n" + agent.PlanReadyMarker
+
+	updated, _ = page.Update(pages.AgentDoneMsg{RunID: "run-1", Text: plan, SessionID: "s1"})
+	page = updated.(*pages.AgentPage)
+
+	// The approval.
+	updated, cmd := page.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	page = updated.(*pages.AgentPage)
+
+	if cmd == nil {
+		t.Fatal("the approval did not return a command")
+	}
+
+	if page.Mode() != agent.ModeAct {
+		t.Errorf("the mode is %q, want act", page.Mode())
+	}
+
+	if runner.Mode() != agent.ModeAct {
+		t.Errorf("the runner is in %q mode, want act", runner.Mode())
+	}
+
+	view := page.View().Content
+
+	if !strings.Contains(view, "Implement this plan") {
+		t.Errorf("the run does not implement the plan:\n%s", view)
+	}
+}

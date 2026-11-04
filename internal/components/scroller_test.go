@@ -35,6 +35,84 @@ func TestTheScrollerShowsTheEnd(t *testing.T) {
 	}
 }
 
+// TestTheScrollerKeepsTheParagraphs verifies that the blank lines of a
+// text are kept.
+//
+// The content is wrapped before it reaches the viewport, and the
+// viewport counts the lines again: a blank line that is counted twice
+// becomes two blank lines, and the text of a plan grows a line for
+// every step it has.
+func TestTheScrollerKeepsTheParagraphs(t *testing.T) {
+	scroller := components.NewScroller(10)
+	scroller.SetSize(40, 10)
+
+	scroller.SetContent("# Plan\n\n1. Do this.\n2. Do that.")
+
+	view := scroller.View()
+	lines := strings.Split(view, "\n")
+
+	// The lines are padded to the width, so they are trimmed.
+	trimmed := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		trimmed = append(trimmed, strings.TrimRight(line, " "))
+	}
+
+	if trimmed[0] != "# Plan" {
+		t.Errorf("the first line is %q, want the title", trimmed[0])
+	}
+
+	if trimmed[1] != "" {
+		t.Errorf("the second line is %q, want it empty", trimmed[1])
+	}
+
+	if trimmed[2] != "1. Do this." {
+		t.Errorf("the third line is %q, want the first step", trimmed[2])
+	}
+
+	if trimmed[3] != "2. Do that." {
+		t.Errorf("the fourth line is %q, want the second step", trimmed[3])
+	}
+}
+
+// TestTheScrollerWrapsOnTheWords verifies that a long line is wrapped
+// and not cut.
+//
+// A viewport cuts the lines that are too long, and the rest of the text
+// is lost: the reader would never know that it was there.
+func TestTheScrollerWrapsOnTheWords(t *testing.T) {
+	scroller := components.NewScroller(10)
+	scroller.SetSize(20, 10)
+
+	scroller.SetContent(strings.Repeat("word ", 20))
+
+	view := scroller.View()
+
+	missing := 0
+
+	for _, word := range strings.Fields(strings.Repeat("word ", 20)) {
+		if !strings.Contains(view, word) {
+			missing++
+		}
+	}
+
+	if missing != 0 {
+		t.Errorf("%d words are missing from the view:\n%s", missing, view)
+	}
+
+	// The words are not split: a line ends on a word boundary.
+	for _, line := range strings.Split(view, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		if !strings.HasPrefix(trimmed, "word") {
+			t.Errorf("the line %q does not start on a word", trimmed)
+		}
+	}
+}
+
 // TestTheScrollerScrollsUp verifies that the reader can scroll back.
 func TestTheScrollerScrollsUp(t *testing.T) {
 	scroller := components.NewScroller(5)

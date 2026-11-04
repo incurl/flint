@@ -38,13 +38,17 @@ type Scroller struct {
 func NewScroller(height int) *Scroller {
 	v := viewport.New(viewport.WithHeight(height))
 
-	// The content is wrapped, not cut.
+	// The viewport does not soft wrap: the content is wrapped before it
+	// reaches it, on the words.
 	//
-	// A viewport cuts the lines that are too long, and the rest of the
-	// text is lost: a conversation that holds a long answer would show
-	// a fragment of it, and the reader would never know that the rest
-	// is there.
-	v.SoftWrap = true
+	// The soft wrap of the viewport breaks the lines at the width,
+	// which splits the words in the middle. Doing it twice is worse
+	// than doing it once: the viewport counts the lines again, and a
+	// blank line becomes two.
+	//
+	// The viewport still cuts the lines that are too long, which is
+	// the right thing to do: there are none, and a line that is too
+	// long would be cut rather than lost.
 
 	return &Scroller{
 		viewport: v,

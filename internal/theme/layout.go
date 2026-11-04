@@ -120,7 +120,18 @@ func Wrap(text string, width int) []string {
 
 		// The style of the paragraph is put on every line it is
 		// broken into: a line that lost it reads wrong.
+		//
+		// An unstyled text needs no sequence at all: adding one to
+		// every line would fill the buffer with escapes.
 		style := leadingStyle(paragraph)
+
+		styleLine := func(line string) string {
+			if style == "" {
+				return line
+			}
+
+			return style + line + resetSequence
+		}
 
 		line := ""
 
@@ -131,13 +142,13 @@ func Wrap(text string, width int) []string {
 			case lipgloss.Width(line)+1+lipgloss.Width(word) <= width:
 				line += " " + word
 			default:
-				out = append(out, style+line+resetSequence)
+				out = append(out, styleLine(line))
 				line = word
 			}
 		}
 
 		if line != "" {
-			out = append(out, style+line+resetSequence)
+			out = append(out, styleLine(line))
 		}
 	}
 
