@@ -333,6 +333,14 @@ The summary is a message of the conversation like any other, so it
 survives a restart. The next turn reads it instead of the turns it
 summarises.
 
+A conversation that is compacted twice holds two summaries, and the
+second one covers the turns the first one covered as well: the model
+sees **one** summary and the turns that came after it. The summaries of
+the earlier compactions stay in the store — they are the history of the
+conversation, and deleting them would lose what the user did — and the
+one that is summarised again is part of the prompt, so nothing is lost
+on the way.
+
 ⚠️ **The summary is written for the model, not for the user.** It
 keeps the names of the collections, the fields and the identifiers
 exact, because the assistant uses them to work with the data. A

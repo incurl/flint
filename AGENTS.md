@@ -314,6 +314,11 @@ Three rules catch most mistakes:
   model cannot call them — a prompt would only ask it not to. A tool
   the template does not know is withheld too, so a downstream project
   is safe by default.
+- **A summary stands for the turns it replaces.** The summary says
+  how many turns it replaces, and the loader uses the *latest* one: a
+  conversation that was compacted twice holds two summaries, and the
+  model sees one summary and the turns after it. The summary of an
+  earlier compaction is part of the prompt of the next one.
 - **A stuck run is stopped early.** `MaxSteps` is the budget, and the
   loop detection is the diagnosis: the same call, with the same
   arguments, returning the same answer more than five times in ten

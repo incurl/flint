@@ -64,7 +64,7 @@ func (h *History) Load(ctx context.Context) []fantasy.Message {
 	}
 
 	// A compacted conversation is stored as the turns the summary
-	// replaces, then the turns that were kept, then the summary. The
+	// replaces, then the summary, then the turns that were kept. The
 	// model sees the summary and the kept turns: the summary carries
 	// the past, the kept turns carry the present.
 	out := make([]fantasy.Message, 0, len(messages))
@@ -78,32 +78,49 @@ func (h *History) Load(ctx context.Context) []fantasy.Message {
 
 // compacted returns the messages the model has to see.
 //
-// It is the summary of a compacted conversation, followed by the turns
-// that were kept, and it is the whole of a conversation that was never
-// compacted.
+// It is the **latest** summary of the conversation, followed by the
+// turns that were kept.
+//
+// The summary stands for the turns it replaces: it says how many of
+// them there were, and they are the first ones of the conversation.
+// The turns that were kept are the ones between them and the summary.
+//
+// The summary is stored at the end of the conversation, because it is
+// written when the conversation grows. The turns it replaces are
+// still in the store -- they are the history of the conversation, and
+// deleting them would lose what the user did -- so the loader has to
+// know where the summary starts.
+//
+// A conversation that was compacted twice holds two summaries, and the
+// second one covers the turns the first one covered as well: the model
+// sees one summary and the turns that came after it.
+//
+// A conversation that was never compacted is returned whole.
 func compacted(messages []session.Message) []session.Message {
-	if len(messages) == 0 {
+	// The index of the latest summary.
+	latest := -1
+
+	for i, message := range messages {
+		if message.Role == session.RoleSummary {
+			latest = i
+		}
+	}
+
+	if latest < 0 {
 		return messages
 	}
 
-	last := messages[len(messages)-1]
-	if last.Role != session.RoleSummary {
-		return messages
+	// The summary stands for the first turns of the conversation.
+	replaces := summaryReplaces(messages[latest].Text)
+	if replaces > latest {
+		replaces = latest
 	}
 
-	// The summary says how many turns it replaces. The turns it
-	// replaces are the first ones of the conversation.
-	replaces := summaryReplaces(last.Text)
+	// The summary, then the turns that were kept.
+	out := make([]session.Message, 0, latest-replaces+1)
+	out = append(out, messages[latest])
 
-	kept := len(messages) - 1 - replaces
-	if kept < 0 {
-		kept = 0
-	}
-
-	out := make([]session.Message, 0, kept+1)
-	out = append(out, last)
-
-	out = append(out, messages[len(messages)-1-kept:]...)
+	out = append(out, messages[replaces:latest]...)
 
 	return out
 }

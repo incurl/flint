@@ -107,6 +107,14 @@ func (r *Runner) Compact(ctx context.Context, sessionID string) error {
 
 	// The summary is stored as a message of the conversation, so that
 	// it survives a restart and the next turn sees it.
+	//
+	// It says how many turns it replaces, so that the loader knows
+	// which ones it stands for.
+	//
+	// The summaries of the earlier compactions are left in the store:
+	// they are the history of the conversation, and deleting them would
+	// lose what the user did. The loader uses the latest one, so the
+	// model sees one summary and not a pile of them.
 	conversation.AppendSummary(ctx, 0, len(older), summary)
 
 	return nil
@@ -168,6 +176,14 @@ func summarisePrompt(messages []session.Message) string {
 			// needs to know what was touched, not the arguments.
 			b.WriteString("tool: ")
 			b.WriteString(message.ToolName)
+			b.WriteString("\n\n")
+
+		case session.RoleSummary:
+			// The summary of an earlier compaction is part of the
+			// conversation: it carries what happened before the turns
+			// that are summarised here. Leaving it out would lose it.
+			b.WriteString("summary of the earlier turns: ")
+			b.WriteString(summaryText(message.Text))
 			b.WriteString("\n\n")
 		}
 	}
