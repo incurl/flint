@@ -289,6 +289,32 @@ The collections are created on the first run, by the migration in
 still runs — it just does not remember the conversations, and says so
 in the log.
 
+#### The compaction
+
+A conversation that grows too long does not fit in the context window
+of the model, and the run fails. So the conversation is **summarised**
+when it passes 24 000 characters, before it is read:
+
+- The older turns are replaced by a summary the model writes itself.
+- The last six turns are kept as they are: they are the ones the
+  conversation is about, and a summary of the last exchange loses the
+  details the model is about to act on.
+- The turns themselves are **not deleted**. They stay in the store —
+  they are the history of the conversation — and the summary says how
+  many of them it replaces.
+
+The summary is a message of the conversation like any other, so it
+survives a restart. The next turn reads it instead of the turns it
+summarises.
+
+⚠️ **The summary is written for the model, not for the user.** It
+keeps the names of the collections, the fields and the identifiers
+exact, because the assistant uses them to work with the data. A
+summary that lost a field name is a summary the model cannot act on.
+
+A conversation that cannot be summarised is not fatal: the run
+continues with the whole history, which is what happened before.
+
 ### The guided setup
 
 When the application starts **without a model**, the agent page shows

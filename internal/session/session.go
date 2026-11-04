@@ -63,6 +63,11 @@ const (
 	RoleAssistant = "assistant"
 	// RoleTool marks a tool call and its result.
 	RoleTool = "tool"
+	// RoleSummary marks the summary of a compacted conversation.
+	//
+	// A summary replaces the turns it summarises: the next turn reads
+	// it instead of them.
+	RoleSummary = "summary"
 )
 
 // Message is one turn of a conversation.

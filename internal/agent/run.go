@@ -374,6 +374,16 @@ func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error) {
 	}
 
 	if conversation != nil {
+		// The conversation is summarised before it is read, when it
+		// grew too long. A model that sees a thousand messages of
+		// history does not have room for the answer.
+		if err := r.Compact(runCtx, request.SessionID); err != nil {
+			// A conversation that cannot be summarised is not
+			// fatal: the run continues with the whole history, which
+			// is what happened before.
+			r.publish(Event{RunID: request.RunID, Kind: EventTextDone, Err: err})
+		}
+
 		if loaded := conversation.Load(runCtx); len(loaded) > 0 {
 			history = append(history, loaded...)
 		}
