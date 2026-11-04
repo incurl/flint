@@ -520,7 +520,7 @@ data.
 
 | Tool                | What it does                     | Gated? |
 | ------------------- | -------------------------------- | ------ |
-| `list_collections`  | Lists the collections             | no     |
+| `list_collections`  | Lists the collections, without the internal ones | no     |
 | `list_records`      | Lists the records of a collection | no     |
 | `get_record`        | Fetches one record                | no     |
 | `search_records`    | Searches the records of a collection | no   |

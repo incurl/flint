@@ -425,24 +425,31 @@ func runCountRecords(ctx context.Context, store pbstore.Store, params *CountReco
 }
 
 // runListCollections lists the available collections.
+//
+// The internal collections are left out: the model reads the answer as
+// the data of the application, and the superusers, the authentication
+// helpers and the stored conversations are not that data. Listing them
+// only invites the model to browse the internals of the store.
 func runListCollections(ctx context.Context, store pbstore.Store, _ *ListCollectionsParams) (string, error) {
 	collections, err := store.Collections(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	if len(collections) == 0 {
+	names := make([]string, 0, len(collections))
+	for _, collection := range collections {
+		if pbstore.IsSystemCollection(collection.Name) {
+			continue
+		}
+
+		names = append(names, collection.Name)
+	}
+
+	if len(names) == 0 {
 		return "no collections", nil
 	}
 
-	var b strings.Builder
-
-	for _, collection := range collections {
-		b.WriteString(collection.Name)
-		b.WriteString("\n")
-	}
-
-	return strings.TrimSpace(b.String()), nil
+	return strings.Join(names, "\n"), nil
 }
 
 // runCreateRecord creates a record.
@@ -524,7 +531,9 @@ const (
 		"optionally narrowed by a PocketBase filter."
 
 	listCollectionsDescription = "List the available PocketBase collections. " +
-		"Use it when the collection is not known, or to see what the data holds."
+		"Use it when the collection is not known, or to see what the data holds. " +
+		"The internal collections of PocketBase and of the application are not listed: " +
+		"they are not data."
 
 	createRecordDescription = "Create a record in a PocketBase collection. " +
 		"Use it when the user asks to add, save or create something."

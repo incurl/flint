@@ -37,6 +37,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pocketbase/dbx"
@@ -87,6 +88,22 @@ type Collection struct {
 	Name string `json:"name"`
 	// Type is the collection type (base, auth or view).
 	Type string `json:"type"`
+}
+
+// IsSystemCollection reports whether a collection name is reserved for the
+// internals of PocketBase or of the application.
+//
+// PocketBase keeps its own collections behind a leading underscore — the
+// superusers, the authentication helpers, the request logs — and the template
+// keeps its preferences and its conversations the same way
+// ([PreferencesCollection], `_flint_sessions`, `_flint_messages`).
+//
+// They are not data the user keeps: a listing that is read as the data of the
+// application — the agent's view of the store, for instance — leaves them out.
+// The predicate is a property of the name, so it holds for both backends: the
+// remote one does not report the system flag.
+func IsSystemCollection(name string) bool {
+	return strings.HasPrefix(name, "_")
 }
 
 // Record is a backend-agnostic view over a PocketBase record.

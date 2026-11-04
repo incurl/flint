@@ -159,10 +159,22 @@ func TestCountRecordsTool(t *testing.T) {
 	}
 }
 
-// TestListCollectionsTool verifies that the tool lists the collections.
+// TestListCollectionsTool verifies that the tool lists the collections
+// the user keeps, and not the internal ones.
+//
+// The store holds the system collections of PocketBase — the superusers,
+// the authentication helpers — and the collections the application uses
+// for its own book-keeping. The agent read them as if they were data,
+// and the conversation filled with collections the model must not browse.
 func TestListCollectionsTool(t *testing.T) {
 	store := newEmbeddedStore(t)
 	seedCollection(t, store)
+
+	// A collection with the reserved prefix, like the ones the template
+	// creates for the preferences and the conversations.
+	if _, err := store.EnsureCollection(context.Background(), "_flint_test", nil); err != nil {
+		t.Fatalf("EnsureCollection() error = %v", err)
+	}
 
 	tool := agent.NewListCollectionsTool(store)
 
@@ -173,6 +185,12 @@ func TestListCollectionsTool(t *testing.T) {
 
 	if !strings.Contains(out, "vocab") {
 		t.Errorf("Run() = %q, want it to contain the collection name", out)
+	}
+
+	for _, name := range []string{"_superusers", "_mfas", "_authOrigins", "_flint_test"} {
+		if strings.Contains(out, name) {
+			t.Errorf("Run() = %q, want it to leave out the internal collection %q", out, name)
+		}
 	}
 }
 

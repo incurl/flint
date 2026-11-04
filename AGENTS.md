@@ -334,6 +334,14 @@ Three rules catch most mistakes:
   that message on — `MessagesFromSummary`, the tail a compacted
   conversation actually sends. The turns before it stay in the store:
   they are the history of the conversation.
+- **The system collections are not data.** PocketBase keeps its
+  internals behind a leading underscore (`_superusers`, `_mfas`,
+  `_authOrigins`), and so does the template (`_flint_preferences`,
+  `_flint_sessions`, `_flint_messages`). `pbstore.IsSystemCollection`
+  tells them apart, because the remote backend does not report the
+  system flag. `list_collections` leaves them out: a model that reads
+  them as data fills the conversation with the book-keeping of the
+  store and starts browsing the superusers.
 - **A conversation is read page by page.** A single page holds a
   hundred messages, and a conversation read with one page is silently
   truncated — the model sees the first hundred turns and never the

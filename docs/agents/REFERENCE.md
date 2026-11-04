@@ -201,6 +201,11 @@ type Collection struct {
 	Type string // "base", "auth" or "view"
 }
 
+// IsSystemCollection reports whether a name is reserved for the
+// internals of PocketBase or of the application: anything behind a
+// leading underscore (_superusers, _flint_sessions, ...).
+func IsSystemCollection(name string) bool
+
 type DictionaryField struct {
 	Name     string
 	Type     string // FieldTypeText | Editor | JSON | Number | Bool | Date | Select
