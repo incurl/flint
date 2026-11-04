@@ -235,6 +235,9 @@ Press `7` to open the agent page, type a question, and press `enter`.
   end** while you are there: a new answer appears and you see it.
   Scrolling up takes over, and scrolling back to the end gives it
   back.
+- `↑` / `↓` — move the caret in the prompt. They are **not** scroll
+  keys: the arrows belong to the text input, and a caret that does not
+  move is a caret you cannot place.
 - `esc` — cancel a running turn, or clear the prompt.
 - `ctrl+b` — open the side panel, on a terminal of at least 121
   columns. The panel shows the conversation next to the records. The

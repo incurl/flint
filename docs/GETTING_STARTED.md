@@ -321,7 +321,8 @@ both.
 Press `ctrl+b` again to close it.
 
 The panel is a window on the conversation: it shows the recent work, and
-`pgup` / `pgdown` scroll back through the older messages.
+`pgup` / `pgdown` scroll back through the older messages. The up and
+down arrows are not scroll keys — they move the caret in the prompt.
 
 The toggle is a global hotkey, and the global layer is suspended while
 a text input has the focus. It therefore does not work on the agent

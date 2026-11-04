@@ -289,6 +289,10 @@ Three rules catch most mistakes:
 - **The content of a scroller is prepared before the keys are
   handled.** A scroll has to act on the conversation as it is now, not
   on the one of the last frame.
+- **The up and down arrows belong to the text input.** A scroller
+  handles the pager keys — `pgup`, `pgdown`, `ctrl+u`, `ctrl+d` — and
+  leaves the arrows alone: a caret that does not move is a caret the
+  reader cannot place.
 - **The runner's model can be replaced while the application runs.**
   `Runner.SetModel` installs it, and `Run` reads the current one at the
   start of every turn — a run already in flight keeps the model it

@@ -96,8 +96,12 @@ func (s *Scroller) GotoBottom() {
 
 // Update handles the keys that scroll.
 //
-// The keys are the pager ones: pgup and pgdn for a page, ctrl+u and
-// ctrl+d for half a page, and the arrows for a line.
+// The keys are the pager ones: pgup and pgdn for a page, and ctrl+u
+// and ctrl+d for half a page.
+//
+// The up and down arrows are **not** handled: they belong to the text
+// input next to the content, and a caret that does not move is a
+// caret the reader cannot place.
 //
 // The scroller stops following the end as soon as the reader scrolls
 // up, and follows it again when they come back.
@@ -118,10 +122,6 @@ func (s *Scroller) Update(msg tea.Msg) (tea.Cmd, bool) {
 		s.viewport.HalfPageUp()
 	case "ctrl+d":
 		s.viewport.HalfPageDown()
-	case "up":
-		s.viewport.ScrollUp(1)
-	case "down":
-		s.viewport.ScrollDown(1)
 	default:
 		return nil, false
 	}

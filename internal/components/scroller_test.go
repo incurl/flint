@@ -115,6 +115,29 @@ func TestTheScrollerIgnoresTheOtherKeys(t *testing.T) {
 	}
 }
 
+// TestTheScrollerLeavesTheArrowsToThePrompt verifies that the up and
+// down arrows are not handled.
+//
+// They belong to the text input next to the content: a caret that does
+// not move is a caret the reader cannot place.
+func TestTheScrollerLeavesTheArrowsToThePrompt(t *testing.T) {
+	scroller := components.NewScroller(5)
+	scroller.SetSize(40, 5)
+
+	scroller.SetContent(strings.Join([]string{"1", "2", "3", "4", "5", "6", "7", "8", "9", "10"}, "\n"))
+
+	for _, key := range []tea.KeyPressMsg{{Code: tea.KeyUp}, {Code: tea.KeyDown}} {
+		if _, handled := scroller.Update(key); handled {
+			t.Errorf("the scroller handled %q", key.String())
+		}
+	}
+
+	// The content did not move.
+	if !strings.Contains(scroller.View(), "10") {
+		t.Errorf("the scroller moved:\n%s", scroller.View())
+	}
+}
+
 // TestTruncateLines verifies the helper for the pages that do not
 // scroll.
 //
