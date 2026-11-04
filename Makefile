@@ -19,6 +19,17 @@ GOFILES     := $(shell find . -name '*.go' -not -path './vendor/*')
 # The Go toolchain version required by the project.
 GO_VERSION  ?= 1.27.0
 
+# The version of golangci-lint that `make lint-install` fetches. It is the
+# one the CI runs: the action installs the latest release, and the linter
+# changes its rules between the versions.
+GOLANGCI_VERSION ?= 2.15.0
+
+# The release artefacts are named after the platform, so the two parts of it
+# are derived from the host. An unknown platform falls back to the linux one,
+# which is the one the CI runs on.
+GOLANGCI_OS   ?= $(shell $(GO) env GOOS)
+GOLANGCI_ARCH ?= $(shell $(GO) env GOARCH)
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -66,12 +77,40 @@ vet: ## Run go vet
 	$(GO) vet ./...
 
 .PHONY: golangci-lint
-golangci-lint: ## Run golangci-lint (when installed)
-	@command -v golangci-lint >/dev/null 2>&1 || { \
+golangci-lint: ## Run golangci-lint (the local ./bin copy first, then the PATH)
+	@if [ -x "$(BIN_DIR)/golangci-lint" ]; then \
+		$(BIN_DIR)/golangci-lint run; \
+	elif command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run; \
+	else \
 		echo "golangci-lint is not installed, skipping (see https://golangci-lint.run)"; \
+		echo "install it with: make lint-install"; \
 		exit 0; \
-	}
-	golangci-lint run
+	fi
+
+.PHONY: lint-install
+lint-install: ## Install golangci-lint into ./bin
+	@mkdir -p $(BIN_DIR)
+	@archive="golangci-lint-$(GOLANGCI_VERSION)-$(GOLANGCI_OS)-$(GOLANGCI_ARCH).tar.gz"; \
+	base="https://github.com/golangci/golangci-lint/releases/download/v$(GOLANGCI_VERSION)"; \
+	if command -v curl >/dev/null 2>&1 && \
+		curl -sSfL --max-time 300 -o "$(BIN_DIR)/$$archive" "$$base/$$archive" && \
+		curl -sSfL --max-time 120 -o "$(BIN_DIR)/checksums.txt" \
+			"$$base/golangci-lint-$(GOLANGCI_VERSION)-checksums.txt" && \
+		cd $(BIN_DIR) && \
+		grep " $$archive$$" checksums.txt | sha256sum -c - && \
+		tar xzf "$$archive" && \
+		mv "golangci-lint-$(GOLANGCI_VERSION)-$(GOLANGCI_OS)-$(GOLANGCI_ARCH)/golangci-lint" . && \
+		rm -rf "golangci-lint-$(GOLANGCI_VERSION)-$(GOLANGCI_OS)-$(GOLANGCI_ARCH)" \
+			"$$archive" checksums.txt; then \
+		echo "installed the release archive"; \
+	else \
+		echo "the download failed, falling back to 'go install'"; \
+		GOBIN="$(CURDIR)/$(BIN_DIR)" $(GO) install \
+			github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_VERSION); \
+	fi
+	@chmod +x $(BIN_DIR)/golangci-lint
+	@echo "installed $$( $(BIN_DIR)/golangci-lint --version )"
 
 .PHONY: fmt
 fmt: ## Format the sources

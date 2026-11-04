@@ -578,6 +578,28 @@ golangci-lint:
 skips gracefully if the tool is not installed, so `make lint` works on
 a fresh checkout.
 
+The check `command -v` runs looks at the `PATH` only. A copy that
+sits in `./bin` — where `make build` puts the binary — is invisible
+to it, and the linter is silently skipped on a machine where it is
+installed. Look for the local copy first:
+
+```make
+.PHONY: golangci-lint
+golangci-lint:
+	@if [ -x "$(BIN_DIR)/golangci-lint" ]; then \
+		$(BIN_DIR)/golangci-lint run; \
+	elif command -v golangci-lint >/dev/null 2>&1; then \
+		golangci-lint run; \
+	else \
+		echo "golangci-lint is not installed, skipping"; \
+		exit 0; \
+	fi
+```
+
+A linter that is never run reports nothing, and nothing is read as
+"no problem found". The target that skips it has to say that it
+skipped it.
+
 ## 21.7 The CI
 
 ```yaml

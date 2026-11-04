@@ -16,11 +16,16 @@ make lint        # golangci-lint, must report 0 issues
 make test-race   # the race detector
 ```
 
-If `golangci-lint` is not installed, CI will run it. Install it:
+If `golangci-lint` is not installed, `make lint` says so and skips it —
+CI will still run it. Install it into `./bin` with:
 
 ```bash
-go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+make lint-install
 ```
+
+The target fetches the release archive, verifies its checksum, and falls
+back to `go install` when the download fails. `make lint` then uses the
+local copy first, and the one in the `PATH` after it.
 
 ---
 

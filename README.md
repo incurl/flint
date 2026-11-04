@@ -286,9 +286,10 @@ Start at [`book/README.md`](book/README.md).
 ## Development
 
 ```bash
-make help      # list the targets
-make test      # run the tests
-make lint      # go vet + golangci-lint
+make help        # list the targets
+make test        # run the tests
+make lint        # go vet + golangci-lint
+make lint-install # install golangci-lint into ./bin
 make cross-build
 ```
 
