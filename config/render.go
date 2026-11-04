@@ -118,7 +118,7 @@ func Render(cfg *Config) string {
 // setup fills in, and it is the one a user looks for.
 func renderAgent(b *strings.Builder, cfg *Config) {
 	b.WriteString("[agent]\n")
-	b.WriteString("# The provider: \"minimax\", \"minimax-global\", \"openai\",\n")
+	b.WriteString("# The provider: \"minimax\", \"minimax-cn\", \"openai\",\n")
 	b.WriteString("# \"openaicompat\", \"openrouter\" or \"local\".\n")
 	fmt.Fprintf(b, "provider = %q\n", cfg.Agent.Provider)
 	b.WriteString("\n")

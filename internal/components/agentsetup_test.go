@@ -50,7 +50,7 @@ func TestAgentSetupWalksTheSteps(t *testing.T) {
 func TestAgentSetupOffersMiniMax(t *testing.T) {
 	providers := components.AgentSetupProviders()
 
-	for _, want := range []string{"minimax", "minimax-global"} {
+	for _, want := range []string{"minimax", "minimax-cn"} {
 		found := false
 
 		for _, provider := range providers {
@@ -64,6 +64,56 @@ func TestAgentSetupOffersMiniMax(t *testing.T) {
 		if !found {
 			t.Errorf("the setup does not offer %q", want)
 		}
+	}
+}
+
+// TestAgentSetupNamesThePlatforms verifies that the two MiniMax
+// platforms are told apart.
+//
+// The two platforms have separate accounts, separate keys and separate
+// balances. A provider called "MiniMax" that points at the Chinese
+// endpoint is a trap: the key of the international account is refused
+// there, and the error says the balance is insufficient.
+func TestAgentSetupNamesThePlatforms(t *testing.T) {
+	providers := components.AgentSetupProviders()
+
+	want := map[string]string{
+		"minimax":    "https://api.minimax.io/v1",
+		"minimax-cn": "https://api.minimax.cn/v1",
+	}
+
+	for _, provider := range providers {
+		baseURL, ok := want[provider.ID]
+		if !ok {
+			continue
+		}
+
+		if provider.BaseURL != baseURL {
+			t.Errorf("the provider %q uses %q, want %q", provider.ID, provider.BaseURL, baseURL)
+		}
+	}
+}
+
+// TestAgentSetupTheDefaultIsInternational verifies that the first
+// provider of the setup is the international platform.
+//
+// It is the one the global website serves, and the one a key from
+// platform.minimax.io belongs to.
+func TestAgentSetupTheDefaultIsInternational(t *testing.T) {
+	providers := components.AgentSetupProviders()
+
+	if len(providers) == 0 {
+		t.Fatal("the setup offers no provider")
+	}
+
+	first := providers[0]
+
+	if first.ID != "minimax" {
+		t.Errorf("the default provider is %q, want minimax", first.ID)
+	}
+
+	if first.BaseURL != "https://api.minimax.io/v1" {
+		t.Errorf("the default provider uses %q, want the international endpoint", first.BaseURL)
 	}
 }
 

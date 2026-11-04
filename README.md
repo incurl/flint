@@ -152,7 +152,7 @@ batch_size = 200
 
 # The agent is optional: without a provider the application still runs.
 [agent]
-provider = "minimax"         # minimax | minimax-global | openai | openrouter | local
+provider = "minimax"         # minimax | minimax-cn | openai | openrouter | local
 model = "MiniMax-M3.1-Flash"
 api_key_env = "MINIMAX_API_KEY" # the key is read from the environment, never from the file
 permission_mode = "ask"        # ask before every write, or allow
@@ -160,9 +160,10 @@ max_steps = 12
 ```
 
 > **MiniMax** is the provider the template documents first. `minimax`
-> is the Chinese platform (`api.minimax.cn`) and `minimax-global` is
-> the international one (`api.minimax.io`). They have separate
-> accounts and separate keys. See
+> is the international platform (`api.minimax.io`) and `minimax-cn` is
+> the Chinese one (`api.minimax.cn`). They have separate accounts,
+> separate keys and separate balances — a key from one is refused by
+> the other with an "insufficient balance" error. See
 > [`docs/AGENT_SETUP.md`](docs/AGENT_SETUP.md).
 
 | Flag                  | Environment variable        | Default          |

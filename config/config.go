@@ -101,7 +101,7 @@ type Config struct {
 // and the agent page reports that no model is configured.
 type AgentConfig struct {
 	// Provider is the name of the provider: openai, minimax,
-	// minimax-global, openaicompat, openrouter or local.
+	// minimax-cn, openaicompat, openrouter or local.
 	//
 	// Only the OpenAI compatible providers are built in: they cover
 	// OpenAI itself, MiniMax, OpenRouter and any local server, and they
@@ -345,6 +345,14 @@ func (c *Config) SettingsRows() [][2]string {
 			[2]string{"agent.model", c.Agent.Model},
 			[2]string{"agent.permission_mode", c.Agent.PermissionMode},
 		)
+
+		// The endpoint is shown because it is the setting that is
+		// invisible and decisive: a provider that reaches the wrong
+		// endpoint does not fail with "unknown provider", it fails
+		// with whatever the endpoint says.
+		if c.Agent.BaseURL != "" {
+			rows = append(rows, [2]string{"agent.base_url", c.Agent.BaseURL})
+		}
 	}
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {

@@ -257,7 +257,7 @@ Set the provider and the model:
 ```toml
 # flint.toml
 [agent]
-provider = "minimax"         # minimax | minimax-global | openai | openrouter | local
+provider = "minimax"         # minimax | minimax-cn | openai | openrouter | local
 model = "MiniMax-M3.1-Flash"
 api_key_env = "MINIMAX_API_KEY"
 permission_mode = "ask"         # ask before every write, or allow

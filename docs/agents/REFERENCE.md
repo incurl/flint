@@ -1020,10 +1020,13 @@ type AgentConfig struct {
 }
 ```
 
-The supported providers are `minimax`, `minimax-global`, `openai`,
+The supported providers are `minimax`, `minimax-cn`, `openai`,
 `openaicompat` (alias `openai-compatible`), `openrouter` and `local`.
-The MiniMax ones have a fixed endpoint — `api.minimax.cn` and
-`api.minimax.io` — and read the key from `MINIMAX_API_KEY`.
+The MiniMax ones have a fixed endpoint — `api.minimax.io` for
+`minimax` and `api.minimax.cn` for `minimax-cn` — and read the key
+from `MINIMAX_API_KEY`. The two platforms have separate accounts and
+separate balances: a key from one is refused by the other with an
+"insufficient balance" error.
 
 // The resolved JavaScript directories. They default to a "pb_hooks"
 // and a "pb_migrations" directory next to the data directory.

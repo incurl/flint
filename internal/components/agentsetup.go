@@ -51,19 +51,29 @@ type AgentSetupProviderInfo struct {
 func AgentSetupProviders() []AgentSetupProviderInfo {
 	return []AgentSetupProviderInfo{
 		{
+			// The international platform is the default one: it is the
+			// one the global website serves, and the one a key from
+			// platform.minimax.io belongs to.
+			//
+			// The name says "international" on purpose. A provider
+			// called "MiniMax" that points at the Chinese endpoint is
+			// a trap: the key of the international account is refused
+			// there, and the error says the balance is insufficient.
 			ID:           "minimax",
-			Name:         "MiniMax",
-			Detail:       "MiniMax, the Chinese platform. api.minimax.cn",
-			BaseURL:      "https://api.minimax.cn/v1",
+			Name:         "MiniMax (international)",
+			Detail:       "MiniMax, the international platform. api.minimax.io",
+			BaseURL:      "https://api.minimax.io/v1",
 			KeyEnv:       "MINIMAX_API_KEY",
 			Models:       []string{"MiniMax-M3.1-Flash", "MiniMax-M3"},
 			DefaultModel: "MiniMax-M3.1-Flash",
 		},
 		{
-			ID:           "minimax-global",
-			Name:         "MiniMax (global)",
-			Detail:       "MiniMax, the international platform. api.minimax.io",
-			BaseURL:      "https://api.minimax.io/v1",
+			// The Chinese platform. It is a separate account, with a
+			// separate key and a separate balance.
+			ID:           "minimax-cn",
+			Name:         "MiniMax (China)",
+			Detail:       "MiniMax, the Chinese platform. api.minimax.cn",
+			BaseURL:      "https://api.minimax.cn/v1",
 			KeyEnv:       "MINIMAX_API_KEY",
 			Models:       []string{"MiniMax-M3.1-Flash", "MiniMax-M3"},
 			DefaultModel: "MiniMax-M3.1-Flash",

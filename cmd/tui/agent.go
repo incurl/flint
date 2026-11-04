@@ -93,6 +93,19 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 		}, nil
 	}
 
+	// The endpoint is logged, because it is the setting that is
+	// invisible and decisive: a provider that reaches the wrong
+	// endpoint does not fail with "unknown provider", it fails with
+	// whatever the endpoint says — for MiniMax, "insufficient
+	// balance" — and the user has no way to tell that the endpoint is
+	// the problem.
+	logger.Info("the agent is configured",
+		"provider", cfg.Agent.Provider,
+		"model", cfg.Agent.Model,
+		"base_url", cfg.Agent.BaseURL,
+		"api_key_env", cfg.Agent.APIKeyEnv,
+	)
+
 	model, err := newModel(cfg, agentAPIKey(cfg))
 	if err != nil {
 		return nil, err
@@ -196,7 +209,8 @@ func defaultAPIKeyEnv(provider string) string {
 		return "OPENAI_API_KEY"
 	case "openrouter":
 		return "OPENROUTER_API_KEY"
-	case "minimax", "minimax-cn", "minimax-china", "minimax-global", "minimax-intl", "minimax-io":
+	case "minimax", "minimax-global", "minimax-intl", "minimax-io",
+		"minimax-cn", "minimax-china":
 		// Both MiniMax platforms use the same variable name: the
 		// accounts are separate, not the convention.
 		return "MINIMAX_API_KEY"

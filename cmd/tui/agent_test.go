@@ -65,7 +65,7 @@ func TestMiniMaxDefaultModel(t *testing.T) {
 // TestMiniMaxAPIKeyEnv verifies that MiniMax reads the conventional
 // environment variable.
 func TestMiniMaxAPIKeyEnv(t *testing.T) {
-	for _, provider := range []string{"minimax", "minimax-global"} {
+	for _, provider := range []string{"minimax", "minimax-cn"} {
 		cfg := config.Default()
 		cfg.Agent.Provider = provider
 

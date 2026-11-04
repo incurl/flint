@@ -109,8 +109,8 @@ they do not pull the AWS and Google SDKs into the binary.
 
 | `provider`      | What it is                                          | Needs `base_url`? |
 | --------------- | --------------------------------------------------- | ----------------- |
-| `minimax`       | MiniMax, the **Chinese** platform                    | no                |
-| `minimax-global`| MiniMax, the **international** platform               | no                |
+| `minimax`       | MiniMax, the **international** platform              | no                |
+| `minimax-cn`    | MiniMax, the **Chinese** platform                    | no                |
 | `openai`        | The OpenAI API                                       | no                |
 | `openaicompat`  | Any OpenAI compatible API                            | yes               |
 | `openai-compatible` | An alias of `openaicompat`                        | yes               |
@@ -123,12 +123,21 @@ MiniMax is the provider the template documents first, and it is the
 one the guided setup offers first. The two platforms have **separate
 accounts** and **separate keys**:
 
-| Platform         | `provider`       | Endpoint                      |
-| ---------------- | ---------------- | ----------------------------- |
-| China            | `minimax`        | `https://api.minimax.cn/v1`   |
-| International    | `minimax-global` | `https://api.minimax.io/v1`   |
+| Platform         | `provider`   | Endpoint                      |
+| ---------------- | ------------ | ----------------------------- |
+| International    | `minimax`    | `https://api.minimax.io/v1`   |
+| China            | `minimax-cn` | `https://api.minimax.cn/v1`   |
 
 Both read the key from `MINIMAX_API_KEY`.
+
+⚠️ **`minimax` is the international platform.** The two platforms have
+separate accounts, separate keys and separate balances, and a key from
+one is refused by the other — with an error that says the **balance is
+insufficient**, not that the key is wrong. That error is misleading:
+the account may be full of money on the other platform.
+
+The endpoint in effect is on the settings page, under `agent.base_url`,
+and in the log at startup.
 
 The current models are `MiniMax-M3.1-Flash` and `MiniMax-M3`. The
 first one is the default: it is the model the platform recommends for
@@ -141,12 +150,12 @@ template sends.
 **Copy and paste this into `flint.toml`:**
 
 ```toml
-# MiniMax, the Chinese platform.
+# MiniMax, the international platform.
 [agent]
 provider = "minimax"
 model = "MiniMax-M3.1-Flash"
 api_key_env = "MINIMAX_API_KEY"
-base_url = "https://api.minimax.cn/v1"
+base_url = "https://api.minimax.io/v1"
 permission_mode = "ask"
 ```
 
@@ -159,12 +168,12 @@ export MINIMAX_API_KEY="your-minimax-key"
 **The international platform** is the same, with two lines changed:
 
 ```toml
-# MiniMax, the international platform.
+# MiniMax, the Chinese platform.
 [agent]
-provider = "minimax-global"
+provider = "minimax-cn"
 model = "MiniMax-M3.1-Flash"
 api_key_env = "MINIMAX_API_KEY"
-base_url = "https://api.minimax.io/v1"
+base_url = "https://api.minimax.cn/v1"
 permission_mode = "ask"
 ```
 
@@ -805,12 +814,16 @@ are separate, and a value in one does not satisfy the other.
 The provider is not one the template builds. See
 [§3](#3-the-providers).
 
-**MiniMax: "invalid api key" or "authentication failed".**
-The two platforms have **separate accounts and separate keys**. A key
-from `platform.minimaxi.com` does not work against
-`api.minimax.io`, and the other way round. Check that `provider` and
-the key match: `minimax` for `api.minimax.cn`, `minimax-global` for
-`api.minimax.io`.
+**MiniMax: "insufficient balance" or "invalid api key".**
+The two platforms have **separate accounts, separate keys and separate
+balances**. A key from `platform.minimax.io` does not work against
+`api.minimax.cn`, and the other way round — and the error says the
+balance is insufficient, which is misleading when the account is full
+of money on the *other* platform.
+
+Check that `provider` and the key match: `minimax` for
+`api.minimax.io`, `minimax-cn` for `api.minimax.cn`. The endpoint in
+effect is on the settings page, under `agent.base_url`.
 
 **MiniMax: the model is refused.**
 MiniMax does not serve a models endpoint through the compatible API, so

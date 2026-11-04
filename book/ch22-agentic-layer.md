@@ -723,18 +723,26 @@ The template ships the **OpenAI compatible** providers:
 
 ```go
 case "openai":
-case "minimax", "minimax-cn", "minimax-china":
-case "minimax-global", "minimax-intl", "minimax-io":
+case "minimax", "minimax-global", "minimax-intl", "minimax-io":
+case "minimax-cn", "minimax-china":
 case "openaicompat", "openai-compatible", "openrouter", "local":
 ```
 
 They cover OpenAI itself, MiniMax, OpenRouter, and any local server.
 
 MiniMax gets **two** names, because the platform runs in two places:
-the Chinese one (`api.minimax.cn`) and the international one
-(`api.minimax.io`). They have separate accounts and separate keys, so
-one name with a configurable host would hide a mistake that shows up
-as an authentication failure.
+the international one (`api.minimax.io`) and the Chinese one
+(`api.minimax.cn`). They have separate accounts, separate keys and
+separate balances, so one name with a configurable host would hide a
+mistake.
+
+⚠️ **The default is the international platform.** A provider called
+`minimax` that points at the Chinese endpoint is a trap: the key of
+the international account is refused there, and the error says the
+*balance is insufficient* — which is misleading, because the account
+may be full of money on the other platform. The name says
+`minimax-cn` for the Chinese one, and the endpoint in effect is shown
+on the settings page, under `agent.base_url`.
 
 ⚠️ **The other providers are heavy.** The Anthropic and the OpenRouter
 packages of the model library pull the AWS and the Google SDKs into the

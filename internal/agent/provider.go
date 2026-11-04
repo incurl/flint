@@ -8,6 +8,7 @@ import (
 	"charm.land/fantasy"
 	"charm.land/fantasy/providers/openai"
 	"charm.land/fantasy/providers/openaicompat"
+	"github.com/charmbracelet/openai-go/option"
 )
 
 // The MiniMax endpoints.
@@ -37,9 +38,9 @@ const MinimaxDefaultModel = "MiniMax-M3.1-Flash"
 // It is a plain struct and not the configuration type, so that the
 // agent package does not depend on the configuration package.
 type ProviderConfig struct {
-	// Provider is the name of the provider: "minimax",
-	// "minimax-global", "openai", "openaicompat", "openrouter" or
-	// "local".
+	// Provider is the name of the provider: "minimax" (the
+	// international platform), "minimax-cn" (the Chinese one), "openai",
+	// "openaicompat", "openrouter" or "local".
 	Provider string
 	// Model is the name of the model.
 	Model string
@@ -56,6 +57,24 @@ type ProviderConfig struct {
 // pull the AWS and Google SDKs into the binary. A project that needs
 // another provider adds it here.
 func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error) {
+	return newModel(cfg, nil)
+}
+
+// NewModelWithClient builds a model with a custom HTTP client.
+//
+// It is the seam a test uses to see which host the model reaches: the
+// client records the request instead of sending it.
+//
+// A provider that reaches the wrong endpoint does not fail with
+// "unknown provider". It fails with whatever the endpoint says — for
+// MiniMax, "insufficient balance" — and the user has no way to tell
+// that the endpoint is the problem.
+func NewModelWithClient(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageModel, error) {
+	return newModel(cfg, client)
+}
+
+// newModel builds a model, with an optional HTTP client.
+func newModel(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageModel, error) {
 	provider := strings.ToLower(cfg.Provider)
 
 	switch provider {
@@ -65,6 +84,10 @@ func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error) {
 			opts = append(opts, openai.WithBaseURL(cfg.BaseURL))
 		}
 
+		if client != nil {
+			opts = append(opts, openai.WithHTTPClient(client))
+		}
+
 		built, err := openai.New(opts...)
 		if err != nil {
 			return nil, fmt.Errorf("agent: build the provider: %w", err)
@@ -72,30 +95,41 @@ func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error) {
 
 		return providerModel(cfg.Model, built)
 
-	case "minimax", "minimax-cn", "minimax-china":
-		// The Chinese platform. The endpoint is fixed, but a base URL
-		// in the configuration still wins: a proxy or a gateway is a
-		// legitimate reason to override it.
-		baseURL := MinimaxChinaURL
-		if cfg.BaseURL != "" {
-			baseURL = cfg.BaseURL
-		}
-
-		return compatModel(cfg.Model, cfg.APIKey, baseURL)
-
-	case "minimax-global", "minimax-intl", "minimax-io":
-		// The international platform.
+	case "minimax", "minimax-global", "minimax-intl", "minimax-io":
+		// The international platform. It is the default: it is the one
+		// the global website serves, and the one a key from
+		// platform.minimax.io belongs to.
+		//
+		// The endpoint is fixed, but a base URL in the configuration
+		// still wins: a proxy or a gateway is a legitimate reason to
+		// override it.
 		baseURL := MinimaxGlobalURL
 		if cfg.BaseURL != "" {
 			baseURL = cfg.BaseURL
 		}
 
-		return compatModel(cfg.Model, cfg.APIKey, baseURL)
+		return compatModel(cfg.Model, cfg.APIKey, baseURL, client)
+
+	case "minimax-cn", "minimax-china", "minimax-china-platform":
+		// The Chinese platform. It is a separate account, with a
+		// separate key and a separate balance: a key from the
+		// international platform is refused here, and the error says
+		// the balance is insufficient.
+		baseURL := MinimaxChinaURL
+		if cfg.BaseURL != "" {
+			baseURL = cfg.BaseURL
+		}
+
+		return compatModel(cfg.Model, cfg.APIKey, baseURL, client)
 
 	case "openaicompat", "openai-compatible", "openrouter", "local":
 		opts := []openaicompat.Option{openaicompat.WithAPIKey(cfg.APIKey)}
 		if cfg.BaseURL != "" {
 			opts = append(opts, openaicompat.WithBaseURL(cfg.BaseURL))
+		}
+
+		if client != nil {
+			opts = append(opts, openaicompat.WithHTTPClient(client))
 		}
 
 		built, err := openaicompat.New(opts...)
@@ -114,10 +148,14 @@ func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error) {
 //
 // It is the path of the providers that only differ by their host: the
 // protocol is the same.
-func compatModel(modelID, apiKey, baseURL string) (fantasy.LanguageModel, error) {
+func compatModel(modelID, apiKey, baseURL string, client option.HTTPClient) (fantasy.LanguageModel, error) {
 	opts := []openaicompat.Option{
 		openaicompat.WithAPIKey(apiKey),
 		openaicompat.WithBaseURL(baseURL),
+	}
+
+	if client != nil {
+		opts = append(opts, openaicompat.WithHTTPClient(client))
 	}
 
 	built, err := openaicompat.New(opts...)

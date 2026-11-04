@@ -396,3 +396,34 @@ func TestJSRendererOverrides(t *testing.T) {
 		}
 	})
 }
+
+// TestSettingsRowsShowTheEndpoint verifies that the endpoint of the
+// agent is on the settings page.
+//
+// The endpoint is the setting that is invisible and decisive: a
+// provider that reaches the wrong endpoint does not fail with "unknown
+// provider", it fails with whatever the endpoint says — for MiniMax,
+// "insufficient balance" — and the user has no way to tell that the
+// endpoint is the problem.
+func TestSettingsRowsShowTheEndpoint(t *testing.T) {
+	cfg := config.Default()
+	cfg.Agent.Provider = "minimax"
+	cfg.Agent.Model = "MiniMax-M3.1-Flash"
+	cfg.Agent.BaseURL = "https://api.minimax.io/v1"
+
+	var found bool
+
+	for _, row := range cfg.SettingsRows() {
+		if row[0] == "agent.base_url" {
+			found = true
+
+			if row[1] != "https://api.minimax.io/v1" {
+				t.Errorf("agent.base_url = %q, want the endpoint", row[1])
+			}
+		}
+	}
+
+	if !found {
+		t.Error("the settings page does not show the endpoint of the agent")
+	}
+}
