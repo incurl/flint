@@ -199,11 +199,21 @@ func TestSetupAppliesTheModelWithoutARestart(t *testing.T) {
 		t.Fatalf("the setup is not on screen:\n%s", m.View().Content)
 	}
 
-	// Walk to the last step.
-	for range 3 {
-		updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	// Walk to the key step and type a key: a provider that needs one
+	// is refused a model without it.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
+
+	for _, r := range "sk-test" {
+		updated, _ = m.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
 		m = updated.(*app.Model)
 	}
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	m = updated.(*app.Model)
 
 	// Apply.
 	updated, _ = m.Update(tea.KeyPressMsg{Code: 'a', Text: "a"})

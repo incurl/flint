@@ -196,6 +196,13 @@ func (m *Model) installModel(settings components.AgentSetupSettings) error {
 		APIKey:   settings.APIKey,
 	})
 	if err != nil {
+		// The name of the variable is the thing the user has to fix,
+		// so it is in the error.
+		if errors.Is(err, agent.ErrNoAPIKey) {
+			return fmt.Errorf("%w: type it in the field above, or export %s",
+				err, settings.APIKeyEnv)
+		}
+
 		return fmt.Errorf("app: build the model: %w", err)
 	}
 

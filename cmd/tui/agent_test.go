@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/incurl/flint/config"
@@ -86,5 +88,74 @@ func TestUnknownProvider(t *testing.T) {
 
 	if _, err := newModel(cfg, "key"); err == nil {
 		t.Error("an unknown provider was accepted")
+	}
+}
+
+// TestAMissingKeyIsReported verifies that a provider with no key is
+// refused, and that the error names the variable to export.
+//
+// The request would carry no Authorization header at all, and the
+// provider would answer with a message about the header. That message
+// says nothing about the variable that holds the key, and nothing
+// about the fact that the variable is empty.
+func TestAMissingKeyIsReported(t *testing.T) {
+	t.Setenv("MINIMAX_API_KEY", "")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = "minimax"
+	cfg.Agent.Model = agent.MinimaxDefaultModel
+
+	_, err := newModel(cfg, agentAPIKey(cfg))
+	if err == nil {
+		t.Fatal("newModel() did not report the missing key")
+	}
+
+	if !errors.Is(err, agent.ErrNoAPIKey) {
+		t.Errorf("newModel() error = %v, want ErrNoAPIKey", err)
+	}
+
+	if !strings.Contains(err.Error(), "MINIMAX_API_KEY") {
+		t.Errorf("the error does not name the variable: %v", err)
+	}
+}
+
+// TestTheKeyIsReadFromTheEnvironment verifies that the key of the
+// provider is found in the variable the configuration names.
+func TestTheKeyIsReadFromTheEnvironment(t *testing.T) {
+	t.Setenv("MINIMAX_API_KEY", "sk-the-key")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = "minimax"
+	cfg.Agent.Model = agent.MinimaxDefaultModel
+
+	if got := agentAPIKey(cfg); got != "sk-the-key" {
+		t.Errorf("agentAPIKey() = %q, want the key", got)
+	}
+}
+
+// TestTheKeyVariableCanBeChanged verifies that the configuration can
+// name another variable.
+func TestTheKeyVariableCanBeChanged(t *testing.T) {
+	t.Setenv("MY_OWN_KEY", "sk-other")
+
+	cfg := config.Default()
+	cfg.Agent.Provider = "minimax"
+	cfg.Agent.Model = agent.MinimaxDefaultModel
+	cfg.Agent.APIKeyEnv = "MY_OWN_KEY"
+
+	if got := agentAPIKey(cfg); got != "sk-other" {
+		t.Errorf("agentAPIKey() = %q, want the key of the named variable", got)
+	}
+
+	// And the error names that variable, so a mismatch is obvious.
+	t.Setenv("MY_OWN_KEY", "")
+
+	_, err := newModel(cfg, agentAPIKey(cfg))
+	if err == nil {
+		t.Fatal("newModel() did not report the missing key")
+	}
+
+	if !strings.Contains(err.Error(), "MY_OWN_KEY") {
+		t.Errorf("the error does not name the variable: %v", err)
 	}
 }

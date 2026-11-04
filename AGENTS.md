@@ -267,6 +267,12 @@ Three rules catch most mistakes:
   came from `FLINT_AGENT_PROVIDER` does not belong in a file. The file
   is written with `0600` and atomically, and the API key is never in
   it — only the name of the variable that holds it.
+- **A provider that needs a key is refused one that has none.** An
+  empty key produces a request with **no `Authorization` header at
+  all**, and the provider answers with a message about the header —
+  which says nothing about the variable that holds the key, and sends
+  the user looking for a header that was never there. `agent.NewModel`
+  refuses the empty key, and the error names the variable to export.
 - **The runner's model can be replaced while the application runs.**
   `Runner.SetModel` installs it, and `Run` reads the current one at the
   start of every turn — a run already in flight keeps the model it

@@ -147,6 +147,12 @@ Both platforms speak the OpenAI chat protocol at `/v1/chat/completions`
 and authenticate with `Authorization: Bearer <key>`, which is what the
 template sends.
 
+⚠️ **A provider that needs a key is refused one that has none.** The
+application refuses to build a model without a key, rather than making
+a request that carries no `Authorization` header at all — the
+provider's answer to that says nothing about the variable that holds
+the key, and sends the user looking for a header that was never there.
+
 **Copy and paste this into `flint.toml`:**
 
 ```toml
@@ -813,6 +819,29 @@ are separate, and a value in one does not satisfy the other.
 **"unknown agent provider".**
 The provider is not one the template builds. See
 [§3](#3-the-providers).
+
+**"Please carry the API secret key in the 'Authorization' field".**
+The request was made **without an `Authorization` header**, which means
+the key was empty. The message is about the header, but the problem is
+the variable that holds the key.
+
+Check that the variable is exported in the shell the application runs
+from, and that its name matches `api_key_env`:
+
+```bash
+printenv MINIMAX_API_KEY
+```
+
+The application refuses to build a model without a key, so this is
+caught before the request — the error names the variable to export:
+
+```
+agent: no API key for the provider "minimax": export MINIMAX_API_KEY
+```
+
+⚠️ **A key exported in another shell is not visible.** The variable has
+to be exported in the shell that starts the application, or in its
+profile. A `.env` file is not read.
 
 **MiniMax: "insufficient balance" or "invalid api key".**
 The two platforms have **separate accounts, separate keys and separate

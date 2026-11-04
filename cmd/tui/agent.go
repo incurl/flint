@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -187,11 +188,7 @@ func permissionMode(cfg *config.Config) agent.PermissionMode {
 // The key is read from the environment variable the configuration names,
 // never from the configuration file itself.
 func agentAPIKey(cfg *config.Config) string {
-	name := cfg.Agent.APIKeyEnv
-	if name == "" {
-		name = defaultAPIKeyEnv(cfg.Agent.Provider)
-	}
-
+	name := apiKeyEnvName(cfg)
 	if name == "" {
 		return ""
 	}
@@ -230,10 +227,33 @@ func defaultAPIKeyEnv(provider string) string {
 // The providers live in the agent package, so that the application can
 // build one too when the guided setup installs a model.
 func newModel(cfg *config.Config, apiKey string) (fantasy.LanguageModel, error) {
-	return agent.NewModel(agent.ProviderConfig{
+	model, err := agent.NewModel(agent.ProviderConfig{
 		Provider: cfg.Agent.Provider,
 		Model:    cfg.Agent.Model,
 		BaseURL:  cfg.Agent.BaseURL,
 		APIKey:   apiKey,
 	})
+	if err != nil {
+		// The name of the variable is the thing the user has to fix,
+		// so it is in the error.
+		if errors.Is(err, agent.ErrNoAPIKey) {
+			return nil, fmt.Errorf("%w: export %s", err, apiKeyEnvName(cfg))
+		}
+
+		return nil, err
+	}
+
+	return model, nil
+}
+
+// apiKeyEnvName returns the name of the variable that holds the key.
+//
+// It is the name the configuration gives, or the conventional one of
+// the provider.
+func apiKeyEnvName(cfg *config.Config) string {
+	if cfg.Agent.APIKeyEnv != "" {
+		return cfg.Agent.APIKeyEnv
+	}
+
+	return defaultAPIKeyEnv(cfg.Agent.Provider)
 }

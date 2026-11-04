@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,6 +11,15 @@ import (
 	"charm.land/fantasy/providers/openaicompat"
 	"github.com/charmbracelet/openai-go/option"
 )
+
+// ErrNoAPIKey is returned when a provider needs a key and none was
+// given.
+//
+// The request would carry no Authorization header at all, and the
+// provider would answer with a message about the header — which says
+// nothing about the variable that holds the key, and nothing about the
+// fact that the variable is empty.
+var ErrNoAPIKey = errors.New("agent: no API key")
 
 // The MiniMax endpoints.
 //
@@ -77,6 +87,17 @@ func NewModelWithClient(cfg ProviderConfig, client option.HTTPClient) (fantasy.L
 func newModel(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageModel, error) {
 	provider := strings.ToLower(cfg.Provider)
 
+	// A provider that needs a key is refused one that has none.
+	//
+	// The request would carry no Authorization header at all, and the
+	// provider would answer with a message about the header. That
+	// message says nothing about the variable that holds the key, and
+	// nothing about the fact that the variable is empty: the user is
+	// sent looking for a header that was never there.
+	if needsAPIKey(provider) && strings.TrimSpace(cfg.APIKey) == "" {
+		return nil, fmt.Errorf("%w for the provider %q", ErrNoAPIKey, cfg.Provider)
+	}
+
 	switch provider {
 	case "openai":
 		opts := []openai.Option{openai.WithAPIKey(cfg.APIKey)}
@@ -141,6 +162,22 @@ func newModel(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageMod
 
 	default:
 		return nil, fmt.Errorf("agent: unknown provider %q", cfg.Provider)
+	}
+}
+
+// needsAPIKey reports whether a provider needs an API key.
+//
+// A local server usually does not: it runs on the machine, and it
+// usually does not check. Every hosted provider does.
+func needsAPIKey(provider string) bool {
+	switch provider {
+	case "local", "openaicompat", "openai-compatible":
+		// A compatible server may or may not want a key. The
+		// configuration can name one, and it is used when it is
+		// there.
+		return false
+	default:
+		return true
 	}
 }
 

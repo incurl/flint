@@ -816,6 +816,18 @@ type ProviderConfig struct {
 
 func NewModel(cfg ProviderConfig) (fantasy.LanguageModel, error)
 
+// NewModelWithClient builds a model with a custom HTTP client.
+//
+// It is the seam a test uses to see which host the model reaches.
+func NewModelWithClient(cfg ProviderConfig, client option.HTTPClient) (fantasy.LanguageModel, error)
+
+// ErrNoAPIKey is returned when a provider needs a key and none was
+// given.
+//
+// The request would carry no Authorization header at all, and the
+// provider would answer with a message about the header.
+var ErrNoAPIKey = errors.New("agent: no API key")
+
 // The permission gate.
 func NewGate(mode PermissionMode, requester PermissionRequester) *Gate
 func NewGuardedTool(tool Tool, gate *Gate, description string) *GuardedTool
