@@ -921,6 +921,12 @@ const (
 
 - `ctrl+b` toggles it. The key is left to the page when the terminal
   is too small, so that a page may use it for something else.
+- `ctrl+b` is a global hotkey, and the global layer is suspended while
+  a text input has the focus. The toggle is therefore unreachable on
+  the agent and the search pages. The status bar does not advertise it
+  there, and a panel that is open when the user navigates to such a
+  page is closed: the key that closes it does not work there, and the
+  user would be left with a panel they cannot get rid of.
 - The panel is only offered on a terminal of at least 121 columns: the
   record table is 88 columns wide, the panel takes 32, and a table
   whose viewport is narrower than its columns renders *empty*.

@@ -320,6 +320,14 @@ both.
 
 Press `ctrl+b` again to close it.
 
+The toggle is a global hotkey, and the global layer is suspended while
+a text input has the focus. It therefore does not work on the agent
+page or the search page, where an input always has the focus. The
+status bar does not advertise it there, and a panel that is open when
+you navigate to such a page is closed for you — the key that closes it
+does not work there, and you would be left with a panel you cannot get
+rid of.
+
 ## 9. Before you publish
 
 ```bash

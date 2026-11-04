@@ -226,6 +226,12 @@ Three rules catch most mistakes:
   panel takes 32, and a table narrower than its columns renders
   *empty*. When the panel is open the root model forwards the resize
   with the width of the *page*, not the width of the terminal.
+- **The panel toggle is unreachable where an input has the focus.**
+  It is a global hotkey, and the global layer is suspended while a text
+  input has the focus — the agent and the search pages. The status bar
+  must not advertise it there, and a panel left open when the user
+  navigates to such a page has to be closed: the key that closes it
+  does not work there.
 - **Two columns have to add up.** `theme.SplitWidth` returns the two
   widths *without* the gap, so the body is padded to
   `bodyWidth + gap`. Lip Gloss does not pad the lines of a bordered

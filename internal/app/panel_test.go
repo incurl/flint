@@ -529,3 +529,88 @@ func TestAgentPanelRendersTheEntries(t *testing.T) {
 		}
 	}
 }
+
+// TestPanelHintIsHiddenWhereTheKeyDoesNotWork verifies that the status
+// bar does not advertise the toggle on a page that cannot use it.
+//
+// The global hotkey layer is suspended while a text input has the
+// focus, so ctrl+b never reaches the panel on the agent page. A hint
+// that promises a key that does nothing is worse than no hint.
+func TestPanelHintIsHiddenWhereTheKeyDoesNotWork(t *testing.T) {
+	m := newPanelModel(t)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = updated.(*app.Model)
+
+	// The home page has no focused input: the toggle works.
+	if !strings.Contains(m.View().Content, "ctrl+b") {
+		t.Error("the status bar does not advertise the panel toggle on the home page")
+	}
+
+	// The agent page has a focused prompt.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '7', Text: "7"})
+	m = updated.(*app.Model)
+
+	if strings.Contains(m.View().Content, "ctrl+b") {
+		t.Error("the status bar advertises a toggle that cannot work on the agent page")
+	}
+}
+
+// TestPanelIsClosedWhenItCannotBeClosed verifies that a panel left open
+// on another page is closed when the user navigates to a page that
+// cannot close it.
+//
+// Otherwise the user is left with a panel they cannot get rid of: the
+// key that closes it does not work there.
+func TestPanelIsClosedWhenItCannotBeClosed(t *testing.T) {
+	m := newPanelModel(t)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = updated.(*app.Model)
+
+	// Open the panel on the home page.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
+	m = updated.(*app.Model)
+
+	if !strings.Contains(m.View().Content, "No conversation yet.") {
+		t.Fatal("the panel did not open")
+	}
+
+	// The agent page cannot close it.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '7', Text: "7"})
+	m = updated.(*app.Model)
+
+	if strings.Contains(m.View().Content, "No conversation yet.") {
+		t.Error("the panel is still open on a page that cannot close it")
+	}
+}
+
+// TestPanelStaysOpenOnAPageThatCanCloseIt verifies that the automatic
+// closing does not close the panel where the toggle works.
+//
+// The panel is meant to follow the user across the pages.
+func TestPanelStaysOpenOnAPageThatCanCloseIt(t *testing.T) {
+	m := newPanelModel(t)
+
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 40})
+	m = updated.(*app.Model)
+
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
+	m = updated.(*app.Model)
+
+	// The records page has no focused input by default.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: '2', Text: "2"})
+	m = updated.(*app.Model)
+
+	if !strings.Contains(m.View().Content, "No conversation yet.") {
+		t.Error("the panel was closed on a page that can close it")
+	}
+
+	// And it can still be closed there.
+	updated, _ = m.Update(tea.KeyPressMsg{Code: 'b', Mod: tea.ModCtrl})
+	m = updated.(*app.Model)
+
+	if strings.Contains(m.View().Content, "No conversation yet.") {
+		t.Error("the panel could not be closed on the records page")
+	}
+}

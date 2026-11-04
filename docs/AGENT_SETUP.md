@@ -218,7 +218,11 @@ Press `7` to open the agent page, type a question, and press `enter`.
 - `tab` — switch between the **plan** mode and the **act** mode.
 - `esc` — cancel a running turn, or clear the prompt.
 - `ctrl+b` — open the side panel, on a terminal of at least 121
-  columns. The panel shows the conversation next to the records.
+  columns. The panel shows the conversation next to the records. The
+  key is a global hotkey, so it does not work on this page: the prompt
+  has the focus, and the global layer is suspended. The panel is
+  closed when you come back to this page, and the status bar does not
+  advertise the key here.
 
 ### The plan mode
 

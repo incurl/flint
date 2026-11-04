@@ -573,6 +573,20 @@ func (m *Model) modalInputFocused() bool {
 	return m.runtime.Page == state.PageDetail && m.detail.Editing()
 }
 
+// panelToggleReachable reports whether the panel toggle works on the
+// current page.
+//
+// The toggle is a global hotkey, and the global layer is suspended
+// while a text input has the focus. On a page where an input has the
+// focus, the key never reaches the global layer.
+//
+// The status bar uses this to decide whether it may advertise the
+// toggle, and the navigation uses it to close a panel that the target
+// page could not close.
+func (m *Model) panelToggleReachable() bool {
+	return !m.inputFocused() && !m.modalInputFocused()
+}
+
 // inputFocused reports whether a page currently owns a focused text input.
 //
 // When it returns true the global hotkey layer is suspended.
@@ -595,9 +609,34 @@ func (m *Model) inputFocused() bool {
 // every page shows fresh content as soon as it becomes visible.
 func (m *Model) navigate(page state.Page) tea.Cmd {
 	m.runtime.SetPage(page)
+
+	// The panel is closed when the page it lands on cannot close it.
+	//
+	// The toggle is a global hotkey, and the global layer is suspended
+	// while a text input has the focus. A panel that stays open on such
+	// a page cannot be closed: the user would be left with a panel they
+	// cannot get rid of.
+	m.closeUnreachablePanel()
+
 	m.refreshStatusBar()
 
 	return m.loadPage(page)
+}
+
+// closeUnreachablePanel closes the panel when the current page cannot
+// toggle it.
+//
+// It is called after the page changed, because it is the page that
+// decides.
+func (m *Model) closeUnreachablePanel() {
+	if !m.panel.visible || m.panelToggleReachable() {
+		return
+	}
+
+	m.panel.visible = false
+
+	// The pages change width, so they have to be told.
+	m.resize()
 }
 
 // loadPage returns the command that loads the data of a page.
@@ -795,9 +834,11 @@ func (m *Model) statusInfo() components.StatusInfo {
 func (m *Model) hints() []string {
 	hints := m.pageHints()
 
-	// The panel is a global toggle, so its hint is shown on every
-	// page. It is only offered when the terminal is wide enough for it.
-	if m.panel.canShow() {
+	// The panel is a global toggle, so its hint is shown on every page
+	// — but only where the key actually works. The global layer is
+	// suspended while a text input has the focus, and a hint that
+	// promises a key that does nothing is worse than no hint.
+	if m.panel.canShow() && m.panelToggleReachable() {
 		if m.panel.visible {
 			hints = append(hints, components.FormatHints([][2]string{
 				{"ctrl+b", "hide panel"},
