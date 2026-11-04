@@ -5,6 +5,8 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+
+	"github.com/incurl/flint/internal/theme"
 )
 
 // Scroller shows a block of content that may be taller than the space
@@ -36,6 +38,14 @@ type Scroller struct {
 func NewScroller(height int) *Scroller {
 	v := viewport.New(viewport.WithHeight(height))
 
+	// The content is wrapped, not cut.
+	//
+	// A viewport cuts the lines that are too long, and the rest of the
+	// text is lost: a conversation that holds a long answer would show
+	// a fragment of it, and the reader would never know that the rest
+	// is there.
+	v.SoftWrap = true
+
 	return &Scroller{
 		viewport: v,
 		follow:   true,
@@ -62,8 +72,12 @@ func (s *Scroller) SetSize(width, height int) {
 //
 // The scroller follows the end when it was following it: a new line
 // appears at the bottom, and the reader is already there.
+//
+// The content is wrapped on the words before it is given to the
+// viewport. The viewport soft-wraps by cutting the lines at the width,
+// which splits the words in the middle: a line has to read as text.
 func (s *Scroller) SetContent(content string) {
-	s.viewport.SetContent(content)
+	s.viewport.SetContent(strings.Join(theme.Wrap(content, s.viewport.Width()), "\n"))
 
 	if s.follow {
 		s.viewport.GotoBottom()

@@ -1,6 +1,10 @@
 package theme
 
-import "charm.land/lipgloss/v2"
+import (
+	"strings"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Breakpoints describe the terminal width ranges used to switch the layout.
 type Breakpoints struct {
@@ -90,6 +94,103 @@ func Truncate(s string, width int) string {
 
 	return lipgloss.NewStyle().MaxWidth(width).Render(s)
 }
+
+// Wrap breaks a text into lines of at most the given width.
+//
+// The text is broken on the words, so a line reads as text. A word that
+// is longer than the width is broken on its characters rather than
+// overflowing.
+//
+// It is the wrapping of a terminal: a viewport that soft-wraps cuts the
+// lines at the width, which splits the words in the middle.
+func Wrap(text string, width int) []string {
+	if width < 1 {
+		return []string{""}
+	}
+
+	var out []string
+
+	for _, paragraph := range strings.Split(text, "\n") {
+		words := splitWords(paragraph)
+		if len(words) == 0 {
+			out = append(out, "")
+
+			continue
+		}
+
+		// The style of the paragraph is put on every line it is
+		// broken into: a line that lost it reads wrong.
+		style := leadingStyle(paragraph)
+
+		line := ""
+
+		for _, word := range words {
+			switch {
+			case line == "":
+				line = word
+			case lipgloss.Width(line)+1+lipgloss.Width(word) <= width:
+				line += " " + word
+			default:
+				out = append(out, style+line+resetSequence)
+				line = word
+			}
+		}
+
+		if line != "" {
+			out = append(out, style+line+resetSequence)
+		}
+	}
+
+	// A word that is longer than the width is broken on its characters.
+	for i, line := range out {
+		if lipgloss.Width(line) <= width {
+			continue
+		}
+
+		out[i] = Truncate(line, width)
+	}
+
+	return out
+}
+
+// splitWords splits a text into its words, keeping the ANSI sequences.
+//
+// [strings.Fields] keeps them: it splits on the whitespace, and the
+// escape sequences stay attached to the words they style. A wrapped
+// line that lost its style is a line that reads wrong.
+//
+// The words are rejoined with a single space, so a text that had a
+// double space or a leading indentation loses it. A conversation does
+// not care, and the alternative is a wrapper that understands the
+// escape sequences.
+func splitWords(text string) []string {
+	return strings.Fields(text)
+}
+
+// leadingStyle returns the ANSI sequences a text starts with.
+//
+// It is the style of the text: the colour and the attributes it was
+// rendered with.
+func leadingStyle(text string) string {
+	var style strings.Builder
+
+	for len(text) > 0 && text[0] == '\x1b' {
+		end := strings.IndexByte(text, 'm')
+		if end < 0 {
+			break
+		}
+
+		style.WriteString(text[:end+1])
+		text = text[end+1:]
+	}
+
+	return style.String()
+}
+
+// resetSequence closes the style of a line.
+//
+// Without it the style of a line would bleed into the next one.
+const resetSequence = "\x1b[0m"
 
 // max returns the larger of the two provided integers.
 func max(a, b int) int {

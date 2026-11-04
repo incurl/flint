@@ -178,7 +178,7 @@ func (p *AgentPanel) renderEntry(entry AgentPanelEntry) []string {
 		return []string{p.theme.Error.Render(theme.Truncate(entry.Text, p.textWidth()))}
 
 	default:
-		return wrapText(entry.Text, p.textWidth())
+		return theme.Wrap(entry.Text, p.textWidth())
 	}
 }
 
@@ -192,54 +192,4 @@ func (p *AgentPanel) textWidth() int {
 	}
 
 	return width
-}
-
-// wrapText breaks a text into lines of at most the given width.
-//
-// The text is broken on the words, so a long word is broken on its
-// characters rather than overflowing the panel.
-func wrapText(text string, width int) []string {
-	if width < 1 {
-		return []string{""}
-	}
-
-	var out []string
-
-	for _, paragraph := range strings.Split(text, "\n") {
-		words := strings.Fields(paragraph)
-		if len(words) == 0 {
-			out = append(out, "")
-
-			continue
-		}
-
-		line := ""
-
-		for _, word := range words {
-			switch {
-			case line == "":
-				line = word
-			case len(line)+1+len(word) <= width:
-				line += " " + word
-			default:
-				out = append(out, line)
-				line = word
-			}
-		}
-
-		if line != "" {
-			out = append(out, line)
-		}
-	}
-
-	// A word that is longer than the panel is broken on its characters.
-	for i, line := range out {
-		if len(line) <= width {
-			continue
-		}
-
-		out[i] = theme.Truncate(line, width)
-	}
-
-	return out
 }

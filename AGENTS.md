@@ -289,6 +289,10 @@ Three rules catch most mistakes:
 - **The content of a scroller is prepared before the keys are
   handled.** A scroll has to act on the conversation as it is now, not
   on the one of the last frame.
+- **A viewport cuts the lines that are too long.** The soft wrap of
+  the viewport breaks them at the width, which splits the words in the
+  middle. `theme.Wrap` breaks them on the words, and the style of the
+  text is put back on every line it is broken into.
 - **The up and down arrows belong to the text input.** A scroller
   handles the pager keys — `pgup`, `pgdown`, `ctrl+u`, `ctrl+d` — and
   leaves the arrows alone: a caret that does not move is a caret the

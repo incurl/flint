@@ -767,6 +767,12 @@ func (r *Runner) CancelAll()
 func (r *Runner) Busy() bool
 func (r *Runner) AddPublisher(publisher Publisher)
 
+// The wrapping of a text, on the words.
+//
+// The viewport soft-wraps by cutting the lines at the width, which
+// splits the words in the middle.
+func Wrap(text string, width int) []string
+
 // The scroller. It shows a block of content that is taller than the
 // space it has, and it follows the end while the reader is there.
 func NewScroller(height int) *Scroller

@@ -262,10 +262,20 @@ func (c *RecordCard) View() tea.View {
 
 	var b strings.Builder
 
-	b.WriteString(c.theme.Title.Render(c.renderer.Title(c.record)))
+	// The title and the summary are wrapped: a record has a title that
+	// is as long as the field it comes from, and a line that is too
+	// long is cut by the terminal.
+	for _, line := range theme.Wrap(c.renderer.Title(c.record), c.width) {
+		b.WriteString(c.theme.Title.Render(line))
+		b.WriteString("\n")
+	}
+
+	for _, line := range theme.Wrap(c.renderer.Summary(c.record), c.width) {
+		b.WriteString(c.theme.Muted.Render(line))
+		b.WriteString("\n")
+	}
+
 	b.WriteString("\n")
-	b.WriteString(c.theme.Muted.Render(c.renderer.Summary(c.record)))
-	b.WriteString("\n\n")
 
 	rows := c.renderer.Fields(c.record)
 	stacked := c.width > 0 && c.width < 48
@@ -274,16 +284,31 @@ func (c *RecordCard) View() tea.View {
 
 	for _, row := range rows {
 		if stacked {
-			fields = append(fields,
-				c.theme.Label.Render(row.Name),
-				"  "+c.theme.Value.Render(row.Value),
-			)
+			fields = append(fields, c.theme.Label.Render(row.Name))
+
+			// The value is wrapped under the name, on the words.
+			for _, line := range theme.Wrap(row.Value, max(c.width-2, 1)) {
+				fields = append(fields, "  "+c.theme.Value.Render(line))
+			}
 
 			continue
 		}
 
 		label := c.theme.Label.Render(padRight(row.Name, 14))
-		fields = append(fields, label+c.theme.Value.Render(row.Value))
+
+		// The value is wrapped on the words, and the label is repeated
+		// on the lines that follow.
+		lines := theme.Wrap(row.Value, max(c.width-14, 1))
+
+		for i, line := range lines {
+			if i == 0 {
+				fields = append(fields, label+c.valueStyle(line))
+
+				continue
+			}
+
+			fields = append(fields, strings.Repeat(" ", 14)+c.valueStyle(line))
+		}
 	}
 
 	// The fields are scrolled: a record with many fields does not fit
@@ -310,6 +335,14 @@ func (c *RecordCard) scrollerHeight(fields int) int {
 	}
 
 	return height
+}
+
+// valueStyle renders a line of a value.
+//
+// The style is applied to the line, not to the whole value: a style
+// that spans several lines would bleed into the next one.
+func (c *RecordCard) valueStyle(line string) string {
+	return c.theme.Value.Render(line)
 }
 
 // padRight pads a string with spaces up to the requested width.
