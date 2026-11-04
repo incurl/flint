@@ -526,8 +526,8 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 	case "ctrl+b":
 		// The panel is a chrome toggle, like the theme: it is not a
 		// page and it does not navigate.
-		if m.togglePanel() {
-			return nil, true
+		if cmd, handled := m.togglePanel(); handled {
+			return cmd, true
 		}
 
 		// The panel does not fit on this terminal: the key is left to
@@ -589,7 +589,9 @@ func (m *Model) handleGlobalKey(msg tea.KeyPressMsg) (tea.Cmd, bool) {
 		m.runtime.GoBack()
 		m.refreshStatusBar()
 
-		return m.loadPage(m.runtime.Page), true
+		// The page that is returned to is sized and reloaded like any
+		// other: it may have been sized before the panel opened.
+		return m.activate(), true
 	}
 
 	// The "r" hotkey refreshes the active page, but it is not available
@@ -647,8 +649,9 @@ func (m *Model) inputFocused() bool {
 
 // navigate switches the active page.
 //
-// It returns the command that loads the data of the target page, so that
-// every page shows fresh content as soon as it becomes visible.
+// It returns the commands that size the target page and load its data,
+// so that every page fills the screen and shows fresh content as soon as
+// it becomes visible.
 func (m *Model) navigate(page state.Page) tea.Cmd {
 	m.runtime.SetPage(page)
 
@@ -662,7 +665,43 @@ func (m *Model) navigate(page state.Page) tea.Cmd {
 
 	m.refreshStatusBar()
 
-	return m.loadPage(page)
+	// The page is told the space it has. A resize only reaches the page
+	// that is displayed at the time, so a page reached later has never
+	// been sized and would render at the default size of its
+	// constructor: a record view of 80 by 24 on a 200 column terminal,
+	// with the rest of the screen left empty.
+	return m.activate()
+}
+
+// activate sizes the active page and loads its data.
+//
+// It is what makes a page usable as soon as it is shown: the space it
+// has, which is not the whole terminal, and the content it displays.
+func (m *Model) activate() tea.Cmd {
+	return tea.Batch(m.resizeActivePage(), m.loadPage(m.runtime.Page))
+}
+
+// resizeActivePage tells the active page the space it has.
+//
+// The terminal reports its size to the root model, which works out the
+// box a page gets: the status bar takes a line and the panel takes a
+// column, so the box is never the whole terminal. The resize message is
+// only forwarded to the page that is displayed, which is why a page has
+// to be told again whenever it becomes active and whenever the panel
+// changes the width.
+func (m *Model) resizeActivePage() tea.Cmd {
+	if m.pageWidth <= 0 || m.pageHeight <= 0 {
+		// The terminal has not reported its size yet: the message it
+		// sends will size the page.
+		return nil
+	}
+
+	cmds := m.updateActivePage(tea.WindowSizeMsg{
+		Width:  m.pageWidth,
+		Height: m.pageHeight,
+	})
+
+	return tea.Batch(cmds...)
 }
 
 // closeUnreachablePanel closes the panel when the current page cannot
@@ -904,7 +943,7 @@ func (m *Model) pageHints() []string {
 		})
 	case state.PageDetail:
 		return components.FormatHints([][2]string{
-			{"j", "json"}, {"r", "raw"}, {"e", "edit"},
+			{"↑↓", "move"}, {"enter", "expand"}, {"r", "raw"}, {"e", "edit"},
 		})
 	case state.PageSearch:
 		return components.FormatHints([][2]string{

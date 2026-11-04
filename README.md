@@ -104,7 +104,9 @@ the store. Pick one with `↑`/`↓` and `enter` to browse its records.
 
 Page local shortcuts are namespaced and never conflict with the global
 layer: `/` filters the record list, `enter` opens a record, `r` toggles
-the raw JSON view on the detail page, `e` opens the JSON editor.
+the raw JSON view on the detail page, `e` opens the JSON editor, and
+`↑`/`↓` walk the JSON tree while `enter` expands or collapses the
+highlighted node.
 
 The **agent** page (`7`) is modal while its prompt has the focus, so the
 global layer is suspended there: `enter` sends the prompt, `esc` cancels

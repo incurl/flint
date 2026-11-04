@@ -1,6 +1,7 @@
 package components_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -139,6 +140,59 @@ func TestJSONViewerCollapse(t *testing.T) {
 
 	if strings.Contains(viewer.View().Content, "b") {
 		t.Errorf("View() = %q, want the collapsed child to be hidden", viewer.View().Content)
+	}
+}
+
+// TestJSONViewerMovesTheCursor verifies that the highlight follows the
+// cursor and that the window scrolls with it.
+//
+// The component used to move an internal cursor without re-rendering and
+// without scrolling: pressing down changed nothing on the screen, and
+// `enter` then toggled a node the reader had never pointed at.
+func TestJSONViewerMovesTheCursor(t *testing.T) {
+	viewer := components.NewJSONViewer(theme.Default())
+	viewer.SetSize(40, 4)
+
+	var doc strings.Builder
+
+	doc.WriteString("{")
+
+	for i := range 30 {
+		if i > 0 {
+			doc.WriteString(",")
+		}
+
+		// The keys are zero padded: the node names are sorted, and an
+		// unsorted list would make the position of the cursor a
+		// surprise.
+		fmt.Fprintf(&doc, `"item-%02d": %d`, i, i)
+	}
+
+	doc.WriteString("}")
+
+	if err := viewer.SetContent(doc.String()); err != nil {
+		t.Fatalf("SetContent() error = %v", err)
+	}
+
+	viewer.Focus()
+
+	before := viewer.View().Content
+
+	viewer.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+
+	if viewer.View().Content == before {
+		t.Fatal("View() did not change: the highlight did not follow the cursor")
+	}
+
+	// Walk the cursor out of the four line window.
+	for range 20 {
+		viewer.Update(tea.KeyPressMsg{Code: tea.KeyDown})
+	}
+
+	// The cursor is on the twenty first child: the window has to have
+	// scrolled to it.
+	if view := viewer.View().Content; !strings.Contains(view, "item-20") {
+		t.Errorf("View() = %q, want the highlighted line in the window", view)
 	}
 }
 

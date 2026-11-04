@@ -146,21 +146,25 @@ func (p *panelState) resize() {
 
 // togglePanel shows or hides the agent panel.
 //
-// It returns false when the panel does not fit on the terminal, so that
-// the caller can leave the key to the page.
-func (m *Model) togglePanel() bool {
+// It returns the command of the active page, which has to be told the
+// width it has now, and whether the panel was toggled: it cannot be shown
+// on a terminal that is too narrow, and a key that does nothing is better
+// than a key that hides a panel that was never there.
+func (m *Model) togglePanel() (tea.Cmd, bool) {
 	if !m.panel.toggle() {
-		return false
+		return nil, false
 	}
 
 	// The panel is a view of the conversation, so it is filled when it
 	// opens: the user may toggle it long after the run started.
 	m.refreshPanel()
 
-	// The pages change width, so they have to be told.
+	// The pages change width, so they have to be told: the page is
+	// narrower while the panel is open, and its layout is computed from
+	// the width it is given.
 	m.resize()
 
-	return true
+	return m.resizeActivePage(), true
 }
 
 // viewWithPanel renders the page with the agent panel on its right.

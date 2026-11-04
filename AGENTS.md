@@ -238,6 +238,14 @@ Three rules catch most mistakes:
   the height it computed, not the size of the terminal. A page that
   thinks it has the whole terminal renders one line too many, and the
   prompt at the bottom of the page falls off the screen.
+- **A page has to be told its size every time it becomes active.** A
+  `tea.WindowSizeMsg` only reaches the page that is displayed at the
+  time, and the panel toggle changes the width without a resize
+  message at all. `navigate` and `togglePanel` therefore call
+  `resizeActivePage`. Without it a page keeps the default size of its
+  constructor — the record view rendered 80×24 on a 200 column
+  terminal — until the terminal is resized while the page is on
+  screen.
 - **Two columns have to add up.** `theme.SplitWidth` returns the two
   widths *without* the gap, so the body is padded to
   `bodyWidth + gap`. Lip Gloss does not pad the lines of a bordered
@@ -303,6 +311,13 @@ Three rules catch most mistakes:
   handles the pager keys — `pgup`, `pgdown`, `ctrl+u`, `ctrl+d` — and
   leaves the arrows alone: a caret that does not move is a caret the
   reader cannot place.
+- **A page must not bind the key its child uses.** The record view bound
+  `j` to "focus the JSON tree" and consumed it before the tree saw it,
+  so the cursor never moved and `enter` collapsed a node the reader had
+  never pointed at. The tree owns the keys: the arrows and `j`/`k` walk
+  it, `enter` expands and collapses. A tree cursor also has to re-render
+  the viewport and scroll it — a cursor that moves invisibly is not a
+  cursor.
 - **The runner's model can be replaced while the application runs.**
   `Runner.SetModel` installs it, and `Run` reads the current one at the
   start of every turn — a run already in flight keeps the model it

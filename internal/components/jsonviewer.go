@@ -187,6 +187,10 @@ func (v *JSONViewer) visibleNodes() []*JSONNode {
 }
 
 // moveCursor moves the highlighted line by the given offset.
+//
+// The tree is re-rendered and the window scrolls with the cursor: a
+// cursor that moves without either is a cursor the reader cannot see,
+// and `enter` would toggle a node the highlight never pointed at.
 func (v *JSONViewer) moveCursor(delta int) {
 	nodes := v.visibleNodes()
 	if len(nodes) == 0 {
@@ -201,6 +205,12 @@ func (v *JSONViewer) moveCursor(delta int) {
 	if v.cursor >= len(nodes) {
 		v.cursor = len(nodes) - 1
 	}
+
+	v.render()
+
+	// Keep the highlighted line in the window: the tree can be taller
+	// than the space the page gives it.
+	v.viewport.EnsureVisible(v.cursor, 0, 0)
 }
 
 // toggleCurrent expands or collapses the highlighted container.

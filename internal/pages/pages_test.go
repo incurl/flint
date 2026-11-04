@@ -690,3 +690,53 @@ func TestDetailPageCancelDiscardsEdits(t *testing.T) {
 		t.Error("the cancelled edit is still in the editor")
 	}
 }
+
+// TestDetailPageExpandsTheTree verifies that the record view expands and
+// collapses the JSON tree.
+//
+// The page bound `j` to "focus the JSON viewer" and consumed the key
+// before the viewer saw it, so the cursor never moved: `enter` collapsed
+// the root and there was no way back into a child node. The tree takes
+// the keys on its own now.
+func TestDetailPageExpandsTheTree(t *testing.T) {
+	record := &pbstore.Record{
+		ID:             "rec1",
+		CollectionName: "vocab",
+		Fields: map[string]any{
+			"label": "Go",
+			"meta":  map[string]any{"tags": []any{"cli", "lang"}},
+		},
+	}
+
+	store := &stubStore{records: []*pbstore.Record{record}}
+
+	runtime := newRuntime()
+	runtime.SelectedID = "rec1"
+
+	page := pages.NewDetailPage(store, runtime, theme.Default(), nil)
+
+	updated, _ := page.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	page = updated.(*pages.DetailPage)
+
+	updated, _ = page.Update(pages.DetailMsg{Record: record, ID: "rec1"})
+	page = updated.(*pages.DetailPage)
+
+	if strings.Contains(page.View().Content, "tags") {
+		t.Fatal("the collapsed child is visible before anything was expanded")
+	}
+
+	// The cursor starts on the root: one step down is the "label"
+	// scalar, two the "meta" object.
+	for _, msg := range []tea.KeyPressMsg{
+		{Code: 'j', Text: "j"},
+		{Code: 'j', Text: "j"},
+		{Code: tea.KeyEnter},
+	} {
+		updated, _ = page.Update(msg)
+		page = updated.(*pages.DetailPage)
+	}
+
+	if view := page.View().Content; !strings.Contains(view, "tags") {
+		t.Errorf("View() = %q, want the expanded child to be visible", view)
+	}
+}

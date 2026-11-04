@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/incurl/flint/internal/agent"
 	"github.com/incurl/flint/internal/pages"
@@ -70,6 +71,74 @@ func TestThePagesFitTheTerminal(t *testing.T) {
 
 		if len(lines) > height {
 			t.Errorf("the %s page rendered %d lines for a %d line terminal", name, len(lines), height)
+		}
+	}
+}
+
+// TestTheDetailPageFillsTheTerminal verifies that the record view uses
+// the whole page it is given.
+//
+// A page that renders one line too many loses the line at the bottom,
+// and one that renders too few leaves the terminal half empty: the
+// fields and the JSON tree share everything between the title and the
+// help line, so the record view fills the page exactly.
+func TestTheDetailPageFillsTheTerminal(t *testing.T) {
+	fields := map[string]any{"label": "Go"}
+
+	for i := range 20 {
+		fields[fmt.Sprintf("field-%02d", i)] = "a value that is long enough to wrap on a narrow page"
+	}
+
+	record := &pbstore.Record{ID: "rec1", CollectionName: "vocab", Fields: fields}
+
+	store := &stubStore{records: []*pbstore.Record{record}}
+
+	for _, width := range []int{80, 120, 200} {
+		for _, height := range []int{10, 20, 40} {
+			runtime := newRuntime()
+			runtime.SelectedID = "rec1"
+
+			page := pages.NewDetailPage(store, runtime, theme.Default(), nil)
+
+			updated, _ := page.Update(tea.WindowSizeMsg{Width: width, Height: height})
+			page = updated.(*pages.DetailPage)
+
+			updated, _ = page.Update(pages.DetailMsg{Record: record, ID: "rec1"})
+			page = updated.(*pages.DetailPage)
+
+			checkFills(t, "structured", page.View().Content, width, height)
+
+			// Pressing `r` leaves the tree on its own.
+			updated, _ = page.Update(tea.KeyPressMsg{Code: 'r', Text: "r"})
+			page = updated.(*pages.DetailPage)
+
+			checkFills(t, "raw", page.View().Content, width, height)
+
+			// Pressing `e` gives the page to the editor.
+			updated, _ = page.Update(tea.KeyPressMsg{Code: 'e', Text: "e"})
+			page = updated.(*pages.DetailPage)
+
+			checkFills(t, "editor", page.View().Content, width, height)
+		}
+	}
+}
+
+// checkFills asserts that a view is exactly the height of the page and
+// no wider than it.
+func checkFills(t *testing.T, name, view string, width, height int) {
+	t.Helper()
+
+	lines := strings.Split(view, "\n")
+
+	if len(lines) != height {
+		t.Errorf("the %s view at %dx%d rendered %d lines, want %d", name, width, height, len(lines), height)
+	}
+
+	for i, line := range lines {
+		if w := lipgloss.Width(line); w > width {
+			t.Errorf("the %s view at %dx%d: line %d is %d cells wide", name, width, height, i, w)
+
+			break
 		}
 	}
 }
