@@ -29,7 +29,10 @@ func TestRegisterCodeTools(t *testing.T) {
 		ToolCodeSymbols,
 		ToolCodeDefinition,
 		ToolCodeReferences,
+		ToolCodeDiagnostics,
+		ToolCodeCallHierarchy,
 		ToolCodeRename,
+		ToolCodeReplaceSymbol,
 	}
 
 	got := registry.Names()
@@ -69,14 +72,22 @@ func TestRegisterCodeToolsWithoutAManager(t *testing.T) {
 func TestCodeToolsAreInTheMode(t *testing.T) {
 	t.Parallel()
 
-	for _, name := range []string{ToolCodeSymbols, ToolCodeDefinition, ToolCodeReferences} {
+	for _, name := range []string{
+		ToolCodeSymbols,
+		ToolCodeDefinition,
+		ToolCodeReferences,
+		ToolCodeDiagnostics,
+		ToolCodeCallHierarchy,
+	} {
 		if IsMutatingTool(name) {
 			t.Errorf("%s is a mutating tool, want it to be a reading one", name)
 		}
 	}
 
-	if !IsMutatingTool(ToolCodeRename) {
-		t.Errorf("%s is not a mutating tool, want it to be one", ToolCodeRename)
+	for _, name := range []string{ToolCodeRename, ToolCodeReplaceSymbol} {
+		if !IsMutatingTool(name) {
+			t.Errorf("%s is not a mutating tool, want it to be one", name)
+		}
 	}
 }
 
@@ -99,7 +110,10 @@ func TestCodeToolSchema(t *testing.T) {
 		{NewCodeSymbolsTool(manager), []string{"path"}},
 		{NewCodeDefinitionTool(manager), []string{"path", "line", "column"}},
 		{NewCodeReferencesTool(manager), []string{"path", "line", "column"}},
+		{NewCodeDiagnosticsTool(manager), []string{"path"}},
+		{NewCodeCallHierarchyTool(manager), []string{"path", "line", "column", "direction"}},
 		{NewCodeRenameTool(manager), []string{"path", "line", "column", "new_name"}},
+		{NewCodeReplaceSymbolTool(manager), []string{"path", "symbol", "action", "replacement"}},
 	}
 
 	for _, tc := range cases {
@@ -162,6 +176,39 @@ func TestCodeRenameIsGated(t *testing.T) {
 	}
 
 	_, err = tool.Run(context.Background(), `{"path":"main.go","line":1,"column":1,"new_name":"x"}`)
+
+	if !errors.Is(err, ErrPermissionDenied) {
+		t.Errorf("Run() error = %v, want it to be a refusal", err)
+	}
+
+	if requester.calls() != 1 {
+		t.Errorf("the requester was called %d times, want 1", requester.calls())
+	}
+}
+
+// TestCodeReplaceSymbolIsGated checks that the replacement tool asks
+// the user before it changes the code.
+func TestCodeReplaceSymbolIsGated(t *testing.T) {
+	t.Parallel()
+
+	manager, err := code.NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	requester := &refusingRequester{}
+
+	registry := NewRegistry()
+	RegisterCodeTools(registry, manager, NewGate(PermissionModeAsk, requester))
+
+	tool, err := registry.Get(ToolCodeReplaceSymbol)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	input := `{"path":"main.go","symbol":"Foo","action":"delete"}`
+
+	_, err = tool.Run(context.Background(), input)
 
 	if !errors.Is(err, ErrPermissionDenied) {
 		t.Errorf("Run() error = %v, want it to be a refusal", err)

@@ -65,6 +65,8 @@ var readOnlyTools = []string{
 	ToolCodeSymbols,
 	ToolCodeDefinition,
 	ToolCodeReferences,
+	ToolCodeDiagnostics,
+	ToolCodeCallHierarchy,
 }
 
 // mutatingTools are the tools that change the data.
@@ -80,6 +82,8 @@ var mutatingTools = []string{
 	// changes the data of the user. The plan proposes it; the act
 	// mode carries it out.
 	ToolCodeRename,
+	// So does a replacement of a declaration.
+	ToolCodeReplaceSymbol,
 }
 
 // IsMutatingTool reports whether a tool changes the data.

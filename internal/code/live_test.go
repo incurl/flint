@@ -277,6 +277,143 @@ func TestLiveRenameWithNonASCII(t *testing.T) {
 	}
 }
 
+// TestLiveDiagnostics checks that the problems of a file are reported.
+//
+// The server publishes them as a notification, and the cache holds
+// them: the answer is what the server knows now.
+func TestLiveDiagnostics(t *testing.T) {
+	if _, err := exec.LookPath(serverCommand); err != nil {
+		t.Skipf("%s is not on the PATH", serverCommand)
+	}
+
+	root := t.TempDir()
+
+	// The file does not compile: it uses a variable that is not
+	// declared.
+	source := "package sample\n\nfunc Broken() int {\n\treturn missing\n}\n"
+
+	path := filepath.Join(root, "sample.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	goMod := filepath.Join(root, "go.mod")
+	if err := os.WriteFile(goMod, []byte("module sample\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// The server needs a moment to analyse the file and to publish
+	// what it found.
+	var items []Diagnostic
+
+	deadline := time.Now().Add(30 * time.Second)
+
+	for time.Now().Before(deadline) {
+		items, err = manager.Diagnostics(ctx, "sample.go")
+		if err != nil {
+			t.Fatalf("Diagnostics() error = %v", err)
+		}
+
+		if len(items) > 0 {
+			break
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if len(items) == 0 {
+		t.Fatal("Diagnostics() returned nothing, want the error of the file")
+	}
+
+	found := false
+
+	for _, item := range items {
+		if item.Severity == "error" && strings.Contains(item.Message, "missing") {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Errorf("the diagnostics are %v, want the error about the missing name", items)
+	}
+}
+
+// TestLiveCallHierarchy checks the call hierarchy of a function.
+//
+// The hierarchy is semantic: it knows that a function calls another
+// one, which the references do not.
+func TestLiveCallHierarchy(t *testing.T) {
+	if _, err := exec.LookPath(serverCommand); err != nil {
+		t.Skipf("%s is not on the PATH", serverCommand)
+	}
+
+	root := t.TempDir()
+
+	source := "package sample\n\n// Helper helps.\nfunc Helper() string {\n\treturn \"help\"\n}\n\n// Caller calls.\nfunc Caller() string {\n\treturn Helper()\n}\n\nfunc main() {\n\t_ = Caller()\n}\n"
+
+	path := filepath.Join(root, "sample.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	goMod := filepath.Join(root, "go.mod")
+	if err := os.WriteFile(goMod, []byte("module sample\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// The call of Helper, inside Caller.
+	line, column := findSymbol(t, path, "Helper()")
+
+	callers, err := manager.Callers(ctx, "sample.go", line, column)
+	if err != nil {
+		t.Fatalf("Callers() error = %v", err)
+	}
+
+	if len(callers) == 0 {
+		t.Fatal("Callers() returned nothing, want the caller of Helper")
+	}
+
+	if callers[0].Name != "Caller" {
+		t.Errorf("the caller is %q, want %q", callers[0].Name, "Caller")
+	}
+
+	// What Caller calls.
+	line, column = findSymbol(t, path, "Caller() string")
+
+	callees, err := manager.Callees(ctx, "sample.go", line, column)
+	if err != nil {
+		t.Fatalf("Callees() error = %v", err)
+	}
+
+	if len(callees) == 0 {
+		t.Fatal("Callees() returned nothing, want the callee of Caller")
+	}
+
+	if callees[0].Name != "Helper" {
+		t.Errorf("the callee is %q, want %q", callees[0].Name, "Helper")
+	}
+}
+
 // symbolNames returns the names of the symbols and of their children.
 func symbolNames(symbols []Symbol) map[string]bool {
 	names := make(map[string]bool)

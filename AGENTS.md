@@ -352,7 +352,14 @@ Three rules catch most mistakes:
 - **A rename of the code is a write of the data.** The renaming tool
   is behind the permission gate, and it is in `mutatingTools`: the
   plan mode proposes it, the act mode carries it out. A rename is
-  approved by the user, exactly like a record is.
+  approved by the user, exactly like a record is. So is the
+  replacement of a declaration.
+- **The diagnostics of the code come as a notification.** There is no
+  request and no answer: the server publishes the problems of a file
+  when it finishes analysing it, and the subscription is registered
+  before the initialization, because a server may publish while it
+  starts. A file the server has not analysed has no problems, and an
+  empty answer for a file it has never read would be a lie.
 - **The edits of the language server are byte ranges, not lines.** A
   rename replaces the characters of the occurrences, and the rest of
   the line stays. A model that reads a file knows the line of a

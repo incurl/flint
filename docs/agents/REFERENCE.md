@@ -770,13 +770,19 @@ func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate)
 func NewCodeSymbolsTool(manager *code.Manager) Tool
 func NewCodeDefinitionTool(manager *code.Manager) Tool
 func NewCodeReferencesTool(manager *code.Manager) Tool
+func NewCodeDiagnosticsTool(manager *code.Manager) Tool
+func NewCodeCallHierarchyTool(manager *code.Manager) Tool
 func NewCodeRenameTool(manager *code.Manager) Tool
+func NewCodeReplaceSymbolTool(manager *code.Manager) Tool
 
 const (
-	ToolCodeSymbols    = "code_symbols"
-	ToolCodeDefinition = "code_definition"
-	ToolCodeReferences = "code_references"
-	ToolCodeRename     = "code_rename"
+	ToolCodeSymbols       = "code_symbols"
+	ToolCodeDefinition    = "code_definition"
+	ToolCodeReferences    = "code_references"
+	ToolCodeDiagnostics   = "code_diagnostics"
+	ToolCodeCallHierarchy = "code_call_hierarchy"
+	ToolCodeRename        = "code_rename"
+	ToolCodeReplaceSymbol = "code_replace_symbol"
 )
 
 // The runner.
@@ -916,9 +922,22 @@ func (m *Manager) Definition(ctx context.Context, path string, line, column int)
 func (m *Manager) References(ctx context.Context, path string, line, column int) ([]Location, error)
 func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, error)
 
-// The write. The caller decides whether it happens: the rename tool
-// is behind the permission gate.
+// The problems the server found.
+func (m *Manager) Diagnostics(ctx context.Context, path string) ([]Diagnostic, error)
+func (m *Manager) AllDiagnostics(ctx context.Context) ([]Diagnostic, error)
+
+// The call hierarchy: who calls a symbol, and what it calls.
+func (m *Manager) Callers(ctx context.Context, path string, line, column int) ([]Call, error)
+func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([]Call, error)
+
+// The replacement of a declaration. The action is "replace",
+// "add_before", "add_after" or "delete".
+func (m *Manager) ReplaceSymbol(ctx context.Context, path, name, action, replacement string) (string, error)
+
+// The writes. The caller decides whether they happen: the tools that
+// write are behind the permission gate.
 func (m *Manager) Apply(edits []Edit) error
+func (m *Manager) ApplyContent(path, content string) error
 
 type Symbol struct {
 	Name     string
@@ -941,6 +960,23 @@ type Edit struct {
 	End   int
 	Line  int
 	Text  string
+}
+
+type Diagnostic struct {
+	Path     string
+	Line     int
+	Column   int
+	Severity string
+	Message  string
+	Source   string
+	Code     string
+}
+
+type Call struct {
+	Name   string
+	Path   string
+	Line   int
+	Column int
 }
 ```
 

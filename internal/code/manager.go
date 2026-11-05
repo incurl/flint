@@ -62,6 +62,8 @@ type Manager struct {
 	mu sync.Mutex
 	// client is the language server, nil until it is started.
 	client *powernap.Client
+	// diagnostics holds the problems the server found.
+	diagnostics *diagnostics
 	// unavailableUntil is the time before which the server is not
 	// looked for again.
 	unavailableUntil time.Time
@@ -89,7 +91,7 @@ func NewManager(root string, logger *slog.Logger) (*Manager, error) {
 		logger = slog.Default()
 	}
 
-	return &Manager{root: abs, logger: logger}, nil
+	return &Manager{root: abs, logger: logger, diagnostics: newDiagnostics()}, nil
 }
 
 // Root returns the directory the manager reads.
@@ -154,6 +156,11 @@ func (m *Manager) server(ctx context.Context) (*powernap.Client, error) {
 
 	startCtx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
+
+	// The diagnostics are subscribed before the initialization: a
+	// server may publish while it starts, and a notification that
+	// arrives before the subscription is lost.
+	watchDiagnostics(client, m.diagnostics)
 
 	// The method is named the way the Language Server Protocol names
 	// it, and the UK locale of the linter does not apply to a name
@@ -251,6 +258,171 @@ func (m *Manager) Symbols(ctx context.Context, path string) ([]Symbol, error) {
 	}
 
 	return symbols, nil
+}
+
+// Diagnostics returns the problems the server found in a file.
+//
+// The server publishes them when it finishes analysing the file, so
+// the answer is what the server knows now: a file it has not looked
+// at yet has no problems, and a file it has looked at has the ones
+// it reported.
+func (m *Manager) Diagnostics(ctx context.Context, path string) ([]Diagnostic, error) {
+	abs, err := m.resolve(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// The server is asked to look at the file: a file that was never
+	// opened has no diagnostics, and the empty answer of a file that
+	// was never read is a lie.
+	if _, err := m.server(ctx); err != nil {
+		return nil, err
+	}
+
+	return m.diagnostics.of(abs), nil
+}
+
+// AllDiagnostics returns the problems the server found in every file.
+func (m *Manager) AllDiagnostics(ctx context.Context) ([]Diagnostic, error) {
+	if _, err := m.server(ctx); err != nil {
+		return nil, err
+	}
+
+	return m.diagnostics.all(), nil
+}
+
+// Call is one end of a call: a function that calls another, or that
+// is called by another.
+type Call struct {
+	// Name is the name of the function.
+	Name string
+	// Path is the file the function is in.
+	Path string
+	// Line is the line the call is at, counted from 1.
+	Line int
+	// Column is the column the call is at, counted from 1.
+	Column int
+}
+
+// String returns the call as "path:line: name".
+func (c Call) String() string {
+	return fmt.Sprintf("%s:%d: %s", c.Path, c.Line, c.Name)
+}
+
+// Callers returns the functions that call the symbol at a place.
+//
+// The symbol is given by the file it is used in and the position of
+// the use: the server resolves it from there, which is the only way
+// to tell two symbols of the same name apart.
+func (m *Manager) Callers(ctx context.Context, path string, line, column int) ([]Call, error) {
+	item, err := m.callHierarchyItem(ctx, path, line, column)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := m.server(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	calls, err := client.IncomingCalls(reqCtx, *item)
+	if err != nil {
+		return nil, fmt.Errorf("code: the callers in %s: %w", path, err)
+	}
+
+	out := make([]Call, 0, len(calls))
+
+	for _, call := range calls {
+		out = append(out, callFrom(call.From))
+	}
+
+	return out, nil
+}
+
+// Callees returns the functions that the symbol at a place calls.
+func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([]Call, error) {
+	item, err := m.callHierarchyItem(ctx, path, line, column)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := m.server(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	calls, err := client.OutgoingCalls(reqCtx, *item)
+	if err != nil {
+		return nil, fmt.Errorf("code: the callees in %s: %w", path, err)
+	}
+
+	out := make([]Call, 0, len(calls))
+
+	for _, call := range calls {
+		out = append(out, callFrom(call.To))
+	}
+
+	return out, nil
+}
+
+// callHierarchyItem asks the server about the symbol at a place.
+//
+// The server answers with the items of the hierarchy, and the first
+// one is the symbol itself.
+func (m *Manager) callHierarchyItem(
+	ctx context.Context,
+	path string,
+	line, column int,
+) (*protocol.CallHierarchyItem, error) {
+	abs, err := m.resolve(path)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := m.server(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	position, err := m.position(abs, line, column)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	items, err := client.PrepareCallHierarchy(reqCtx, abs, position.Line, position.Character)
+	if err != nil {
+		return nil, fmt.Errorf("code: the call hierarchy in %s: %w", path, err)
+	}
+
+	if len(items) == 0 {
+		return nil, fmt.Errorf("%w: the call hierarchy of the symbol at %s:%d", ErrNotFound, path, line)
+	}
+
+	return &items[0], nil
+}
+
+// callFrom converts a call hierarchy item into a [Call].
+func callFrom(item protocol.CallHierarchyItem) Call {
+	call := Call{
+		Name:   item.Name,
+		Line:   int(item.SelectionRange.Start.Line) + 1,
+		Column: int(item.SelectionRange.Start.Character) + 1,
+	}
+
+	if path, err := item.URI.Path(); err == nil {
+		call.Path = path
+	}
+
+	return call
 }
 
 // Definition returns the places where a symbol is defined.

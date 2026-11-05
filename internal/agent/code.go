@@ -23,6 +23,13 @@ const (
 	ToolCodeReferences = "code_references"
 	// ToolCodeRename renames a symbol.
 	ToolCodeRename = "code_rename"
+	// ToolCodeDiagnostics reports the problems of a file.
+	ToolCodeDiagnostics = "code_diagnostics"
+	// ToolCodeCallHierarchy reports who calls a symbol, or what it
+	// calls.
+	ToolCodeCallHierarchy = "code_call_hierarchy"
+	// ToolCodeReplaceSymbol replaces a declaration.
+	ToolCodeReplaceSymbol = "code_replace_symbol"
 )
 
 // The descriptions the model reads.
@@ -50,6 +57,24 @@ const (
 		"The symbol is the one at the given position of the given file, and " +
 		"every use of it is renamed with it. " +
 		"Use it when the user asks for a rename."
+
+	codeDiagnosticsDescription = "Report the problems the compiler found in the " +
+		"code: the errors, the warnings and the hints. " +
+		"Use it after a change to the code, to know whether it still builds."
+
+	codeCallHierarchyDescription = "Report who calls a symbol, or what a symbol " +
+		"calls. " +
+		"The symbol is the one at the given position of the given file: " +
+		"the position of a use of it is enough. " +
+		"Use it when you need to know what depends on a function, or what " +
+		"a function does."
+
+	codeReplaceSymbolDescription = "Replace a declaration in the code of the " +
+		"application. " +
+		"The symbol is named, and the action says what to do with it: " +
+		"\"replace\" writes the new text over it, \"add_before\" and " +
+		"\"add_after\" insert the text around it, and \"delete\" removes it. " +
+		"Use it when the user asks for a change that a rename cannot make."
 )
 
 // The parameter types of the code tools.
@@ -87,16 +112,52 @@ type CodeRenameParams struct {
 	NewName string `json:"new_name" description:"The new name of the symbol."`
 }
 
+// CodeDiagnosticsParams are the arguments of the code_diagnostics tool.
+type CodeDiagnosticsParams struct {
+	// Path is the path of the file, relative to the code directory.
+	//
+	// It is empty for the problems of every file.
+	Path string `json:"path,omitempty" description:"The path of the file, relative to the code directory of the application. Leave it empty for the problems of every file."`
+}
+
+// CodeCallHierarchyParams are the arguments of the code_call_hierarchy
+// tool.
+type CodeCallHierarchyParams struct {
+	// Path is the path of the file, relative to the code directory.
+	Path string `json:"path" description:"The path of the file, relative to the code directory of the application."`
+	// Line is the line of the symbol, counted from 1.
+	Line int `json:"line" description:"The line the symbol is at, counted from 1."`
+	// Column is the column of the symbol, counted from 1.
+	Column int `json:"column" description:"The column the symbol is at, counted from 1. Use 1 when the column is not known."`
+	// Direction says what to report: "incoming" for the callers of the
+	// symbol, "outgoing" for what it calls.
+	Direction string `json:"direction" description:"Either 'incoming' (who calls this) or 'outgoing' (what this calls)."`
+}
+
+// CodeReplaceSymbolParams are the arguments of the code_replace_symbol
+// tool.
+type CodeReplaceSymbolParams struct {
+	// Path is the path of the file, relative to the code directory.
+	Path string `json:"path" description:"The path of the file, relative to the code directory of the application."`
+	// Symbol is the name of the declaration.
+	Symbol string `json:"symbol" description:"The name of the declaration to replace: a function, a type, a method or a variable."`
+	// Action says what to do with the declaration.
+	Action string `json:"action" description:"What to do: 'replace' writes the text over it, 'add_before' and 'add_after' insert the text around it, and 'delete' removes it."`
+	// Replacement is the text that is written.
+	Replacement string `json:"replacement,omitempty" description:"The text to write. It is required by 'replace', 'add_before' and 'add_after', and ignored by 'delete'."`
+}
+
 // RegisterCodeTools registers the tools that read and change the code
 // of the application.
 //
 // The reading tools come first, so that the model sees them before the
-// one that changes the code: the order of the tool list is the order
+// ones that change the code: the order of the tool list is the order
 // the model reads.
 //
-// The renaming tool is wrapped in a permission gate. A nil gate means
-// that it runs unguarded, which is only appropriate for a tool that
-// the caller trusts: a rename changes the code of the user.
+// The tools that change the code are wrapped in a permission gate. A
+// nil gate means that they run unguarded, which is only appropriate
+// for a tool that the caller trusts: a rename or a replacement changes
+// the code of the user.
 func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate) {
 	if registry == nil || manager == nil {
 		return
@@ -105,15 +166,21 @@ func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate) {
 	registry.Register(NewCodeSymbolsTool(manager))
 	registry.Register(NewCodeDefinitionTool(manager))
 	registry.Register(NewCodeReferencesTool(manager))
+	registry.Register(NewCodeDiagnosticsTool(manager))
+	registry.Register(NewCodeCallHierarchyTool(manager))
 
 	registry.Register(NewGuardedTool(NewCodeRenameTool(manager), gate, codeRenameApproval))
+	registry.Register(NewGuardedTool(NewCodeReplaceSymbolTool(manager), gate, codeReplaceApproval))
 }
 
-// codeRenameApproval is the approval the user reads.
+// The approvals the user reads.
 //
-// It says what the call would do, because the user has to decide
+// They say what the call would do, because the user has to decide
 // without reading the arguments.
-const codeRenameApproval = "Rename a symbol in the code of the application."
+const (
+	codeRenameApproval  = "Rename a symbol in the code of the application."
+	codeReplaceApproval = "Change a declaration in the code of the application."
+)
 
 // codeTool is a tool that answers a question about the code.
 //
@@ -244,6 +311,147 @@ func NewCodeRenameTool(manager *code.Manager) Tool {
 			return formatEdits(edits, params.NewName), nil
 		},
 	}
+}
+
+// NewCodeDiagnosticsTool returns the tool that reports the problems
+// of the code.
+//
+// The problems are the ones the language server found: the errors of
+// the compiler, and the warnings it holds.
+func NewCodeDiagnosticsTool(manager *code.Manager) Tool {
+	return &codeTool[CodeDiagnosticsParams]{
+		manager:     manager,
+		name:        ToolCodeDiagnostics,
+		description: codeDiagnosticsDescription,
+		run: func(ctx context.Context, manager *code.Manager, params *CodeDiagnosticsParams) (string, error) {
+			var items []code.Diagnostic
+
+			var err error
+
+			if params.Path == "" {
+				items, err = manager.AllDiagnostics(ctx)
+			} else {
+				items, err = manager.Diagnostics(ctx, params.Path)
+			}
+
+			if err != nil {
+				return "", err
+			}
+
+			if len(items) == 0 {
+				return "the code has no problem", nil
+			}
+
+			return formatDiagnostics(items), nil
+		},
+	}
+}
+
+// NewCodeCallHierarchyTool returns the tool that reports who calls a
+// symbol, or what a symbol calls.
+func NewCodeCallHierarchyTool(manager *code.Manager) Tool {
+	return &codeTool[CodeCallHierarchyParams]{
+		manager:     manager,
+		name:        ToolCodeCallHierarchy,
+		description: codeCallHierarchyDescription,
+		run: func(ctx context.Context, manager *code.Manager, params *CodeCallHierarchyParams) (string, error) {
+			var calls []code.Call
+
+			var err error
+
+			switch params.Direction {
+			case "incoming":
+				calls, err = manager.Callers(ctx, params.Path, params.Line, params.Column)
+			case "outgoing":
+				calls, err = manager.Callees(ctx, params.Path, params.Line, params.Column)
+			default:
+				return "", fmt.Errorf(
+					"%w: the direction is %q, want \"incoming\" or \"outgoing\"",
+					ErrInvalidToolInput,
+					params.Direction,
+				)
+			}
+
+			if err != nil {
+				return "", err
+			}
+
+			return formatCalls(params.Direction, calls), nil
+		},
+	}
+}
+
+// NewCodeReplaceSymbolTool returns the tool that replaces a
+// declaration.
+//
+// The tool is behind the permission gate: a replacement is a change to
+// the code of the user, exactly like a rename is.
+func NewCodeReplaceSymbolTool(manager *code.Manager) Tool {
+	return &codeTool[CodeReplaceSymbolParams]{
+		manager:     manager,
+		name:        ToolCodeReplaceSymbol,
+		description: codeReplaceSymbolDescription,
+		run: func(ctx context.Context, manager *code.Manager, params *CodeReplaceSymbolParams) (string, error) {
+			content, err := manager.ReplaceSymbol(
+				ctx,
+				params.Path,
+				params.Symbol,
+				params.Action,
+				params.Replacement,
+			)
+			if err != nil {
+				return "", err
+			}
+
+			if err := manager.ApplyContent(params.Path, content); err != nil {
+				return "", err
+			}
+
+			return fmt.Sprintf(
+				"the %s of %q in %s is done",
+				params.Action,
+				params.Symbol,
+				params.Path,
+			), nil
+		},
+	}
+}
+
+// formatDiagnostics renders the problems of the code.
+func formatDiagnostics(items []code.Diagnostic) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "%d problem(s):\n\n", len(items))
+
+	for _, item := range items {
+		fmt.Fprintf(&b, "%s\n", item)
+	}
+
+	return b.String()
+}
+
+// formatCalls renders the callers or the callees of a symbol.
+func formatCalls(direction string, calls []code.Call) string {
+	var b strings.Builder
+
+	noun := "caller"
+	if direction == "outgoing" {
+		noun = "callee"
+	}
+
+	if len(calls) == 0 {
+		fmt.Fprintf(&b, "the symbol has no %s", noun)
+
+		return b.String()
+	}
+
+	fmt.Fprintf(&b, "%d %s(s):\n\n", len(calls), noun)
+
+	for _, call := range calls {
+		fmt.Fprintf(&b, "%s\n", call)
+	}
+
+	return b.String()
 }
 
 // formatSymbols renders the declarations of a file as an outline.

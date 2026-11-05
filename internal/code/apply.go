@@ -63,6 +63,14 @@ func applyToFile(path string, edits []Edit) error {
 		return fmt.Errorf("code: read %s: %w", path, err)
 	}
 
+	// Two edits that touch the same bytes cannot both be applied: the
+	// second one would land in the middle of the first. The server is
+	// not supposed to send them, and a rename that produces one is
+	// refused rather than applied.
+	if err := checkOverlapping(edits); err != nil {
+		return fmt.Errorf("code: %s: %w", path, err)
+	}
+
 	sorted := make([]Edit, len(edits))
 	copy(sorted, edits)
 
@@ -86,6 +94,37 @@ func applyToFile(path string, edits []Edit) error {
 	}
 
 	return writeFileAtomic(path, content)
+}
+
+// checkOverlapping refuses the edits that touch the same bytes.
+//
+// The ranges are half-open intervals, as the specification says: an
+// edit that ends where the next one begins does not overlap it.
+func checkOverlapping(edits []Edit) error {
+	for i := range edits {
+		for j := i + 1; j < len(edits); j++ {
+			if editsOverlap(edits[i], edits[j]) {
+				return fmt.Errorf("the edits overlap at bytes %d and %d", edits[i].Start, edits[j].Start)
+			}
+		}
+	}
+
+	return nil
+}
+
+// editsOverlap reports whether two edits touch the same bytes.
+func editsOverlap(a, b Edit) bool {
+	if a.Start > b.End || b.Start > a.End {
+		return false
+	}
+
+	// The ranges are half-open: an edit that ends where the other
+	// begins does not overlap it.
+	if a.Start == b.End || b.Start == a.End {
+		return false
+	}
+
+	return true
 }
 
 // writeFileAtomic writes a file through a temporary one.

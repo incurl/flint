@@ -18,7 +18,10 @@ application, through a language server.
 | `code_symbols` | Lists the declarations of a file | read |
 | `code_definition` | Finds where a symbol is defined | read |
 | `code_references` | Finds every use of a symbol | read |
+| `code_diagnostics` | Reports the errors, the warnings and the hints | read |
+| `code_call_hierarchy` | Reports who calls a symbol, or what it calls | read |
 | `code_rename` | Renames a symbol, everywhere | **gated** |
+| `code_replace_symbol` | Replaces, inserts around, or deletes a declaration | **gated** |
 
 They live in `internal/code` — the language server — and in
 `internal/agent/code.go` — the tools. The split is the same as the rest
@@ -54,11 +57,17 @@ The renaming tool is behind the permission gate, exactly like
 
 ```go
 registry.Register(NewGuardedTool(NewCodeRenameTool(manager), gate, codeRenameApproval))
+registry.Register(NewGuardedTool(NewCodeReplaceSymbolTool(manager), gate, codeReplaceApproval))
 ```
 
-And it is in `mutatingTools` in `internal/agent/mode.go`, so the plan
-mode withholds it. A rename changes the code of the user: the plan
+And they are in `mutatingTools` in `internal/agent/mode.go`, so the plan
+mode withholds them. A rename changes the code of the user: the plan
 proposes it, the act mode carries it out, and the user approves it.
+
+`code_replace_symbol` takes an **action**: `replace` writes the new
+text over the declaration, `add_before` and `add_after` insert text
+around it, and `delete` removes it. It is the tool for the changes a
+rename cannot make.
 
 ### 3. The edits are byte ranges
 
@@ -70,10 +79,58 @@ with lines. The rest of the line must survive:
 ```
 
 A line-based implementation replaces the whole line and destroys the
-code around the symbol. The conversion from the UTF-16 character
-offsets of the protocol to the byte offsets of a Go string lives in
+code around the symbol. The conversion from the character offsets of
+the protocol to the byte offsets of a Go string lives in
 `internal/code/convert.go`, and `PositionToByteOffset` of the protocol
 package does the hard part.
+
+**The encoding is the one the server negotiated.** The client offers
+UTF-8 and UTF-16, and the server picks one: a character offset is a
+count of bytes in the first and a count of code units in the second.
+`client.GetOffsetEncoding()` is the answer, and a name outside of
+ASCII is the case where it matters.
+
+**Two edits that touch the same bytes are refused.** The server is not
+supposed to send them, and an edit that lands in the middle of another
+one corrupts the file. The check is in `apply.go`, and the ranges are
+half-open: an edit that ends where the next one begins does not
+overlap it.
+
+---
+
+## The diagnostics
+
+The server publishes the problems of a file as a **notification** —
+there is no request and no answer. Flint subscribes to it before the
+initialization, because a server may publish while it starts.
+
+The cache holds the last set for every file, so `code_diagnostics`
+answers with what the server knows *now*. A file it has not analysed
+has no problems, and an empty answer for a file it has never read
+would be a lie: the tool asks the server to look at the file first.
+
+```go
+items, err := manager.Diagnostics(ctx, "main.go")
+```
+
+The severities are names — `error`, `warning`, `information`, `hint` —
+and not the numbers of the protocol.
+
+---
+
+## The call hierarchy
+
+`code_references` answers "where is this name written", which is a
+*textual* answer. The hierarchy answers "who calls this", which is a
+*semantic* one: the server knows that a function calls another one.
+
+```go
+callers, err := manager.Callers(ctx, "main.go", line, column)
+callees, err := manager.Callees(ctx, "main.go", line, column)
+```
+
+The `direction` argument of the tool is `"incoming"` for the callers
+and `"outgoing"` for the callees.
 
 ---
 
