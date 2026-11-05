@@ -22,7 +22,7 @@ them, all backed by the PocketBase data layer:
 | `update_record` | Updates a record — **gated** |
 | `delete_record` | Deletes a record — **gated** |
 
-Seven more read and change the **source code** of the application,
+Ten more read and change the **source code** of the application,
 through a language server. They are described in
 [`add-code-tools.md`](add-code-tools.md):
 
@@ -35,6 +35,9 @@ through a language server. They are described in
 | `code_call_hierarchy` | Reports who calls a symbol, or what it calls |
 | `code_rename` | Renames a symbol, everywhere — **gated** |
 | `code_replace_symbol` | Replaces, inserts around, or deletes a declaration — **gated** |
+| `code_create_file` | Creates an empty file — **gated** |
+| `code_move_file` | Moves a file — **gated** |
+| `code_delete_file` | Removes a file — **gated** |
 
 The model loop is not ours: it belongs to `charm.land/fantasy`. What
 this template adds is the tools, the events the UI consumes and the

@@ -156,9 +156,9 @@ func readLine(path string, line int) string {
 // but the first one is accepted as well, because a server is free to
 // answer with either.
 //
-// A rename that creates, renames or deletes a file is refused: the
-// caller asked for a rename, and a file that moves is a change the
-// model did not describe.
+// The changes that are not edits of a text — a file that is created,
+// moved or removed — are left out: they are file operations, and
+// [fileOperations] collects them.
 func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding powernap.OffsetEncoding) ([]Edit, error) {
 	var out []Edit
 
@@ -178,10 +178,9 @@ func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding powernap.Offse
 
 	for _, change := range edit.DocumentChanges {
 		if change.TextDocumentEdit == nil {
-			return nil, fmt.Errorf(
-				"code: the server asked to %s a file, which a rename does not do",
-				resourceOperation(change),
-			)
+			// A file operation: it is not an edit of a text, and
+			// [fileOperations] has it.
+			continue
 		}
 
 		path, err := change.TextDocumentEdit.TextDocument.URI.Path()
@@ -346,20 +345,4 @@ func codepointToByteOffset(line string, codepoints uint32) int {
 	}
 
 	return len(line)
-}
-
-// resourceOperation names the file operation a document change carries.
-//
-// It is only used for the error message of a refused operation.
-func resourceOperation(change protocol.DocumentChange) string {
-	switch {
-	case change.CreateFile != nil:
-		return "create"
-	case change.RenameFile != nil:
-		return "rename"
-	case change.DeleteFile != nil:
-		return "delete"
-	default:
-		return "change"
-	}
 }

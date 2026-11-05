@@ -774,6 +774,9 @@ func NewCodeDiagnosticsTool(manager *code.Manager) Tool
 func NewCodeCallHierarchyTool(manager *code.Manager) Tool
 func NewCodeRenameTool(manager *code.Manager) Tool
 func NewCodeReplaceSymbolTool(manager *code.Manager) Tool
+func NewCodeCreateFileTool(manager *code.Manager) Tool
+func NewCodeMoveFileTool(manager *code.Manager) Tool
+func NewCodeDeleteFileTool(manager *code.Manager) Tool
 
 const (
 	ToolCodeSymbols       = "code_symbols"
@@ -783,6 +786,9 @@ const (
 	ToolCodeCallHierarchy = "code_call_hierarchy"
 	ToolCodeRename        = "code_rename"
 	ToolCodeReplaceSymbol = "code_replace_symbol"
+	ToolCodeCreateFile    = "code_create_file"
+	ToolCodeMoveFile      = "code_move_file"
+	ToolCodeDeleteFile    = "code_delete_file"
 )
 
 // The runner.
@@ -922,6 +928,10 @@ func (m *Manager) Definition(ctx context.Context, path string, line, column int)
 func (m *Manager) References(ctx context.Context, path string, line, column int) ([]Location, error)
 func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, error)
 
+// The rename. It returns the edits of the text and the operations on
+// the files themselves: a server may ask for both.
+func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, []FileOperation, error)
+
 // The problems the server found.
 func (m *Manager) Diagnostics(ctx context.Context, path string) ([]Diagnostic, error)
 func (m *Manager) AllDiagnostics(ctx context.Context) ([]Diagnostic, error)
@@ -934,10 +944,16 @@ func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([
 // "add_before", "add_after" or "delete".
 func (m *Manager) ReplaceSymbol(ctx context.Context, path, name, action, replacement string) (string, error)
 
+// The files themselves.
+func (m *Manager) CreateFile(path string) error
+func (m *Manager) MoveFile(from, to string) error
+func (m *Manager) DeleteFile(path string, recursive bool) error
+
 // The writes. The caller decides whether they happen: the tools that
 // write are behind the permission gate.
 func (m *Manager) Apply(edits []Edit) error
 func (m *Manager) ApplyContent(path, content string) error
+func (m *Manager) ApplyFileOperations(operations []FileOperation) error
 
 type Symbol struct {
 	Name     string
@@ -977,6 +993,14 @@ type Call struct {
 	Path   string
 	Line   int
 	Column int
+}
+
+type FileOperation struct {
+	Kind      string // "create", "rename" or "delete"
+	Path      string
+	OldPath   string
+	Overwrite bool
+	Recursive bool
 }
 ```
 

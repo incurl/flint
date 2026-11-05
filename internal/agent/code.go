@@ -30,6 +30,12 @@ const (
 	ToolCodeCallHierarchy = "code_call_hierarchy"
 	// ToolCodeReplaceSymbol replaces a declaration.
 	ToolCodeReplaceSymbol = "code_replace_symbol"
+	// ToolCodeCreateFile creates a file.
+	ToolCodeCreateFile = "code_create_file"
+	// ToolCodeMoveFile moves a file.
+	ToolCodeMoveFile = "code_move_file"
+	// ToolCodeDeleteFile removes a file.
+	ToolCodeDeleteFile = "code_delete_file"
 )
 
 // The descriptions the model reads.
@@ -75,6 +81,20 @@ const (
 		"\"replace\" writes the new text over it, \"add_before\" and " +
 		"\"add_after\" insert the text around it, and \"delete\" removes it. " +
 		"Use it when the user asks for a change that a rename cannot make."
+
+	codeCreateFileDescription = "Create an empty file in the code of the " +
+		"application. " +
+		"Use it when the user asks for a new file. The parent directories " +
+		"are created when they do not exist."
+
+	codeMoveFileDescription = "Move a file of the code of the application to " +
+		"another path. " +
+		"Use it when a file has to be renamed or moved. The destination " +
+		"must not exist: a file that is already there is not replaced."
+
+	codeDeleteFileDescription = "Remove a file of the code of the application. " +
+		"Use it when the user asks for a file to be deleted. " +
+		"A directory is removed with everything in it when recursive is true."
 )
 
 // The parameter types of the code tools.
@@ -147,6 +167,29 @@ type CodeReplaceSymbolParams struct {
 	Replacement string `json:"replacement,omitempty" description:"The text to write. It is required by 'replace', 'add_before' and 'add_after', and ignored by 'delete'."`
 }
 
+// CodeCreateFileParams are the arguments of the code_create_file tool.
+type CodeCreateFileParams struct {
+	// Path is the path of the file, relative to the code directory.
+	Path string `json:"path" description:"The path of the file to create, relative to the code directory of the application."`
+}
+
+// CodeMoveFileParams are the arguments of the code_move_file tool.
+type CodeMoveFileParams struct {
+	// From is the path of the file, relative to the code directory.
+	From string `json:"from" description:"The path of the file to move, relative to the code directory of the application."`
+	// To is the path of the destination, relative to the code
+	// directory.
+	To string `json:"to" description:"The path the file is moved to, relative to the code directory of the application."`
+}
+
+// CodeDeleteFileParams are the arguments of the code_delete_file tool.
+type CodeDeleteFileParams struct {
+	// Path is the path of the file, relative to the code directory.
+	Path string `json:"path" description:"The path of the file to remove, relative to the code directory of the application."`
+	// Recursive removes a directory with everything in it.
+	Recursive bool `json:"recursive,omitempty" description:"Remove a directory with everything in it."`
+}
+
 // RegisterCodeTools registers the tools that read and change the code
 // of the application.
 //
@@ -171,6 +214,9 @@ func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate) {
 
 	registry.Register(NewGuardedTool(NewCodeRenameTool(manager), gate, codeRenameApproval))
 	registry.Register(NewGuardedTool(NewCodeReplaceSymbolTool(manager), gate, codeReplaceApproval))
+	registry.Register(NewGuardedTool(NewCodeCreateFileTool(manager), gate, codeCreateFileApproval))
+	registry.Register(NewGuardedTool(NewCodeMoveFileTool(manager), gate, codeMoveFileApproval))
+	registry.Register(NewGuardedTool(NewCodeDeleteFileTool(manager), gate, codeDeleteFileApproval))
 }
 
 // The approvals the user reads.
@@ -178,8 +224,11 @@ func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate) {
 // They say what the call would do, because the user has to decide
 // without reading the arguments.
 const (
-	codeRenameApproval  = "Rename a symbol in the code of the application."
-	codeReplaceApproval = "Change a declaration in the code of the application."
+	codeRenameApproval     = "Rename a symbol in the code of the application."
+	codeReplaceApproval    = "Change a declaration in the code of the application."
+	codeCreateFileApproval = "Create a file in the code of the application."
+	codeMoveFileApproval   = "Move a file of the code of the application."
+	codeDeleteFileApproval = "Remove a file of the code of the application."
 )
 
 // codeTool is a tool that answers a question about the code.
@@ -290,16 +339,26 @@ func NewCodeReferencesTool(manager *code.Manager) Tool {
 
 // NewCodeRenameTool returns the tool that renames a symbol.
 //
-// The tool asks the language server for the edits, writes them, and
+// The tool asks the language server for the changes, writes them, and
 // reports what changed. The gate is in front of it, so the user has
 // approved the rename before the file is touched.
+//
+// The server may ask for a file to be created, moved or removed along
+// with the rename. Those operations are gated as well: they change
+// the files of the user, exactly like the text does.
 func NewCodeRenameTool(manager *code.Manager) Tool {
 	return &codeTool[CodeRenameParams]{
 		manager:     manager,
 		name:        ToolCodeRename,
 		description: codeRenameDescription,
 		run: func(ctx context.Context, manager *code.Manager, params *CodeRenameParams) (string, error) {
-			edits, err := manager.Rename(ctx, params.Path, params.Line, params.Column, params.NewName)
+			edits, operations, err := manager.Rename(
+				ctx,
+				params.Path,
+				params.Line,
+				params.Column,
+				params.NewName,
+			)
 			if err != nil {
 				return "", err
 			}
@@ -308,7 +367,11 @@ func NewCodeRenameTool(manager *code.Manager) Tool {
 				return "", err
 			}
 
-			return formatEdits(edits, params.NewName), nil
+			if err := manager.ApplyFileOperations(operations); err != nil {
+				return "", err
+			}
+
+			return formatEdits(edits, operations, params.NewName), nil
 		},
 	}
 }
@@ -417,6 +480,63 @@ func NewCodeReplaceSymbolTool(manager *code.Manager) Tool {
 	}
 }
 
+// NewCodeCreateFileTool returns the tool that creates a file.
+//
+// The tool is behind the permission gate: a file that appears is a
+// change to the code of the user.
+func NewCodeCreateFileTool(manager *code.Manager) Tool {
+	return &codeTool[CodeCreateFileParams]{
+		manager:     manager,
+		name:        ToolCodeCreateFile,
+		description: codeCreateFileDescription,
+		run: func(_ context.Context, manager *code.Manager, params *CodeCreateFileParams) (string, error) {
+			if err := manager.CreateFile(params.Path); err != nil {
+				return "", err
+			}
+
+			return fmt.Sprintf("the file %q is created", params.Path), nil
+		},
+	}
+}
+
+// NewCodeMoveFileTool returns the tool that moves a file.
+//
+// The tool is behind the permission gate: a file that moves is a
+// change to the code of the user.
+func NewCodeMoveFileTool(manager *code.Manager) Tool {
+	return &codeTool[CodeMoveFileParams]{
+		manager:     manager,
+		name:        ToolCodeMoveFile,
+		description: codeMoveFileDescription,
+		run: func(_ context.Context, manager *code.Manager, params *CodeMoveFileParams) (string, error) {
+			if err := manager.MoveFile(params.From, params.To); err != nil {
+				return "", err
+			}
+
+			return fmt.Sprintf("the file %q is moved to %q", params.From, params.To), nil
+		},
+	}
+}
+
+// NewCodeDeleteFileTool returns the tool that removes a file.
+//
+// The tool is behind the permission gate: a file that disappears is a
+// change to the code of the user.
+func NewCodeDeleteFileTool(manager *code.Manager) Tool {
+	return &codeTool[CodeDeleteFileParams]{
+		manager:     manager,
+		name:        ToolCodeDeleteFile,
+		description: codeDeleteFileDescription,
+		run: func(_ context.Context, manager *code.Manager, params *CodeDeleteFileParams) (string, error) {
+			if err := manager.DeleteFile(params.Path, params.Recursive); err != nil {
+				return "", err
+			}
+
+			return fmt.Sprintf("the file %q is removed", params.Path), nil
+		},
+	}
+}
+
 // formatDiagnostics renders the problems of the code.
 func formatDiagnostics(items []code.Diagnostic) string {
 	var b strings.Builder
@@ -498,13 +618,24 @@ func formatLocations(kind string, locations []code.Location) string {
 //
 // The edits are shown before they are applied: the user reads what
 // changes, and the change is a change to their code.
-func formatEdits(edits []code.Edit, newName string) string {
+//
+// The file operations are shown too: a file that is created, moved or
+// removed is a change the user has to see.
+func formatEdits(edits []code.Edit, operations []code.FileOperation, newName string) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "the rename to %q changes %d place(s):\n\n", newName, len(edits))
 
 	for _, edit := range edits {
 		fmt.Fprintf(&b, "%s\n", edit)
+	}
+
+	if len(operations) > 0 {
+		fmt.Fprintf(&b, "\nand %d file(s):\n\n", len(operations))
+
+		for _, operation := range operations {
+			fmt.Fprintf(&b, "%s\n", operation)
+		}
 	}
 
 	return b.String()

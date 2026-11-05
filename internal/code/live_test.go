@@ -159,9 +159,14 @@ func TestLiveRename(t *testing.T) {
 	// renames the symbol and every use of it.
 	line, column := findSymbol(t, path, "Speak(g)")
 
-	edits, err := manager.Rename(ctx, "sample.go", line, column, "Utter")
+	edits, operations, err := manager.Rename(ctx, "sample.go", line, column, "Utter")
 	if err != nil {
 		t.Fatalf("Rename() error = %v", err)
+	}
+
+	// gopls does not send file operations for a symbol rename.
+	if len(operations) != 0 {
+		t.Errorf("the file operations are %v, want none", operations)
 	}
 
 	if len(edits) == 0 {
@@ -239,7 +244,7 @@ func TestLiveRenameWithNonASCII(t *testing.T) {
 	// The use of the symbol is on the last line of the file.
 	line, column := findSymbol(t, path, "Grüß()")
 
-	edits, err := manager.Rename(ctx, "sample.go", line, column, "Salute")
+	edits, _, err := manager.Rename(ctx, "sample.go", line, column, "Salute")
 	if err != nil {
 		t.Fatalf("Rename() error = %v", err)
 	}

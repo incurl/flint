@@ -22,6 +22,9 @@ application, through a language server.
 | `code_call_hierarchy` | Reports who calls a symbol, or what it calls | read |
 | `code_rename` | Renames a symbol, everywhere | **gated** |
 | `code_replace_symbol` | Replaces, inserts around, or deletes a declaration | **gated** |
+| `code_create_file` | Creates an empty file | **gated** |
+| `code_move_file` | Moves a file | **gated** |
+| `code_delete_file` | Removes a file | **gated** |
 
 They live in `internal/code` — the language server — and in
 `internal/agent/code.go` — the tools. The split is the same as the rest
@@ -68,6 +71,28 @@ proposes it, the act mode carries it out, and the user approves it.
 text over the declaration, `add_before` and `add_after` insert text
 around it, and `delete` removes it. It is the tool for the changes a
 rename cannot make.
+
+**The files themselves are gated too.** A file that appears, a file
+that moves and a file that disappears are changes to the code of the
+user, exactly like a rename is:
+
+```go
+registry.Register(NewGuardedTool(NewCodeCreateFileTool(manager), gate, codeCreateFileApproval))
+registry.Register(NewGuardedTool(NewCodeMoveFileTool(manager), gate, codeMoveFileApproval))
+registry.Register(NewGuardedTool(NewCodeDeleteFileTool(manager), gate, codeDeleteFileApproval))
+```
+
+The language server may also ask for a file operation *alongside* a
+rename — the protocol allows it, and a server is free to send it. The
+rename returns them with the edits:
+
+```go
+edits, operations, err := manager.Rename(ctx, path, line, column, newName)
+```
+
+They are applied after the text, and they are shown to the user with
+it. gopls does not send them for a symbol rename, but the code that
+refuses them would refuse a server that does.
 
 ### 3. The edits are byte ranges
 

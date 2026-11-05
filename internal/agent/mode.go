@@ -84,6 +84,12 @@ var mutatingTools = []string{
 	ToolCodeRename,
 	// So does a replacement of a declaration.
 	ToolCodeReplaceSymbol,
+	// So does a file that appears, a file that moves and a file that
+	// disappears: the plan proposes them, the act mode carries them
+	// out.
+	ToolCodeCreateFile,
+	ToolCodeMoveFile,
+	ToolCodeDeleteFile,
 }
 
 // IsMutatingTool reports whether a tool changes the data.

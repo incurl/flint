@@ -499,30 +499,36 @@ func (m *Manager) References(ctx context.Context, path string, line, column int)
 	return m.locate(locations), nil
 }
 
-// Rename returns the edits that rename a symbol.
+// Rename returns the changes that rename a symbol.
 //
-// The edits are returned, not applied: the caller decides whether they
-// are written to the disk. A rename that touches a file the model did
-// not name is refused — the caller checks that — because a rename is
-// a change to the code of the user.
-func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, error) {
+// The changes are returned, not applied: the caller decides whether
+// they are written to the disk. They are two kinds: the edits of the
+// text, and the operations on the files themselves — a file that is
+// created, moved or removed. The server may ask for the second kind
+// alongside the first, and the caller shows both to the user.
+func (m *Manager) Rename(
+	ctx context.Context,
+	path string,
+	line, column int,
+	newName string,
+) ([]Edit, []FileOperation, error) {
 	if strings.TrimSpace(newName) == "" {
-		return nil, errors.New("code: the new name is required")
+		return nil, nil, errors.New("code: the new name is required")
 	}
 
 	abs, err := m.resolve(path)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	client, err := m.server(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	position, err := m.position(abs, line, column)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
@@ -530,23 +536,78 @@ func (m *Manager) Rename(ctx context.Context, path string, line, column int, new
 
 	edit, err := client.RequestRename(reqCtx, abs, position.Line, position.Character, newName)
 	if err != nil {
-		return nil, fmt.Errorf("code: the rename in %s: %w", path, err)
+		return nil, nil, fmt.Errorf("code: the rename in %s: %w", path, err)
 	}
 
 	if edit == nil {
-		return nil, fmt.Errorf("%w: the symbol at %s:%d", ErrNotFound, path, line)
+		return nil, nil, fmt.Errorf("%w: the symbol at %s:%d", ErrNotFound, path, line)
 	}
 
 	edits, err := editsFromWorkspaceEdit(*edit, client.GetOffsetEncoding())
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if len(edits) == 0 {
-		return nil, fmt.Errorf("%w: the rename of the symbol at %s:%d", ErrNotFound, path, line)
+	operations := fileOperations(*edit)
+
+	if len(edits) == 0 && len(operations) == 0 {
+		return nil, nil, fmt.Errorf("%w: the rename of the symbol at %s:%d", ErrNotFound, path, line)
 	}
 
-	return edits, nil
+	return edits, operations, nil
+}
+
+// CreateFile creates an empty file.
+//
+// The path is relative to the root, or absolute inside it. A path that
+// is outside of the root is refused: the root is the boundary.
+func (m *Manager) CreateFile(path string) error {
+	abs, err := m.resolve(path)
+	if err != nil {
+		return err
+	}
+
+	return m.applyFileOperation(FileOperation{Kind: "create", Path: abs})
+}
+
+// MoveFile moves a file.
+//
+// The destination is relative to the root, or absolute inside it. A
+// file that is already at the destination is not replaced, unless the
+// operation says so.
+func (m *Manager) MoveFile(from, to string) error {
+	source, err := m.resolve(from)
+	if err != nil {
+		return err
+	}
+
+	destination, err := m.resolve(to)
+	if err != nil {
+		return err
+	}
+
+	return m.applyFileOperation(FileOperation{
+		Kind:    "rename",
+		Path:    destination,
+		OldPath: source,
+	})
+}
+
+// DeleteFile removes a file.
+//
+// A directory is removed with everything in it, when the operation says
+// so.
+func (m *Manager) DeleteFile(path string, recursive bool) error {
+	abs, err := m.resolve(path)
+	if err != nil {
+		return err
+	}
+
+	return m.applyFileOperation(FileOperation{
+		Kind:      "delete",
+		Path:      abs,
+		Recursive: recursive,
+	})
 }
 
 // Position is a place in a file, in the units of the protocol.

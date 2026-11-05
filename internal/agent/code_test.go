@@ -3,6 +3,8 @@ package agent
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 
@@ -33,6 +35,9 @@ func TestRegisterCodeTools(t *testing.T) {
 		ToolCodeCallHierarchy,
 		ToolCodeRename,
 		ToolCodeReplaceSymbol,
+		ToolCodeCreateFile,
+		ToolCodeMoveFile,
+		ToolCodeDeleteFile,
 	}
 
 	got := registry.Names()
@@ -84,7 +89,13 @@ func TestCodeToolsAreInTheMode(t *testing.T) {
 		}
 	}
 
-	for _, name := range []string{ToolCodeRename, ToolCodeReplaceSymbol} {
+	for _, name := range []string{
+		ToolCodeRename,
+		ToolCodeReplaceSymbol,
+		ToolCodeCreateFile,
+		ToolCodeMoveFile,
+		ToolCodeDeleteFile,
+	} {
 		if !IsMutatingTool(name) {
 			t.Errorf("%s is not a mutating tool, want it to be one", name)
 		}
@@ -216,6 +227,85 @@ func TestCodeReplaceSymbolIsGated(t *testing.T) {
 
 	if requester.calls() != 1 {
 		t.Errorf("the requester was called %d times, want 1", requester.calls())
+	}
+}
+
+// TestCodeFileOperationsAreGated checks that the tools that touch the
+// files themselves ask the user first.
+//
+// A file that appears, a file that moves and a file that disappears
+// are changes to the code of the user, exactly like a rename is.
+func TestCodeFileOperationsAreGated(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		tool  string
+		input string
+	}{
+		{"create", ToolCodeCreateFile, `{"path":"new.go"}`},
+		{"move", ToolCodeMoveFile, `{"from":"a.go","to":"b.go"}`},
+		{"delete", ToolCodeDeleteFile, `{"path":"a.go"}`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			manager, err := code.NewManager(t.TempDir(), nil)
+			if err != nil {
+				t.Fatalf("NewManager() error = %v", err)
+			}
+
+			requester := &refusingRequester{}
+
+			registry := NewRegistry()
+			RegisterCodeTools(registry, manager, NewGate(PermissionModeAsk, requester))
+
+			tool, err := registry.Get(tc.tool)
+			if err != nil {
+				t.Fatalf("Get() error = %v", err)
+			}
+
+			_, err = tool.Run(context.Background(), tc.input)
+
+			if !errors.Is(err, ErrPermissionDenied) {
+				t.Errorf("Run() error = %v, want it to be a refusal", err)
+			}
+
+			if requester.calls() != 1 {
+				t.Errorf("the requester was called %d times, want 1", requester.calls())
+			}
+		})
+	}
+}
+
+// TestCodeFileOperationsRunWhenAllowed checks that the file operations
+// happen when the user says yes.
+func TestCodeFileOperationsRunWhenAllowed(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+
+	manager, err := code.NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	registry := NewRegistry()
+	RegisterCodeTools(registry, manager, NewGate(PermissionModeAllow, nil))
+
+	tool, err := registry.Get(ToolCodeCreateFile)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if _, err := tool.Run(context.Background(), `{"path":"sub/new.go"}`); err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(root, "sub", "new.go")); err != nil {
+		t.Errorf("Stat() error = %v, want the file to be created", err)
 	}
 }
 

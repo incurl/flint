@@ -353,7 +353,15 @@ Three rules catch most mistakes:
   is behind the permission gate, and it is in `mutatingTools`: the
   plan mode proposes it, the act mode carries it out. A rename is
   approved by the user, exactly like a record is. So is the
-  replacement of a declaration.
+  replacement of a declaration, and so is a file that appears, a file
+  that moves and a file that disappears.
+- **A file operation is not an edit.** The language server may ask
+  for a file to be created, moved or removed alongside a rename. They
+  are returned with the edits and shown to the user, not applied
+  silently: a file that moves behind the user's back is a change
+  nobody asked for. The root is the boundary for them too, and a set
+  of operations is refused as a whole when one of them is outside of
+  it: a half-applied set is worse than none.
 - **The diagnostics of the code come as a notification.** There is no
   request and no answer: the server publishes the problems of a file
   when it finishes analysing it, and the subscription is registered
