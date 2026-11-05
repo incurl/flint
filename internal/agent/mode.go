@@ -60,6 +60,11 @@ var readOnlyTools = []string{
 	// The task list changes nothing of the data. It is what the plan
 	// is made of, so the planning mode needs it.
 	ToolTodos,
+	// The code tools that read. A plan for a change to the code needs
+	// to know what the code is.
+	ToolCodeSymbols,
+	ToolCodeDefinition,
+	ToolCodeReferences,
 }
 
 // mutatingTools are the tools that change the data.
@@ -71,6 +76,10 @@ var mutatingTools = []string{
 	ToolCreateRecord,
 	ToolUpdateRecord,
 	ToolDeleteRecord,
+	// A rename changes the code of the user, exactly like a write
+	// changes the data of the user. The plan proposes it; the act
+	// mode carries it out.
+	ToolCodeRename,
 }
 
 // IsMutatingTool reports whether a tool changes the data.

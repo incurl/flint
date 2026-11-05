@@ -8,6 +8,7 @@ require (
 	charm.land/fantasy v0.45.1
 	charm.land/lipgloss/v2 v2.0.6
 	github.com/charmbracelet/openai-go v0.0.0-20260921175203-216db9e71b83
+	github.com/charmbracelet/x/powernap v0.1.6
 	github.com/dop251/goja v0.0.0-20261021140635-64adc8bb4d51
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pocketbase/dbx v1.12.0
@@ -57,6 +58,7 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.3 // indirect
+	github.com/sourcegraph/jsonrpc2 v0.2.1 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect

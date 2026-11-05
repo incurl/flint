@@ -77,6 +77,8 @@ type Config struct {
 	Sync SyncConfig `toml:"sync"`
 	// Agent holds the language model settings.
 	Agent AgentConfig `toml:"agent"`
+	// Code holds the settings of the code tools.
+	Code CodeConfig `toml:"code"`
 
 	// path is the file the configuration was loaded from.
 	//
@@ -142,6 +144,29 @@ type AgentConfig struct {
 	// to a character count. A model that reports its window through
 	// the provider -- the ones that do -- needs no configuration.
 	ContextWindow int `toml:"context_window"`
+}
+
+// CodeConfig holds the settings of the code tools.
+//
+// The code tools let the agent read and change the source code of the
+// application. They need a language server — gopls, for Go — which is
+// looked up on the PATH.
+type CodeConfig struct {
+	// Root is the directory the agent is allowed to read.
+	//
+	// It is the boundary of the code tools: a path outside of it is
+	// refused, and the language server is started with it as its
+	// workspace root.
+	//
+	// It defaults to a "flint_code" directory next to the data
+	// directory, which keeps the code beside the data rather than in
+	// the working directory.
+	Root string `toml:"root"`
+	// Enabled turns the code tools on.
+	//
+	// They are off by default: the language server is a program of its
+	// own, and an application whose data is not code does not need it.
+	Enabled bool `toml:"enabled"`
 }
 
 // EmbeddedConfig holds the embedded store settings.
@@ -366,6 +391,13 @@ func (c *Config) SettingsRows() [][2]string {
 		}
 	}
 
+	if c.Code.Enabled {
+		rows = append(rows,
+			[2]string{"code.enabled", fmt.Sprintf("%t", c.Code.Enabled)},
+			[2]string{"code.root", c.CodeRoot()},
+		)
+	}
+
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
 		rows = append(rows,
 			[2]string{"embedded.data_dir", c.Embedded.DataDir},
@@ -428,6 +460,19 @@ func (c *Config) RendererDirPath() string {
 	}
 
 	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "flint_hooks")
+}
+
+// CodeRoot returns the directory the code tools are allowed to read.
+//
+// It defaults to a "flint_code" directory next to the data directory,
+// which keeps the code beside the data rather than in the working
+// directory.
+func (c *Config) CodeRoot() string {
+	if c.Code.Root != "" {
+		return c.Code.Root
+	}
+
+	return filepath.Join(filepath.Dir(c.Embedded.DataDir), "flint_code")
 }
 
 // RemoteTimeout returns the configured remote timeout.
@@ -528,6 +573,14 @@ func applyEnv(cfg *Config) {
 
 	if v := os.Getenv(EnvPrefix + "RENDERER_DIR"); v != "" {
 		cfg.RendererDir = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "CODE"); v != "" {
+		cfg.Code.Enabled = parseBool(v)
+	}
+
+	if v := os.Getenv(EnvPrefix + "CODE_ROOT"); v != "" {
+		cfg.Code.Root = v
 	}
 
 	if v := os.Getenv(EnvPrefix + "ENCRYPTION_ENV"); v != "" {
@@ -651,6 +704,14 @@ func applyFlags(cfg *Config, flags Flags) {
 
 	if flags.RendererDir != "" {
 		cfg.RendererDir = flags.RendererDir
+	}
+
+	if flags.CodeEnabled {
+		cfg.Code.Enabled = true
+	}
+
+	if flags.CodeRoot != "" {
+		cfg.Code.Root = flags.CodeRoot
 	}
 
 	if flags.DataDir != "" {

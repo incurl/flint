@@ -1,0 +1,200 @@
+package agent
+
+import (
+	"context"
+	"errors"
+	"sync"
+	"testing"
+
+	"github.com/incurl/flint/internal/code"
+)
+
+// TestRegisterCodeTools checks the tools the registry holds.
+//
+// The order matters: the reading tools come before the one that changes
+// the code, because the order of the tool list is the order the model
+// reads.
+func TestRegisterCodeTools(t *testing.T) {
+	t.Parallel()
+
+	manager, err := code.NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	registry := NewRegistry()
+	RegisterCodeTools(registry, manager, nil)
+
+	want := []string{
+		ToolCodeSymbols,
+		ToolCodeDefinition,
+		ToolCodeReferences,
+		ToolCodeRename,
+	}
+
+	got := registry.Names()
+
+	if len(got) != len(want) {
+		t.Fatalf("the tools are %v, want %v", got, want)
+	}
+
+	for i, name := range want {
+		if got[i] != name {
+			t.Errorf("the tool %d is %q, want %q", i, got[i], name)
+		}
+	}
+}
+
+// TestRegisterCodeToolsWithoutAManager checks that the tools are not
+// registered without a manager: a tool that cannot answer is a tool
+// the model calls and fails.
+func TestRegisterCodeToolsWithoutAManager(t *testing.T) {
+	t.Parallel()
+
+	registry := NewRegistry()
+	RegisterCodeTools(registry, nil, nil)
+
+	if names := registry.Names(); len(names) != 0 {
+		t.Errorf("the tools are %v, want none", names)
+	}
+}
+
+// TestCodeToolsAreInTheMode checks the classification of the code
+// tools.
+//
+// The reading tools belong to the planning mode: a plan for a change
+// to the code needs to know what the code is. The renaming tool does
+// not: a rename is a change to the code of the user, exactly like a
+// write is a change to the data of the user.
+func TestCodeToolsAreInTheMode(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range []string{ToolCodeSymbols, ToolCodeDefinition, ToolCodeReferences} {
+		if IsMutatingTool(name) {
+			t.Errorf("%s is a mutating tool, want it to be a reading one", name)
+		}
+	}
+
+	if !IsMutatingTool(ToolCodeRename) {
+		t.Errorf("%s is not a mutating tool, want it to be one", ToolCodeRename)
+	}
+}
+
+// TestCodeToolSchema checks the schema of the code tools.
+//
+// The schema is what the model reads to call a tool: an argument
+// without a description is an argument the model fills in wrongly.
+func TestCodeToolSchema(t *testing.T) {
+	t.Parallel()
+
+	manager, err := code.NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	cases := []struct {
+		tool  Tool
+		props []string
+	}{
+		{NewCodeSymbolsTool(manager), []string{"path"}},
+		{NewCodeDefinitionTool(manager), []string{"path", "line", "column"}},
+		{NewCodeReferencesTool(manager), []string{"path", "line", "column"}},
+		{NewCodeRenameTool(manager), []string{"path", "line", "column", "new_name"}},
+	}
+
+	for _, tc := range cases {
+		schemer, ok := tc.tool.(Schemer)
+		if !ok {
+			t.Fatalf("%s does not declare a schema", tc.tool.Name())
+		}
+
+		properties, _ := schemer.Schema()
+
+		for _, name := range tc.props {
+			if _, exists := properties[name]; !exists {
+				t.Errorf("%s: the property %q is missing", tc.tool.Name(), name)
+			}
+		}
+	}
+}
+
+// TestCodeToolRejectsAMalformedInput checks that a malformed argument
+// is an error the model can correct.
+func TestCodeToolRejectsAMalformedInput(t *testing.T) {
+	t.Parallel()
+
+	manager, err := code.NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	tool := NewCodeSymbolsTool(manager)
+
+	_, err = tool.Run(context.Background(), "{not json")
+
+	if !errors.Is(err, ErrInvalidToolInput) {
+		t.Errorf("Run() error = %v, want it to be an invalid input", err)
+	}
+}
+
+// TestCodeRenameIsGated checks that the renaming tool asks the user
+// before it changes the code.
+//
+// The check is made on a tool that would fail without the server: the
+// point is that the gate is consulted first, and the refusal reaches
+// the model instead of the file.
+func TestCodeRenameIsGated(t *testing.T) {
+	t.Parallel()
+
+	manager, err := code.NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	requester := &refusingRequester{}
+
+	registry := NewRegistry()
+	RegisterCodeTools(registry, manager, NewGate(PermissionModeAsk, requester))
+
+	tool, err := registry.Get(ToolCodeRename)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	_, err = tool.Run(context.Background(), `{"path":"main.go","line":1,"column":1,"new_name":"x"}`)
+
+	if !errors.Is(err, ErrPermissionDenied) {
+		t.Errorf("Run() error = %v, want it to be a refusal", err)
+	}
+
+	if requester.calls() != 1 {
+		t.Errorf("the requester was called %d times, want 1", requester.calls())
+	}
+}
+
+// refusingRequester refuses every request.
+type refusingRequester struct {
+	mu    sync.Mutex
+	count int
+}
+
+// RequestPermission implements [PermissionRequester].
+func (r *refusingRequester) RequestPermission(
+	_ context.Context,
+	_ PermissionRequest,
+) (PermissionDecision, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.count++
+
+	return PermissionDeny, nil
+}
+
+// calls returns the number of requests.
+func (r *refusingRequester) calls() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.count
+}

@@ -76,6 +76,14 @@ func (t *storeTool[P]) Description() string { return t.description }
 // The schema is generated from the parameter struct, so the description
 // of every argument lives in one place: the struct tags.
 func (t *storeTool[P]) Schema() (map[string]any, []string) {
+	return schemaOf[P]()
+}
+
+// schemaOf generates the schema of a parameter type.
+//
+// The schema is generated from the parameter struct, so the description
+// of every argument lives in one place: the struct tags.
+func schemaOf[P any]() (map[string]any, []string) {
 	generated := schema.Generate(reflect.TypeOf(*new(P)))
 
 	properties := make(map[string]any, len(generated.Properties))

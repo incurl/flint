@@ -397,6 +397,60 @@ func TestJSRendererOverrides(t *testing.T) {
 	})
 }
 
+// TestCodeConfig verifies the code settings: the default directory, the
+// flag, the env var and the explicit directory.
+func TestCodeConfig(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		cfg, err := config.Load("", config.Flags{})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.Code.Enabled {
+			t.Error("Code.Enabled = true, want false by default")
+		}
+
+		// The directory sits next to the data directory.
+		want := filepath.Join(filepath.Dir(cfg.Embedded.DataDir), "flint_code")
+		if got := cfg.CodeRoot(); got != want {
+			t.Errorf("CodeRoot() = %q, want %q", got, want)
+		}
+	})
+
+	t.Run("flag", func(t *testing.T) {
+		cfg, err := config.Load("", config.Flags{CodeEnabled: true, CodeRoot: "/custom"})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if !cfg.Code.Enabled {
+			t.Error("Code.Enabled = false, want true")
+		}
+
+		if got := cfg.CodeRoot(); got != "/custom" {
+			t.Errorf("CodeRoot() = %q, want /custom", got)
+		}
+	})
+
+	t.Run("env", func(t *testing.T) {
+		t.Setenv("FLINT_CODE", "1")
+		t.Setenv("FLINT_CODE_ROOT", "/from-env")
+
+		cfg, err := config.Load("", config.Flags{})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if !cfg.Code.Enabled {
+			t.Error("Code.Enabled = false, want true")
+		}
+
+		if got := cfg.CodeRoot(); got != "/from-env" {
+			t.Errorf("CodeRoot() = %q, want /from-env", got)
+		}
+	})
+}
+
 // TestSettingsRowsShowTheEndpoint verifies that the endpoint of the
 // agent is on the settings page.
 //

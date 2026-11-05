@@ -14,6 +14,7 @@ import (
 
 	"github.com/incurl/flint/config"
 	"github.com/incurl/flint/internal/agent"
+	"github.com/incurl/flint/internal/code"
 	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/session"
@@ -60,6 +61,21 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 
 	registry := agent.NewRegistry()
 	agent.RegisterStoreTools(registry, store, agent.NewGate(permissionMode(cfg), broker))
+
+	// The code tools let the agent read and change the source code of
+	// the application. They need a language server, so they are only
+	// registered when the configuration asks for them.
+	if cfg.Code.Enabled {
+		manager, err := code.NewManager(cfg.CodeRoot(), logger)
+		if err != nil {
+			// The code tools are an addition: a configuration that
+			// points at a directory that cannot be read is a
+			// mistake, and it is reported rather than ignored.
+			return nil, err
+		}
+
+		agent.RegisterCodeTools(registry, manager, agent.NewGate(permissionMode(cfg), broker))
+	}
 
 	systemPrompt := cfg.Agent.SystemPrompt
 	if systemPrompt == "" {

@@ -109,7 +109,25 @@ func Render(cfg *Config) string {
 
 	renderAgent(&b, cfg)
 
+	renderCode(&b, cfg)
+
 	return b.String()
+}
+
+// renderCode writes the code section.
+//
+// The section is written on its own because the code tools are an
+// addition: an application whose data is not code leaves them off.
+func renderCode(b *strings.Builder, cfg *Config) {
+	b.WriteString("[code]\n")
+	b.WriteString("# The code tools let the agent read and change the source code\n")
+	b.WriteString("# of the application. They need gopls on the PATH.\n")
+	fmt.Fprintf(b, "enabled = %t\n", cfg.Code.Enabled)
+	b.WriteString("\n")
+	b.WriteString("# The directory the agent is allowed to read. A path outside of\n")
+	b.WriteString("# it is refused. Leave it empty for the default.\n")
+	fmt.Fprintf(b, "root = %q\n", cfg.Code.Root)
+	b.WriteString("\n")
 }
 
 // renderAgent writes the agent section.

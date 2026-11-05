@@ -40,6 +40,10 @@ type Flags struct {
 	JSRenderer bool
 	// RendererDir overrides the renderer script directory.
 	RendererDir string
+	// CodeEnabled turns the code tools on.
+	CodeEnabled bool
+	// CodeRoot overrides the directory the code tools may read.
+	CodeRoot string
 	// RemoteURL overrides the remote PocketBase server URL.
 	RemoteURL string
 	// RemoteToken overrides the remote API token.
@@ -97,6 +101,8 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.BoolVar(&flags.JavaScript, "javascript", false, "enable the PocketBase JavaScriptVM plugin")
 	fs.BoolVar(&flags.JSRenderer, "js-renderer", false, "enable the JavaScript record renderer")
 	fs.StringVar(&flags.RendererDir, "renderer-dir", "", "directory of the JavaScript record renderer")
+	fs.BoolVar(&flags.CodeEnabled, "code", false, "enable the code tools (they need gopls on the PATH)")
+	fs.StringVar(&flags.CodeRoot, "code-root", "", "directory the code tools are allowed to read")
 	fs.StringVar(&flags.RemoteURL, "remote-url", "", "base URL of the remote PocketBase server")
 	fs.StringVar(&flags.RemoteToken, "remote-token", "", "API token of the remote PocketBase server (prefer FLINT_REMOTE_TOKEN)")
 	fs.StringVar(&remoteList, "remote-collections", "", "comma separated allowlist of the remote collections")

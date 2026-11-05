@@ -764,6 +764,21 @@ func NewCreateRecordTool(store pbstore.Store) Tool
 func NewUpdateRecordTool(store pbstore.Store) Tool
 func NewDeleteRecordTool(store pbstore.Store) Tool
 
+// The code tools. They read and change the source code of the
+// application, through a language server.
+func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate)
+func NewCodeSymbolsTool(manager *code.Manager) Tool
+func NewCodeDefinitionTool(manager *code.Manager) Tool
+func NewCodeReferencesTool(manager *code.Manager) Tool
+func NewCodeRenameTool(manager *code.Manager) Tool
+
+const (
+	ToolCodeSymbols    = "code_symbols"
+	ToolCodeDefinition = "code_definition"
+	ToolCodeReferences = "code_references"
+	ToolCodeRename     = "code_rename"
+)
+
 // The runner.
 func NewRunner(options Options) *Runner
 func (r *Runner) Run(ctx context.Context, request RunRequest) (string, error)
@@ -877,6 +892,71 @@ const (
 	ToolDeleteRecord    = "delete_record"
 )
 ```
+
+---
+
+## `internal/code` — the code of the application
+
+Import: `github.com/incurl/flint/internal/code`
+
+The package wraps a language server — `gopls`, for Go — and answers
+the questions a model asks about a codebase. It is deliberately free
+of any dependency on the agent: it knows about files and symbols, not
+about models and permissions.
+
+```go
+// The manager owns the language server.
+func NewManager(root string, logger *slog.Logger) (*Manager, error)
+func (m *Manager) Root() string
+func (m *Manager) Close()
+
+// The questions.
+func (m *Manager) Symbols(ctx context.Context, path string) ([]Symbol, error)
+func (m *Manager) Definition(ctx context.Context, path string, line, column int) ([]Location, error)
+func (m *Manager) References(ctx context.Context, path string, line, column int) ([]Location, error)
+func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, error)
+
+// The write. The caller decides whether it happens: the rename tool
+// is behind the permission gate.
+func (m *Manager) Apply(edits []Edit) error
+
+type Symbol struct {
+	Name     string
+	Kind     string
+	Line     int
+	Detail   string
+	Children []Symbol
+}
+
+type Location struct {
+	Path   string
+	Line   int
+	Column int
+	Text   string
+}
+
+type Edit struct {
+	Path  string
+	Start int
+	End   int
+	Line  int
+	Text  string
+}
+```
+
+⚠️ **The root is the boundary.** A path outside of it is refused, both
+when it is read and when the edits are written. The check is lexical:
+a symbolic link inside the root that points outside of it is not
+followed.
+
+⚠️ **The server is looked up on the PATH.** When it is missing, the
+error says so — `gopls is not on the PATH` — and the lookup is not
+repeated for thirty seconds.
+
+⚠️ **The column is corrected.** A model reads a file and knows the
+line of a symbol; the column is often a guess. The column is
+therefore corrected to the first identifier of the line when it does
+not point at one.
 
 ---
 
@@ -1022,6 +1102,16 @@ type Config struct {
 	Sync     SyncConfig     `toml:"sync"`
 	// Agent holds the language model settings.
 	Agent AgentConfig `toml:"agent"`
+	// Code holds the settings of the code tools.
+	Code CodeConfig `toml:"code"`
+}
+
+type CodeConfig struct {
+	// Root is the directory the agent is allowed to read. It defaults
+	// to a "flint_code" directory next to the data directory.
+	Root string `toml:"root"`
+	// Enabled turns the code tools on. They are off by default.
+	Enabled bool `toml:"enabled"`
 }
 
 type EmbeddedConfig struct {

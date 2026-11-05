@@ -26,6 +26,7 @@ PocketBase server over REST, behind one interface.
 | `internal/hybridstore` | `Hybrid`: wraps a `Store` to evaluate the JSON filters the native grammar cannot express. | The only package allowed to import both `pbstore` and `jsonfilter`. |
 | `internal/jsonfilter` | The local evaluator for array and `not` filters.      | Pure functions over a record map; no state.     |
 | `internal/agent`  | The agentic layer: tool registry, run lifecycle, permission gate. | Knows nothing about the UI. Publishes events. |
+| `internal/code`   | The language server: the symbols, the definitions, the renames. | Knows nothing about the model. The root is a boundary. |
 | `internal/session` | The conversations of the agent, stored in PocketBase. | Reads and writes through `pbstore`.            |
 | `internal/app`   | Root Bubble Tea model: routing, global keys, status bar, toasts. | Owns global concerns only.                |
 | `internal/pages` | One file per screen. Self-contained.                    | A page never imports `internal/app`.           |
@@ -45,8 +46,8 @@ cmd/tui → app → pages → components → theme
            jsonfilter           │
              ↘                 │
              agent ─────────────┘
-             ↕
-          session
+             ↕  ↘
+          session  code → (the language server)
 ```
 
 - `pages` **must not** import `app` — that is an import cycle. Pages
@@ -130,6 +131,7 @@ recipe, the files to touch, and the checks to run.
 | [`add-a-config-option.md`](docs/agents/add-a-config-option.md) | You need a new setting.                        |
 | [`add-a-sync.md`](docs/agents/add-a-sync.md)         | You want to pull remote data into the local cache.      |
 | [`add-an-agent-tool.md`](docs/agents/add-an-agent-tool.md) | You want the model to do something new.             |
+| [`add-code-tools.md`](docs/agents/add-code-tools.md) | You want the model to read and change the code.      |
 | [`AGENT_SETUP.md`](docs/AGENT_SETUP.md) | You want to *use* the agent: setup, providers, usage. |
 | [`debug-a-tui.md`](docs/agents/debug-a-tui.md)       | The UI is frozen, blank, or unresponsive.                |
 | [`verify.md`](docs/agents/verify.md)                 | Before you commit. Run this.                            |
@@ -342,6 +344,20 @@ Three rules catch most mistakes:
   system flag. `list_collections` leaves them out: a model that reads
   them as data fills the conversation with the book-keeping of the
   store and starts browsing the superusers.
+- **The code tools have a root, and the root is a boundary.** A path
+  outside of it is refused, when it is read and when the edits are
+  written. The check is lexical — a symbolic link inside the root that
+  points outside of it is not followed — and the server is started
+  with the root as its workspace root, so it cannot read it either.
+- **A rename of the code is a write of the data.** The renaming tool
+  is behind the permission gate, and it is in `mutatingTools`: the
+  plan mode proposes it, the act mode carries it out. A rename is
+  approved by the user, exactly like a record is.
+- **The edits of the language server are byte ranges, not lines.** A
+  rename replaces the characters of the occurrences, and the rest of
+  the line stays. A model that reads a file knows the line of a
+  symbol but rarely the column, so the column is corrected to the
+  first identifier of the line.
 - **A conversation is read page by page.** A single page holds a
   hundred messages, and a conversation read with one page is silently
   truncated — the model sees the first hundred turns and never the
