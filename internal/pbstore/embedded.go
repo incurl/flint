@@ -592,6 +592,98 @@ func buildDictionaryField(f DictionaryField) (core.Field, error) {
 	}
 }
 
+// CollectionSchema implements [Store].
+//
+// The fields are the ones a caller writes: the system fields of
+// PocketBase are left out.
+func (s *Embedded) CollectionSchema(ctx context.Context, name string) ([]CollectionField, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if s.isClosed() {
+		return nil, ErrClosed
+	}
+
+	if name == "" {
+		return nil, errors.New("pbstore: the collection name is required")
+	}
+
+	collection, err := s.app.FindCachedCollectionByNameOrId(name)
+	if err != nil || collection == nil {
+		return nil, fmt.Errorf("%w: the collection %q", ErrNotFound, name)
+	}
+
+	fields := make([]CollectionField, 0, len(collection.Fields))
+
+	for _, field := range collection.Fields {
+		// The system fields are not written by a caller.
+		if field.GetSystem() {
+			continue
+		}
+
+		converted, ok := describeField(field)
+		if !ok {
+			continue
+		}
+
+		fields = append(fields, converted)
+	}
+
+	return fields, nil
+}
+
+// describeField converts a native PocketBase field into a
+// [CollectionField].
+//
+// The second answer is false when the field has no counterpart in the
+// small set of types the template supports: a relation, for instance.
+// Such a field is left out of the schema, and not reported as
+// something it is not.
+func describeField(field core.Field) (CollectionField, bool) {
+	described := CollectionField{Name: field.GetName()}
+
+	switch typed := field.(type) {
+	case *core.TextField:
+		described.Type = FieldTypeText
+		described.Required = typed.Required
+		described.Max = typed.Max
+
+	case *core.EditorField:
+		described.Type = FieldTypeEditor
+		described.Required = typed.Required
+
+	case *core.JSONField:
+		described.Type = FieldTypeJSON
+		described.Required = typed.Required
+
+	case *core.NumberField:
+		described.Type = FieldTypeNumber
+		described.Required = typed.Required
+
+	case *core.BoolField:
+		described.Type = FieldTypeBool
+		described.Required = typed.Required
+
+	case *core.DateField:
+		described.Type = FieldTypeDate
+		described.Required = typed.Required
+
+	case *core.SelectField:
+		described.Type = FieldTypeSelect
+		described.Required = typed.Required
+		described.Options = typed.Values
+
+	case *core.AutodateField:
+		described.Type = FieldTypeAutodate
+
+	default:
+		return CollectionField{}, false
+	}
+
+	return described, true
+}
+
 // SyncCollection implements [Store].
 //
 // The sync pulls the records from a remote PocketBase server and writes them

@@ -44,6 +44,10 @@ const (
 	ToolDeleteRecord = "delete_record"
 	// ToolListCollections lists the available collections.
 	ToolListCollections = "list_collections"
+	// ToolCollectionSchema describes the fields of a collection.
+	ToolCollectionSchema = "collection_schema"
+	// ToolCreateCollection creates a collection.
+	ToolCreateCollection = "create_collection"
 )
 
 // storeTool is a tool backed by the PocketBase data layer.
@@ -213,10 +217,12 @@ func RegisterStoreTools(registry *Registry, store pbstore.Store, gate *Gate) {
 	registry.Register(NewSearchRecordsTool(store))
 	registry.Register(NewCountRecordsTool(store))
 	registry.Register(NewListCollectionsTool(store))
+	registry.Register(NewCollectionSchemaTool(store))
 
 	registry.Register(NewGuardedTool(NewCreateRecordTool(store), gate, createRecordApproval))
 	registry.Register(NewGuardedTool(NewUpdateRecordTool(store), gate, updateRecordApproval))
 	registry.Register(NewGuardedTool(NewDeleteRecordTool(store), gate, deleteRecordApproval))
+	registry.Register(NewGuardedTool(NewCreateCollectionTool(store), gate, createCollectionApproval))
 }
 
 // RegisterTodosTool registers the task list tool.
@@ -236,9 +242,11 @@ func RegisterTodosTool(registry *Registry, runner *Runner) {
 // They say what the call would do, because the user has to decide
 // without reading the arguments.
 const (
-	createRecordApproval = "Create a new record in the collection."
-	updateRecordApproval = "Change the fields of an existing record."
-	deleteRecordApproval = "Delete a record. It cannot be undone."
+	createRecordApproval     = "Create a new record in the collection."
+	updateRecordApproval     = "Change the fields of an existing record."
+	deleteRecordApproval     = "Delete a record. It cannot be undone."
+	createCollectionApproval = "Create a collection with the given fields. " +
+		"A collection that already exists keeps its fields."
 )
 
 // NewListRecordsTool returns the tool that lists the records of a

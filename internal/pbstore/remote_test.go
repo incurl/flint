@@ -3,6 +3,7 @@ package pbstore_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -268,5 +269,100 @@ func TestRemoteAllowlist(t *testing.T) {
 
 	if _, err := store.List(context.Background(), pbstore.Query{Collection: "denied"}); err == nil {
 		t.Error("List() on a denied collection returned no error")
+	}
+}
+
+// TestRemoteCollectionSchema verifies that the remote backend reads the
+// schema of a collection from the collections endpoint.
+func TestRemoteCollectionSchema(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/collections" {
+			t.Errorf("request path = %q, want %q", r.URL.Path, "/api/collections")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"page":       1,
+			"perPage":    200,
+			"totalItems": 1,
+			"totalPages": 1,
+			"items": []map[string]any{
+				{
+					"name": "items",
+					"type": "base",
+					"fields": []map[string]any{
+						{"name": "title", "type": "text", "required": true, "system": false},
+						{"name": "kind", "type": "select", "options": []string{"a", "b"}},
+						{"name": "id", "type": "text", "system": true},
+					},
+				},
+			},
+		})
+	}))
+	defer server.Close()
+
+	store, err := pbstore.OpenRemote(pbstore.RemoteConfig{
+		BaseURL: server.URL,
+		Token:   "secret-token",
+	})
+	if err != nil {
+		t.Fatalf("OpenRemote() error = %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	fields, err := store.CollectionSchema(context.Background(), "items")
+	if err != nil {
+		t.Fatalf("CollectionSchema() error = %v", err)
+	}
+
+	// The system field is left out.
+	if len(fields) != 2 {
+		t.Fatalf("the schema has %d fields, want 2: %+v", len(fields), fields)
+	}
+
+	if fields[0].Name != "title" || fields[0].Type != pbstore.FieldTypeText {
+		t.Errorf("the first field = %+v, want the title field", fields[0])
+	}
+
+	if !fields[0].Required {
+		t.Error("the title field is not required, want required")
+	}
+
+	if len(fields[1].Options) != 2 {
+		t.Errorf("the kind field has %d options, want 2", len(fields[1].Options))
+	}
+}
+
+// TestRemoteCollectionSchemaUnknown verifies that a collection that is
+// not on the server is an error, and not an empty schema.
+func TestRemoteCollectionSchemaUnknown(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"page":       1,
+			"perPage":    200,
+			"totalItems": 0,
+			"totalPages": 0,
+			"items":      []map[string]any{},
+		})
+	}))
+	defer server.Close()
+
+	store, err := pbstore.OpenRemote(pbstore.RemoteConfig{
+		BaseURL: server.URL,
+		Token:   "secret-token",
+	})
+	if err != nil {
+		t.Fatalf("OpenRemote() error = %v", err)
+	}
+	defer func() { _ = store.Close() }()
+
+	_, err = store.CollectionSchema(context.Background(), "nothing")
+	if err == nil {
+		t.Fatal("CollectionSchema() error = nil, want an error")
+	}
+
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("CollectionSchema() error = %v, want ErrNotFound", err)
 	}
 }

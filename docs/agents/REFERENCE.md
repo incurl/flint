@@ -31,6 +31,7 @@ type Store interface {
 	Count(ctx context.Context, collection, filter string) (int, error)
 	EnsureDictionaryCollection(ctx context.Context, name string, fields []DictionaryField) (Collection, error)
 	EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
+	CollectionSchema(ctx context.Context, name string) ([]CollectionField, error)
 	SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error)
 	Close() error
 }
@@ -40,6 +41,11 @@ type Store interface {
 needs. The embedded backend creates it; the remote backend cannot, and
 returns an error: there, the collections are created by a migration on
 the server.
+
+`CollectionSchema` reads the fields of a collection. It works with both
+backends, and it returns the fields a caller writes — the system fields
+of PocketBase are left out. A collection that does not exist is an
+error (`pbstore.ErrNotFound`), and not an empty schema.
 
 Implementations must be **safe for concurrent use** — commands run in
 background goroutines and call the store while the render loop is live.
@@ -894,16 +900,73 @@ The tool names are part of the contract with the model:
 
 ```go
 const (
-	ToolListRecords     = "list_records"
-	ToolGetRecord       = "get_record"
-	ToolSearchRecords   = "search_records"
-	ToolCountRecords    = "count_records"
-	ToolListCollections = "list_collections"
-	ToolCreateRecord    = "create_record"
-	ToolUpdateRecord    = "update_record"
-	ToolDeleteRecord    = "delete_record"
+	ToolListRecords      = "list_records"
+	ToolGetRecord        = "get_record"
+	ToolSearchRecords    = "search_records"
+	ToolCountRecords     = "count_records"
+	ToolListCollections  = "list_collections"
+	ToolCollectionSchema = "collection_schema"
+	ToolCreateCollection = "create_collection"
+	ToolCreateRecord     = "create_record"
+	ToolUpdateRecord     = "update_record"
+	ToolDeleteRecord     = "delete_record"
 )
 ```
+
+### The collection tools
+
+Two tools speak about the shape of a collection, and not about its
+records:
+
+| Tool                 | What it does                                 | Gated? |
+| -------------------- | -------------------------------------------- | ------ |
+| `collection_schema`  | Describes the fields of a collection          | no     |
+| `create_collection`  | Creates a collection with the given fields    | **yes** |
+
+`collection_schema` is read-only, and it is available in both backends.
+It is the tool that lets a model write a record without guessing the
+field names: the schema holds the names, the types, and whether the
+fields are required.
+
+`create_collection` is behind the permission gate, and it only works
+with the **embedded** backend. The remote backend cannot create a
+collection — there, the collections are created by a migration on the
+server, and the error says so.
+
+```go
+// The two tools.
+func NewCollectionSchemaTool(store pbstore.Store) Tool
+func NewCreateCollectionTool(store pbstore.Store) Tool
+```
+
+The behaviour of the creation is worth stating plainly, because it is
+not the one of a schema editor:
+
+- A collection that does **not** exist is created with the requested
+  fields.
+- A collection that **already exists** is left as it is. Its fields are
+  **not** changed, and the answer reports the fields the collection
+  really holds — not the ones that were asked for. The call creates a
+  collection; it does not alter a schema.
+- A name that begins with an underscore is refused: those collections
+  hold the internals of PocketBase or of the application, and they are
+  not the data of the user.
+- An unknown field type is refused, and the error names the type. The
+  supported types are `text`, `editor`, `json`, `number`, `bool`,
+  `date`, `select` and `autodate`.
+
+The schema of a collection is read through the store:
+
+```go
+// In the pbstore.Store interface.
+CollectionSchema(ctx context.Context, name string) ([]CollectionField, error)
+```
+
+It returns the fields a caller writes: the system fields of PocketBase
+— the id, the creation date, the update date — are left out. A
+collection that does not exist is an error (`pbstore.ErrNotFound`), and
+not an empty schema: an empty answer for a collection that is not there
+would be read as a collection with no fields.
 
 ---
 

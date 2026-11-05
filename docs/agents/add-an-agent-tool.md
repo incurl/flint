@@ -8,7 +8,7 @@
 
 ## What an agent tool is here
 
-A tool is a capability the model invokes. The template ships eight of
+A tool is a capability the model invokes. The template ships ten of
 them, all backed by the PocketBase data layer:
 
 | Tool | What it does |
@@ -18,9 +18,11 @@ them, all backed by the PocketBase data layer:
 | `search_records` | Searches the records for a text |
 | `count_records` | Counts the records of a collection |
 | `list_collections` | Lists the available collections |
+| `collection_schema` | Describes the fields of a collection |
 | `create_record` | Creates a record — **gated** |
 | `update_record` | Updates a record — **gated** |
 | `delete_record` | Deletes a record — **gated** |
+| `create_collection` | Creates a collection — **gated** |
 
 Twelve read and change the **source code** of the application,
 through a language server. They are described in
@@ -273,6 +275,33 @@ if requester == nil {
 
 An agent that writes to the data of the user must not do it by
 default.
+
+### The plan mode
+
+The gate is not the only boundary. The **plan mode** takes the
+mutating tools out of the tool list altogether: they are absent, so the
+model cannot call them — not even by accident, and not even if it is
+asked to.
+
+Every new tool has to be classified in `internal/agent/mode.go`:
+
+```go
+// internal/agent/mode.go
+var readOnlyTools = []string{
+	// ...
+	ToolCollectionSchema,
+}
+
+var mutatingTools = []string{
+	// ...
+	ToolCreateCollection,
+}
+```
+
+A tool that is in neither list is **withheld** from the plan mode: a
+downstream project that adds a tool is safe by default, and stays
+withheld until it says that it is read-only. `IsMutatingTool` answers
+the same question for the code that has to know.
 
 ---
 

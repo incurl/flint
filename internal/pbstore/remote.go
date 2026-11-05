@@ -406,6 +406,106 @@ func (s *Remote) Count(ctx context.Context, collection, filter string) (int, err
 	return payload.TotalItems, nil
 }
 
+// CollectionSchema implements [Store].
+//
+// The schema is read from the collections endpoint of the server, which
+// carries the fields of every collection. The endpoint needs an
+// authenticated request, so a remote store without a token cannot
+// answer: the error says so.
+func (s *Remote) CollectionSchema(ctx context.Context, name string) ([]CollectionField, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	if s.isClosed() {
+		return nil, ErrClosed
+	}
+
+	if name == "" {
+		return nil, errors.New("pbstore: the collection name is required")
+	}
+
+	var payload struct {
+		Items []struct {
+			Name   string `json:"name"`
+			Fields []struct {
+				Name     string   `json:"name"`
+				Type     string   `json:"type"`
+				Required bool     `json:"required"`
+				Options  []string `json:"options"`
+				Max      int      `json:"max"`
+				System   bool     `json:"system"`
+			} `json:"fields"`
+		} `json:"items"`
+	}
+
+	err := s.doJSON(ctx, http.MethodGet, "/api/collections?perPage=200", nil, &payload, true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range payload.Items {
+		if item.Name != name {
+			continue
+		}
+
+		fields := make([]CollectionField, 0, len(item.Fields))
+
+		for _, field := range item.Fields {
+			// The system fields are not written by a caller.
+			if field.System {
+				continue
+			}
+
+			converted, ok := remoteFieldType(field.Type)
+			if !ok {
+				continue
+			}
+
+			fields = append(fields, CollectionField{
+				Name:     field.Name,
+				Type:     converted,
+				Required: field.Required,
+				Max:      field.Max,
+				Options:  field.Options,
+			})
+		}
+
+		return fields, nil
+	}
+
+	return nil, fmt.Errorf("%w: the collection %q", ErrNotFound, name)
+}
+
+// remoteFieldType maps the type of a field of the server onto the
+// small set of types the template supports.
+//
+// The second answer is false when the type has no counterpart: a
+// relation, for instance. Such a field is left out of the schema, and
+// not reported as something it is not.
+func remoteFieldType(fieldType string) (string, bool) {
+	switch fieldType {
+	case "text":
+		return FieldTypeText, true
+	case "editor":
+		return FieldTypeEditor, true
+	case "json":
+		return FieldTypeJSON, true
+	case "number":
+		return FieldTypeNumber, true
+	case "bool":
+		return FieldTypeBool, true
+	case "date":
+		return FieldTypeDate, true
+	case "select":
+		return FieldTypeSelect, true
+	case "autodate":
+		return FieldTypeAutodate, true
+	default:
+		return "", false
+	}
+}
+
 // EnsureDictionaryCollection implements [Store].
 //
 // The remote backend cannot create collections: the operation is reserved

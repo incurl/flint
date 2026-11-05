@@ -85,6 +85,11 @@ func (s *stubStore) EnsureCollection(ctx context.Context, name string, fields []
 	return pbstore.Collection{Name: name}, nil
 }
 
+// CollectionSchema implements [pbstore.Store].
+func (s *stubStore) CollectionSchema(ctx context.Context, name string) ([]pbstore.CollectionField, error) {
+	return nil, pbstore.ErrNotFound
+}
+
 func (s *stubStore) Close() error { return nil }
 
 // errRequired is the error used by the sync page test.

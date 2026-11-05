@@ -276,17 +276,20 @@ func TestRegisterStoreTools(t *testing.T) {
 	agent.RegisterStoreTools(registry, store, nil)
 
 	names := registry.Names()
-	if len(names) != 8 {
-		t.Fatalf("the registry holds %d tools, want 8: %v", len(names), names)
+	if len(names) != 10 {
+		t.Fatalf("the registry holds %d tools, want 10: %v", len(names), names)
 	}
 
 	for _, want := range []string{
 		agent.ToolListRecords,
 		agent.ToolGetRecord,
 		agent.ToolCountRecords,
+		agent.ToolListCollections,
+		agent.ToolCollectionSchema,
 		agent.ToolCreateRecord,
 		agent.ToolUpdateRecord,
 		agent.ToolDeleteRecord,
+		agent.ToolCreateCollection,
 	} {
 		found := false
 

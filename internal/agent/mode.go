@@ -57,6 +57,9 @@ var readOnlyTools = []string{
 	ToolSearchRecords,
 	ToolCountRecords,
 	ToolListCollections,
+	// The shape of a collection is not the data of the user: a plan
+	// needs to know which fields a collection holds.
+	ToolCollectionSchema,
 	// The task list changes nothing of the data. It is what the plan
 	// is made of, so the planning mode needs it.
 	ToolTodos,
@@ -80,6 +83,10 @@ var mutatingTools = []string{
 	ToolCreateRecord,
 	ToolUpdateRecord,
 	ToolDeleteRecord,
+	// A collection is part of the data of the user: creating one
+	// changes the shape of the store. The plan proposes it, the act
+	// mode carries it out.
+	ToolCreateCollection,
 	// A rename changes the code of the user, exactly like a write
 	// changes the data of the user. The plan proposes it; the act
 	// mode carries it out.

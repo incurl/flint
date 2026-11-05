@@ -154,6 +154,7 @@ type Store interface {
     Count(ctx context.Context, collection, filter string) (int, error)
     EnsureDictionaryCollection(ctx context.Context, name string, fields []DictionaryField) (Collection, error)
     EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
+    CollectionSchema(ctx context.Context, name string) ([]CollectionField, error)
     SyncCollection(ctx context.Context, req SyncRequest) (*SyncReport, error)
     Close() error
 }
@@ -164,13 +165,21 @@ needs. The embedded backend creates it; the remote backend cannot, and
 returns an error — there, the collections are created by a migration on
 the server.
 
+`CollectionSchema` reads the fields of a collection. Both backends
+answer it: the embedded one from the collection itself, the remote one
+from the collections endpoint of the server. It returns the fields a
+caller writes — the system fields of PocketBase are left out — and a
+collection that does not exist is an error, and not an empty schema.
+
 **Safe to change:** the internals of `embedded.go` and `remote.go`, the
 helper functions in `queries.go`, the `DictionaryField` and `SyncRequest`
 descriptions.
 
 **Treat as frozen:** the method names, the signatures and the semantics
 of the interface. Adding a method is a breaking change for the downstream
-projects that already implement it.
+projects that already implement it — `CollectionSchema` was added for
+the agent's `collection_schema` tool, and a downstream store that
+implements `pbstore.Store` has to add it too.
 
 ### `internal/theme` — the single style source
 

@@ -515,12 +515,13 @@ flag is not written into the file: it does not belong there.
 
 ## 5. The tools
 
-The model sees eight tools. They are the only way it touches the
+The model sees eleven tools. They are the only way it touches the
 data.
 
 | Tool                | What it does                     | Gated? |
 | ------------------- | -------------------------------- | ------ |
 | `list_collections`  | Lists the collections, without the internal ones | no     |
+| `collection_schema` | Describes the fields of a collection | no     |
 | `list_records`      | Lists the records of a collection | no     |
 | `get_record`        | Fetches one record                | no     |
 | `search_records`    | Searches the records of a collection | no   |
@@ -529,13 +530,14 @@ data.
 | `create_record`     | Creates a record                  | **yes** |
 | `update_record`     | Updates a record                  | **yes** |
 | `delete_record`     | Deletes a record                  | **yes** |
+| `create_collection` | Creates a collection              | **yes** |
 
 The read tools are not gated: they cannot change anything. The write
 tools are, because they change the data of the user.
 
-**The plan mode takes the three write tools out of the list
-altogether.** They are not gated in that mode — they are absent, so
-the model cannot call them:
+**The write tools are taken out of the list altogether in the plan
+mode.** They are not gated in that mode — they are absent, so the
+model cannot call them:
 
 ```go
 // internal/agent/tool.go
@@ -597,13 +599,45 @@ they are the contract with the model.
 | `get_record`     | `collection`, `id`                                           |
 | `search_records` | `collection`, `term`, `per_page`                             |
 | `count_records`  | `collection`, `filter`                                       |
+| `collection_schema` | `collection`                                              |
 | `create_record`  | `collection`, `fields`                                       |
 | `update_record`  | `collection`, `id`, `fields`                                 |
 | `delete_record`  | `collection`, `id`                                           |
+| `create_collection` | `collection`, `fields`                                    |
 
 `search_records` takes a **term**, not a filter: it matches the term
 against the `title` field of the records. To filter on a field, use
 `list_records` with a `filter`.
+
+### The collections
+
+Two tools speak about the shape of a collection, and not about its
+records.
+
+`collection_schema` describes the fields of a collection — the names,
+the types, and whether they are required. It is the tool that lets a
+model write a record without guessing the field names, and it works
+with both backends.
+
+`create_collection` creates a collection with the given fields. It is
+behind the permission gate, like the other writes.
+
+⚠️ **It creates, and it does not alter.** A collection that does not
+exist is created with the requested fields. A collection that already
+exists keeps the fields it has: the requested fields are ignored, and
+the answer reports what the collection really holds. The tool is not a
+schema editor, and the migration is.
+
+Two things are refused:
+
+- A name that begins with an underscore. Those collections hold the
+  internals of PocketBase or of the application.
+- An unknown field type. The supported types are `text`, `editor`,
+  `json`, `number`, `bool`, `date`, `select` and `autodate`.
+
+The tool only works with the **embedded** backend. The remote backend
+cannot create a collection — there, the collections are created by a
+migration on the server, and the error says so.
 
 ### The filters are the native grammar
 

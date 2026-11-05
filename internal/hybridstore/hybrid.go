@@ -255,6 +255,11 @@ func (h *Hybrid) EnsureCollection(ctx context.Context, name string, fields []pbs
 	return h.inner.EnsureCollection(ctx, name, fields)
 }
 
+// CollectionSchema implements [pbstore.Store].
+func (h *Hybrid) CollectionSchema(ctx context.Context, name string) ([]pbstore.CollectionField, error) {
+	return h.inner.CollectionSchema(ctx, name)
+}
+
 // Close releases the resources held by the store.
 func (h *Hybrid) Close() error { return h.inner.Close() }
 

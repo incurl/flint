@@ -2,6 +2,7 @@ package pbstore_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -556,5 +557,86 @@ func TestEmbeddedSyncCreatesLocalCollection(t *testing.T) {
 
 	if count != 1 {
 		t.Errorf("Count() = %d, want 1", count)
+	}
+}
+
+// TestEmbeddedCollectionSchema verifies that the schema of a
+// collection holds the fields a caller writes.
+//
+// The system fields of PocketBase are left out: they are not fields a
+// caller writes.
+func TestEmbeddedCollectionSchema(t *testing.T) {
+	store := newEmbeddedStore(t)
+	ctx := context.Background()
+
+	_, err := store.EnsureCollection(ctx, "articles", []pbstore.CollectionField{
+		{Name: "title", Type: pbstore.FieldTypeText, Required: true},
+		{Name: "body", Type: pbstore.FieldTypeEditor},
+		{Name: "views", Type: pbstore.FieldTypeNumber},
+		{Name: "kind", Type: pbstore.FieldTypeSelect, Options: []string{"a", "b"}},
+	})
+	if err != nil {
+		t.Fatalf("EnsureCollection() error = %v", err)
+	}
+
+	fields, err := store.CollectionSchema(ctx, "articles")
+	if err != nil {
+		t.Fatalf("CollectionSchema() error = %v", err)
+	}
+
+	if len(fields) != 4 {
+		t.Fatalf("the schema has %d fields, want 4: %+v", len(fields), fields)
+	}
+
+	byName := make(map[string]pbstore.CollectionField, len(fields))
+	for _, field := range fields {
+		byName[field.Name] = field
+	}
+
+	title, ok := byName["title"]
+	if !ok {
+		t.Fatal("the schema does not hold the title field")
+	}
+
+	if title.Type != pbstore.FieldTypeText {
+		t.Errorf("title type = %q, want %q", title.Type, pbstore.FieldTypeText)
+	}
+
+	if !title.Required {
+		t.Error("title is not required, want required")
+	}
+
+	kind, ok := byName["kind"]
+	if !ok {
+		t.Fatal("the schema does not hold the kind field")
+	}
+
+	if len(kind.Options) != 2 {
+		t.Errorf("kind has %d options, want 2: %+v", len(kind.Options), kind.Options)
+	}
+
+	// The system fields are not fields a caller writes.
+	for _, field := range fields {
+		if field.Name == "id" || field.Name == "created" || field.Name == "updated" {
+			t.Errorf("the schema holds the system field %q", field.Name)
+		}
+	}
+}
+
+// TestEmbeddedCollectionSchemaUnknown verifies that a collection that
+// does not exist is an error, and not an empty schema.
+//
+// An empty answer for a collection that is not there would be read as
+// a collection with no fields.
+func TestEmbeddedCollectionSchemaUnknown(t *testing.T) {
+	store := newEmbeddedStore(t)
+
+	_, err := store.CollectionSchema(context.Background(), "nothing")
+	if err == nil {
+		t.Fatal("CollectionSchema() error = nil, want an error")
+	}
+
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("CollectionSchema() error = %v, want ErrNotFound", err)
 	}
 }

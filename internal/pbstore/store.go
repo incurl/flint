@@ -344,6 +344,18 @@ type Store interface {
 	// there, the collections are created by a migration on the server.
 	EnsureCollection(ctx context.Context, name string, fields []CollectionField) (Collection, error)
 
+	// CollectionSchema returns the fields of a collection.
+	//
+	// It is the shape of the collection, and not its records: the
+	// names of the fields, their types, and whether they are required.
+	// The system fields of PocketBase — the id, the creation date, the
+	// update date — are left out: they are not fields a caller writes.
+	//
+	// A collection that does not exist is an error, and not an empty
+	// schema: an empty answer for a collection that is not there would
+	// be read as a collection with no fields.
+	CollectionSchema(ctx context.Context, name string) ([]CollectionField, error)
+
 	// Close releases the resources held by the store.
 	//
 	// It is safe to call Close more than once.

@@ -344,6 +344,17 @@ Three rules catch most mistakes:
   system flag. `list_collections` leaves them out: a model that reads
   them as data fills the conversation with the book-keeping of the
   store and starts browsing the superusers.
+- **A collection is created, and it is not altered.** The agent's
+  `create_collection` tool creates a collection that does not exist yet
+  and leaves the one that exists as it is: the requested fields are
+  ignored, and the answer reports the fields the collection really
+  holds. A tool that claimed to have changed a schema it did not change
+  would be a lie the model believes. The migration is the way to alter
+  a collection.
+- **A collection the model creates is not an internal one.** A name
+  that begins with an underscore is refused: those collections hold the
+  internals of PocketBase or of the application, and a model that
+  creates one of them writes into the book-keeping of the store.
 - **The code tools have a root, and the root is a boundary.** A path
   outside of it is refused, when it is read and when the edits are
   written. The check is lexical — a symbolic link inside the root that

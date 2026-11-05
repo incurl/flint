@@ -166,7 +166,7 @@ excellent and whose tags are empty produces a model that guesses.
 
 ### The tools of the template
 
-Eight tools, all backed by the store:
+Ten tools, all backed by the store:
 
 | Tool | What it does | Gated |
 | - | - | - |
@@ -175,12 +175,28 @@ Eight tools, all backed by the store:
 | `search_records` | Searches the records for a text | no |
 | `count_records` | Counts the records of a collection | no |
 | `list_collections` | Lists the available collections | no |
+| `collection_schema` | Describes the fields of a collection | no |
 | `create_record` | Creates a record | **yes** |
 | `update_record` | Updates a record | **yes** |
 | `delete_record` | Deletes a record | **yes** |
+| `create_collection` | Creates a collection | **yes** |
 
 The read-only tools come first in the registry, and the order is
 deliberate: the tool list is a list the model reads.
+
+The two collection tools speak about the shape of a collection, and not
+about its records. `collection_schema` is the one that lets a model
+write a record without guessing the field names: it holds the names,
+the types, and whether the fields are required. It works with both
+backends.
+
+`create_collection` creates a collection, and it does not alter one: a
+collection that already exists keeps the fields it has, and the answer
+reports what it really holds. The name of a collection that begins with
+an underscore is refused — those hold the internals of PocketBase or of
+the application. And the tool only works with the embedded backend:
+the remote one cannot create a collection, and the error says that the
+collections are created by a migration on the server.
 
 ### A tool validates before it writes
 
