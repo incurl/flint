@@ -59,7 +59,7 @@ func (m *Manager) ReplaceSymbol(
 		return "", err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -67,7 +67,7 @@ func (m *Manager) ReplaceSymbol(
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	symbols, err := client.RequestDocumentSymbols(reqCtx, abs)
+	symbols, err := srv.DocumentSymbols(reqCtx, abs)
 	if err != nil {
 		return "", fmt.Errorf("code: the symbols of %s: %w", path, err)
 	}

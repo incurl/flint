@@ -60,6 +60,13 @@ linters:
       - linters:
           - misspell
         text: "`Color` is a misspelling of `Colour`"
+      # "initialize" is the spelling of the Language Server Protocol.
+      # The method that performs the handshake is named after it, and the
+      # UK locale of the linter does not apply to a name that cannot be
+      # changed.
+      - linters:
+          - misspell
+        text: "`Initialize` is a misspelling of `Initialise`"
     paths:
       - third_party$
       - builtin$

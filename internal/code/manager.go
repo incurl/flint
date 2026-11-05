@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	powernap "github.com/charmbracelet/x/powernap/pkg/lsp"
 	"github.com/charmbracelet/x/powernap/pkg/lsp/protocol"
 )
 
@@ -61,7 +60,7 @@ type Manager struct {
 	// mu guards the client and the state below.
 	mu sync.Mutex
 	// client is the language server, nil until it is started.
-	client *powernap.Client
+	client *client
 	// diagnostics holds the problems the server found.
 	diagnostics *diagnostics
 	// unavailableUntil is the time before which the server is not
@@ -123,7 +122,7 @@ func (m *Manager) Close() {
 // server returns the language server, starting it when needed.
 //
 // The caller must hold the lock.
-func (m *Manager) server(ctx context.Context) (*powernap.Client, error) {
+func (m *Manager) server(ctx context.Context) (*client, error) {
 	if m.closed {
 		return nil, errors.New("code: the manager is closed")
 	}
@@ -143,41 +142,52 @@ func (m *Manager) server(ctx context.Context) (*powernap.Client, error) {
 		return nil, fmt.Errorf("%w: %s is not on the PATH", ErrServerMissing, serverCommand)
 	}
 
-	client, err := powernap.NewClient(powernap.ClientConfig{
-		Command: path,
-		RootURI: string(protocol.URIFromPath(m.root)),
-		Timeout: startTimeout,
-	})
+	c, err := newClient(path, m.root, m.logger)
 	if err != nil {
 		m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
 
-		return nil, fmt.Errorf("code: start %s: %w", serverCommand, err)
+		return nil, err
 	}
 
 	startCtx, cancel := context.WithTimeout(ctx, startTimeout)
 	defer cancel()
 
-	// The diagnostics are subscribed before the initialization: a
-	// server may publish while it starts, and a notification that
-	// arrives before the subscription is lost.
-	watchDiagnostics(client, m.diagnostics)
-
-	// The method is named the way the Language Server Protocol names
-	// it, and the UK locale of the linter does not apply to a name
-	// that cannot be changed.
-	if err := client.Initialize(startCtx, false); err != nil { //nolint:misspell
-		client.Kill()
+	// The diagnostics are subscribed before the handshake: a server
+	// may publish while it starts, and a notification that arrives
+	// before the subscription is lost.
+	err = c.Initialize(startCtx, m.publishDiagnostics) //nolint:misspell
+	if err != nil {
+		c.Kill()
 
 		m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
 
-		return nil, fmt.Errorf("code: start %s: %w", serverCommand, err)
+		return nil, err
 	}
 
 	m.logger.Info("the language server is running", "server", serverCommand, "root", m.root)
 
-	m.client = client
+	m.client = c
 
-	return client, nil
+	return c, nil
+}
+
+// publishDiagnostics stores the problems the server found.
+//
+// It is the callback of the client: the server publishes them as a
+// notification, and the cache holds the last set for every file.
+func (m *Manager) publishDiagnostics(uri string, items []protocol.Diagnostic) {
+	path, err := protocol.DocumentURI(uri).Path()
+	if err != nil {
+		return
+	}
+
+	converted := make([]Diagnostic, 0, len(items))
+
+	for _, item := range items {
+		converted = append(converted, diagnosticFrom(item, path))
+	}
+
+	m.diagnostics.publish(path, converted)
 }
 
 // resolve turns a path given by the model into an absolute path inside
@@ -238,7 +248,7 @@ func (m *Manager) Symbols(ctx context.Context, path string) ([]Symbol, error) {
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +256,7 @@ func (m *Manager) Symbols(ctx context.Context, path string) ([]Symbol, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	results, err := client.RequestDocumentSymbols(reqCtx, abs)
+	results, err := srv.DocumentSymbols(reqCtx, abs)
 	if err != nil {
 		return nil, fmt.Errorf("code: the symbols of %s: %w", path, err)
 	}
@@ -320,7 +330,7 @@ func (m *Manager) Callers(ctx context.Context, path string, line, column int) ([
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +338,7 @@ func (m *Manager) Callers(ctx context.Context, path string, line, column int) ([
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	calls, err := client.IncomingCalls(reqCtx, *item)
+	calls, err := srv.IncomingCalls(reqCtx, *item)
 	if err != nil {
 		return nil, fmt.Errorf("code: the callers in %s: %w", path, err)
 	}
@@ -349,7 +359,7 @@ func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +367,7 @@ func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([
 	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
 	defer cancel()
 
-	calls, err := client.OutgoingCalls(reqCtx, *item)
+	calls, err := srv.OutgoingCalls(reqCtx, *item)
 	if err != nil {
 		return nil, fmt.Errorf("code: the callees in %s: %w", path, err)
 	}
@@ -385,8 +395,17 @@ func (m *Manager) callHierarchyItem(
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	// The server answers a question about a position only for the
+	// files it knows.
+	if err := srv.OpenFile(reqCtx, abs); err != nil {
 		return nil, err
 	}
 
@@ -395,10 +414,7 @@ func (m *Manager) callHierarchyItem(
 		return nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
-	items, err := client.PrepareCallHierarchy(reqCtx, abs, position.Line, position.Character)
+	items, err := srv.PrepareCallHierarchy(reqCtx, abs, position.Line, position.Character)
 	if err != nil {
 		return nil, fmt.Errorf("code: the call hierarchy in %s: %w", path, err)
 	}
@@ -439,8 +455,17 @@ func (m *Manager) Definition(ctx context.Context, path string, line, column int)
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	// The server answers a question about a position only for the
+	// files it knows.
+	if err := srv.OpenFile(reqCtx, abs); err != nil {
 		return nil, err
 	}
 
@@ -449,10 +474,7 @@ func (m *Manager) Definition(ctx context.Context, path string, line, column int)
 		return nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
-	locations, err := client.RequestDefinition(reqCtx, abs, position.Line, position.Character)
+	locations, err := srv.Definition(reqCtx, abs, position.Line, position.Character)
 	if err != nil {
 		return nil, fmt.Errorf("code: the definition in %s: %w", path, err)
 	}
@@ -474,8 +496,17 @@ func (m *Manager) References(ctx context.Context, path string, line, column int)
 		return nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	// The server answers a question about a position only for the
+	// files it knows.
+	if err := srv.OpenFile(reqCtx, abs); err != nil {
 		return nil, err
 	}
 
@@ -484,10 +515,7 @@ func (m *Manager) References(ctx context.Context, path string, line, column int)
 		return nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
-	locations, err := client.FindReferences(reqCtx, abs, position.Line, position.Character, true)
+	locations, err := srv.References(reqCtx, abs, position.Line, position.Character, true)
 	if err != nil {
 		return nil, fmt.Errorf("code: the references in %s: %w", path, err)
 	}
@@ -521,8 +549,17 @@ func (m *Manager) Rename(
 		return nil, nil, err
 	}
 
-	client, err := m.server(ctx)
+	srv, err := m.server(ctx)
 	if err != nil {
+		return nil, nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	// The server answers a question about a position only for the
+	// files it knows.
+	if err := srv.OpenFile(reqCtx, abs); err != nil {
 		return nil, nil, err
 	}
 
@@ -531,10 +568,7 @@ func (m *Manager) Rename(
 		return nil, nil, err
 	}
 
-	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
-	edit, err := client.RequestRename(reqCtx, abs, position.Line, position.Character, newName)
+	edit, err := srv.Rename(reqCtx, abs, position.Line, position.Character, newName)
 	if err != nil {
 		return nil, nil, fmt.Errorf("code: the rename in %s: %w", path, err)
 	}
@@ -543,7 +577,7 @@ func (m *Manager) Rename(
 		return nil, nil, fmt.Errorf("%w: the symbol at %s:%d", ErrNotFound, path, line)
 	}
 
-	edits, err := editsFromWorkspaceEdit(*edit, client.GetOffsetEncoding())
+	edits, err := editsFromWorkspaceEdit(*edit, srv.OffsetEncoding())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -555,6 +589,169 @@ func (m *Manager) Rename(
 	}
 
 	return edits, operations, nil
+}
+
+// ReferencesOf returns the places where a symbol is used, over the
+// whole workspace.
+//
+// The symbol is named, and the server finds it: the search covers the
+// module, and the answer is every use of the symbol, in every file.
+//
+// The name alone is not enough when two symbols share it: the search
+// returns the uses of all of them, and the caller tells them apart by
+// the file they are in.
+func (m *Manager) ReferencesOf(ctx context.Context, name string) ([]Location, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, errors.New("code: the name of the symbol is required")
+	}
+
+	// The symbol is found first: the references need the place it is
+	// declared at, and the declaration is what the search answers.
+	declarations, err := m.Search(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(declarations) == 0 {
+		return nil, fmt.Errorf("%w: the symbol %q", ErrNotFound, name)
+	}
+
+	var out []Location
+
+	for _, declaration := range declarations {
+		locations, err := m.References(
+			ctx,
+			declaration.Path,
+			declaration.Line,
+			declaration.Column,
+		)
+		if err != nil {
+			// A symbol that has no use is not a failure: the
+			// declaration is still an answer.
+			continue
+		}
+
+		out = append(out, locations...)
+	}
+
+	if len(out) == 0 {
+		return nil, fmt.Errorf("%w: the references of the symbol %q", ErrNotFound, name)
+	}
+
+	return out, nil
+}
+
+// SearchResult is a symbol of the workspace that matches a query.
+//
+// It is the answer of the search: the name of the symbol, the kind of
+// it, and the place it is declared.
+type SearchResult struct {
+	// Name is the name of the symbol.
+	Name string
+	// Kind is the kind of the declaration.
+	Kind string
+	// Path is the file the symbol is in.
+	Path string
+	// Line is the line the declaration is at, counted from 1.
+	Line int
+	// Column is the column the declaration is at, counted from 1.
+	Column int
+	// Container is the name of the symbol that holds it, when it is
+	// held by one: the method of a type, for instance.
+	Container string
+}
+
+// String returns the result as "path:line: name".
+func (r SearchResult) String() string {
+	return fmt.Sprintf("%s:%d: %s", r.Path, r.Line, r.Name)
+}
+
+// Search returns the symbols of the workspace that match a query.
+//
+// The query is a name or a part of one: the server matches it in a
+// relaxed way, and the answers are the symbols of every file of the
+// workspace.
+//
+// This is the search that reads the code instead of the text of it: it
+// finds the declarations, and not the lines that hold the name.
+func (m *Manager) Search(ctx context.Context, query string) ([]SearchResult, error) {
+	if strings.TrimSpace(query) == "" {
+		return nil, errors.New("code: the query is required")
+	}
+
+	srv, err := m.server(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, requestTimeout)
+	defer cancel()
+
+	symbols, err := srv.WorkspaceSymbols(reqCtx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make([]SearchResult, 0, len(symbols))
+
+	for _, symbol := range symbols {
+		result, ok := searchResultFrom(symbol)
+		if !ok {
+			continue
+		}
+
+		// The answer is the code of the user: a symbol outside of the
+		// root is not part of it.
+		if !withinRoot(m.root, result.Path) {
+			continue
+		}
+
+		out = append(out, result)
+	}
+
+	return out, nil
+}
+
+// searchResultFrom converts a symbol of the workspace into a
+// [SearchResult].
+func searchResultFrom(symbol protocol.WorkspaceSymbolResult) (SearchResult, bool) {
+	location := symbol.GetLocation()
+
+	path, err := location.URI.Path()
+	if err != nil {
+		return SearchResult{}, false
+	}
+
+	result := SearchResult{
+		Name:   symbol.GetName(),
+		Kind:   symbolKindOf(symbol),
+		Path:   path,
+		Line:   int(location.Range.Start.Line) + 1,
+		Column: int(location.Range.Start.Character) + 1,
+	}
+
+	// The container is the symbol that holds this one: the method of
+	// a type, for instance.
+	if information, ok := symbol.(*protocol.SymbolInformation); ok {
+		result.Container = information.ContainerName
+	}
+
+	return result, true
+}
+
+// symbolKindOf returns the kind of a symbol of the workspace.
+//
+// The interface of the protocol does not carry the kind, so it is read
+// from the type of the symbol.
+func symbolKindOf(symbol protocol.WorkspaceSymbolResult) string {
+	switch typed := symbol.(type) {
+	case *protocol.SymbolInformation:
+		return symbolKind(typed.Kind)
+	case *protocol.WorkspaceSymbol:
+		return symbolKind(typed.Kind)
+	default:
+		return "symbol"
+	}
 }
 
 // CreateFile creates an empty file.
@@ -624,8 +821,14 @@ type Position struct {
 // position resolves the place a caller points at.
 //
 // A model reads a file and knows the line of a symbol; the column is
-// often a guess. The column is therefore corrected when the line
-// holds an identifier: the first one that is the symbol is taken.
+// often a guess, and a guess that lands on a keyword — on the
+// `return` of a line that calls a function — is answered by the
+// server with "identifier not found".
+//
+// The column is therefore corrected: the identifier of the line that
+// is the closest to the one the caller gave is taken. The closest and
+// not the first, because the symbol is rarely the first word of the
+// line it is on.
 //
 // The correction is what makes the tools usable: a model that points
 // at the wrong column of the right line still gets the right answer.
@@ -654,10 +857,11 @@ func (m *Manager) position(path string, line, column int) (Position, error) {
 	// protocol.
 	character := column - 1
 
-	if character < 0 || character >= len(text) || !isIdentifierAt(text, character) {
-		// The column does not point at an identifier: the first
-		// identifier of the line is taken instead.
-		character = firstIdentifier(text)
+	if character < 0 || character >= len(text) ||
+		!isIdentifierAt(text, character) || isKeyword(text, character) {
+		// The column does not point at a name: the closest one of the
+		// line is taken instead.
+		character = nearestIdentifier(text, character)
 	}
 
 	if character < 0 {
@@ -679,9 +883,50 @@ func isIdentifierAt(text string, offset int) bool {
 	return c == '_' || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
 }
 
-// firstIdentifier returns the offset of the first identifier of a line,
-// or -1 when the line holds none.
-func firstIdentifier(text string) int {
+// The keywords of Go.
+//
+// A keyword has the shape of a name, and the server refuses a position
+// that is on one: "identifier not found". A model that points at the
+// `return` of a line that calls a function lands on one.
+var goKeywords = map[string]bool{
+	"break": true, "case": true, "chan": true, "const": true, "continue": true,
+	"default": true, "defer": true, "else": true, "fallthrough": true, "for": true,
+	"func": true, "go": true, "goto": true, "if": true, "import": true,
+	"interface": true, "map": true, "package": true, "range": true, "return": true,
+	"select": true, "struct": true, "switch": true, "type": true, "var": true,
+}
+
+// isKeyword reports whether the identifier at an offset is a keyword.
+func isKeyword(text string, offset int) bool {
+	start := offset
+
+	for start > 0 && isIdentifierAt(text, start-1) {
+		start--
+	}
+
+	end := offset
+
+	for end < len(text) && isIdentifierAt(text, end) {
+		end++
+	}
+
+	return goKeywords[text[start:end]]
+}
+
+// nearestIdentifier returns the offset of the identifier of a line that
+// is the closest to an offset, or -1 when the line holds none.
+//
+// The identifiers of the line are the words of it: the keywords and
+// the names are the same shape. The one that is the closest to what
+// the caller gave is the one it meant — and a keyword is never it.
+func nearestIdentifier(text string, offset int) int {
+	if offset < 0 {
+		offset = 0
+	}
+
+	best := -1
+	bestDistance := 0
+
 	for i := 0; i < len(text); i++ {
 		if !isIdentifierAt(text, i) {
 			continue
@@ -692,8 +937,20 @@ func firstIdentifier(text string) int {
 			continue
 		}
 
-		return i
+		if isKeyword(text, i) {
+			continue
+		}
+
+		distance := i - offset
+		if distance < 0 {
+			distance = -distance
+		}
+
+		if best < 0 || distance < bestDistance {
+			best = i
+			bestDistance = distance
+		}
 	}
 
-	return -1
+	return best
 }

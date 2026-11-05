@@ -377,8 +377,18 @@ Three rules catch most mistakes:
   negotiated.** The client offers UTF-8 and UTF-16, and the server
   picks one: a character offset is a count of bytes in the first and
   a count of code units in the second, and the bytes of a Go string
-  are neither. The conversion uses `client.GetOffsetEncoding()`, and
-  a name outside of ASCII is the case where it matters.
+  are neither. The conversion uses the encoding the client reports,
+  and a name outside of ASCII is the case where it matters.
+- **The language server is owned by the `code` package.** The client of
+  the powernap package does not expose `workspace/symbol`, and the
+  field that holds the connection is not exported, so the requests of
+  the protocol are made in `internal/code/client.go` over the
+  transport of that package. One server, one index: a second process
+  would double the memory and hold two indexes.
+- **A file must be opened before the server answers about it.** The
+  server knows the files it was told about, and a question about a
+  position in a file it has not opened is answered with an error
+  about a file that does not exist.
 - **A conversation is read page by page.** A single page holds a
   hundred messages, and a conversation read with one page is silently
   truncated — the model sees the first hundred turns and never the

@@ -944,6 +944,10 @@ func (m *Manager) Callees(ctx context.Context, path string, line, column int) ([
 // "add_before", "add_after" or "delete".
 func (m *Manager) ReplaceSymbol(ctx context.Context, path, name, action, replacement string) (string, error)
 
+// The search of the workspace, and the uses of a symbol.
+func (m *Manager) Search(ctx context.Context, query string) ([]SearchResult, error)
+func (m *Manager) ReferencesOf(ctx context.Context, name string) ([]Location, error)
+
 // The files themselves.
 func (m *Manager) CreateFile(path string) error
 func (m *Manager) MoveFile(from, to string) error
@@ -1001,6 +1005,15 @@ type FileOperation struct {
 	OldPath   string
 	Overwrite bool
 	Recursive bool
+}
+
+type SearchResult struct {
+	Name      string
+	Kind      string
+	Path      string
+	Line      int
+	Column    int
+	Container string
 }
 ```
 

@@ -159,7 +159,7 @@ func readLine(path string, line int) string {
 // The changes that are not edits of a text — a file that is created,
 // moved or removed — are left out: they are file operations, and
 // [fileOperations] collects them.
-func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding powernap.OffsetEncoding) ([]Edit, error) {
+func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding string) ([]Edit, error) {
 	var out []Edit
 
 	for uri, edits := range edit.Changes {
@@ -224,7 +224,7 @@ func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding powernap.Offse
 func editsFromTextEdits(
 	path string,
 	edits []protocol.TextEdit,
-	encoding powernap.OffsetEncoding,
+	encoding string,
 ) ([]Edit, error) {
 	if len(edits) == 0 {
 		return nil, nil
@@ -289,7 +289,7 @@ func byteOffset(
 	lines []string,
 	lineOffsets []int,
 	position protocol.Position,
-	encoding powernap.OffsetEncoding,
+	encoding string,
 ) (int, error) {
 	line := int(position.Line)
 
@@ -308,9 +308,9 @@ func byteOffset(
 // The three encodings count differently: UTF-8 counts bytes, UTF-16
 // counts code units, and UTF-32 counts code points. Only the last two
 // need a conversion.
-func characterToByteOffset(line string, character uint32, encoding powernap.OffsetEncoding) int {
+func characterToByteOffset(line string, character uint32, encoding string) int {
 	switch encoding {
-	case powernap.UTF8:
+	case offsetUTF8:
 		// The offset is already a count of bytes.
 		if int(character) > len(line) {
 			return len(line)
@@ -318,7 +318,7 @@ func characterToByteOffset(line string, character uint32, encoding powernap.Offs
 
 		return int(character)
 
-	case powernap.UTF32:
+	case offsetUTF32:
 		return codepointToByteOffset(line, character)
 
 	default:

@@ -67,6 +67,8 @@ var readOnlyTools = []string{
 	ToolCodeReferences,
 	ToolCodeDiagnostics,
 	ToolCodeCallHierarchy,
+	ToolCodeSearch,
+	ToolCodeFindReferences,
 }
 
 // mutatingTools are the tools that change the data.

@@ -22,7 +22,7 @@ them, all backed by the PocketBase data layer:
 | `update_record` | Updates a record — **gated** |
 | `delete_record` | Deletes a record — **gated** |
 
-Ten more read and change the **source code** of the application,
+Twelve read and change the **source code** of the application,
 through a language server. They are described in
 [`add-code-tools.md`](add-code-tools.md):
 
@@ -33,6 +33,8 @@ through a language server. They are described in
 | `code_references` | Finds every use of a symbol |
 | `code_diagnostics` | Reports the errors, the warnings and the hints |
 | `code_call_hierarchy` | Reports who calls a symbol, or what it calls |
+| `code_search` | Searches the symbols of the whole workspace by name |
+| `code_find_references` | Finds every use of a symbol, in every file |
 | `code_rename` | Renames a symbol, everywhere — **gated** |
 | `code_replace_symbol` | Replaces, inserts around, or deletes a declaration — **gated** |
 | `code_create_file` | Creates an empty file — **gated** |

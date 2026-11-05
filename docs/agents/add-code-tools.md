@@ -20,6 +20,8 @@ application, through a language server.
 | `code_references` | Finds every use of a symbol | read |
 | `code_diagnostics` | Reports the errors, the warnings and the hints | read |
 | `code_call_hierarchy` | Reports who calls a symbol, or what it calls | read |
+| `code_search` | Searches the symbols of the whole workspace by name | read |
+| `code_find_references` | Finds every use of a symbol, in every file | read |
 | `code_rename` | Renames a symbol, everywhere | **gated** |
 | `code_replace_symbol` | Replaces, inserts around, or deletes a declaration | **gated** |
 | `code_create_file` | Creates an empty file | **gated** |
@@ -156,6 +158,50 @@ callees, err := manager.Callees(ctx, "main.go", line, column)
 
 The `direction` argument of the tool is `"incoming"` for the callers
 and `"outgoing"` for the callees.
+
+---
+
+## The search of the workspace
+
+`code_search` finds the symbols of the whole workspace by name:
+
+```go
+results, err := manager.Search(ctx, "Helper")
+```
+
+The query is matched in a relaxed way — the server applies its own
+scoring — so a query of `Help` finds `Helper` and `HelperTwo`.
+
+This is the search that reads the code and not the text of it: it
+answers the declarations, and not the lines that hold the name. It is
+the request `workspace/symbol` of the protocol.
+
+`code_find_references` finds the uses of a symbol by name, over the
+whole workspace:
+
+```go
+locations, err := manager.ReferencesOf(ctx, "Helper")
+```
+
+The name is not enough when two symbols share it: the search returns
+the uses of all of them, and the caller tells them apart by the file
+they are in.
+
+Both are read-only, and both respect the root: a symbol outside of it
+is not in the answer.
+
+---
+
+## The connection is owned here
+
+The client of the `powernap` package does not expose
+`workspace/symbol`, and the field that holds the connection is not
+exported, so the requests of the protocol are made by
+`internal/code/client.go` instead.
+
+It speaks the protocol over the **transport** of that package — the
+JSON-RPC layer, which is MIT — and owns the process it talks to. One
+server, one index, and every request the protocol offers.
 
 ---
 

@@ -1,14 +1,11 @@
 package code
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 	"sync"
 
-	powernap "github.com/charmbracelet/x/powernap/pkg/lsp"
 	"github.com/charmbracelet/x/powernap/pkg/lsp/protocol"
 )
 
@@ -112,40 +109,6 @@ func (d *diagnostics) all() []Diagnostic {
 	})
 
 	return out
-}
-
-// watchDiagnostics subscribes to the diagnostics of the server.
-//
-// The server publishes them as a notification: there is no request
-// and no answer, and the notification arrives whenever the server
-// finishes analysing a file.
-//
-// The subscription is registered before the initialization, because a
-// server may publish while it starts.
-func watchDiagnostics(client *powernap.Client, cache *diagnostics) {
-	client.RegisterNotificationHandler(
-		powernap.MethodTextDocumentDiagnostic,
-		func(_ context.Context, _ string, params json.RawMessage) {
-			var published protocol.PublishDiagnosticsParams
-
-			if err := json.Unmarshal(params, &published); err != nil {
-				return
-			}
-
-			path, err := published.URI.Path()
-			if err != nil {
-				return
-			}
-
-			items := make([]Diagnostic, 0, len(published.Diagnostics))
-
-			for _, item := range published.Diagnostics {
-				items = append(items, diagnosticFrom(item, path))
-			}
-
-			cache.publish(path, items)
-		},
-	)
 }
 
 // diagnosticFrom converts an LSP diagnostic into a [Diagnostic].

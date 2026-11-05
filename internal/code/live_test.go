@@ -386,8 +386,8 @@ func TestLiveCallHierarchy(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// The call of Helper, inside Caller.
-	line, column := findSymbol(t, path, "Helper()")
+	// The call of Helper, inside Caller: a declaration has no callers.
+	line, column := findSymbol(t, path, "return Helper()")
 
 	callers, err := manager.Callers(ctx, "sample.go", line, column)
 	if err != nil {
@@ -416,6 +416,125 @@ func TestLiveCallHierarchy(t *testing.T) {
 
 	if callees[0].Name != "Helper" {
 		t.Errorf("the callee is %q, want %q", callees[0].Name, "Helper")
+	}
+}
+
+// TestLiveSearch checks the search of the symbols of the workspace.
+//
+// The search is the one of the language server: it finds the
+// declarations, in every file of the workspace.
+func TestLiveSearch(t *testing.T) {
+	if _, err := exec.LookPath(serverCommand); err != nil {
+		t.Skipf("%s is not on the PATH", serverCommand)
+	}
+
+	root := t.TempDir()
+
+	first := "package sample\n\n// Helper helps.\nfunc Helper() string {\n\treturn \"help\"\n}\n"
+	second := "package sample\n\n// HelperTwo helps too.\nfunc HelperTwo() string {\n\treturn Helper()\n}\n"
+
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte(first), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "b.go"), []byte(second), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module sample\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	results, err := manager.Search(ctx, "Helper")
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	if len(results) == 0 {
+		t.Fatal("Search() returned nothing, want the symbols that match")
+	}
+
+	names := map[string]bool{}
+
+	for _, result := range results {
+		names[result.Name] = true
+	}
+
+	// The search is relaxed: it finds the symbols whose name holds
+	// the query, and not only the ones that are exactly it.
+	if !names["Helper"] || !names["HelperTwo"] {
+		t.Errorf("the symbols are %v, want Helper and HelperTwo", names)
+	}
+
+	// The references of a symbol, over the whole workspace.
+	locations, err := manager.ReferencesOf(ctx, "Helper")
+	if err != nil {
+		t.Fatalf("ReferencesOf() error = %v", err)
+	}
+
+	if len(locations) == 0 {
+		t.Fatal("ReferencesOf() returned nothing, want the uses of Helper")
+	}
+
+	found := false
+
+	for _, location := range locations {
+		if strings.HasSuffix(location.Path, "b.go") {
+			found = true
+		}
+	}
+
+	if !found {
+		t.Errorf("the references are %v, want one in b.go", locations)
+	}
+}
+
+// TestLiveSearchRefusesTheOutside checks that the search answers with
+// the code of the root only.
+func TestLiveSearchRefusesTheOutside(t *testing.T) {
+	if _, err := exec.LookPath(serverCommand); err != nil {
+		t.Skipf("%s is not on the PATH", serverCommand)
+	}
+
+	root := t.TempDir()
+
+	if err := os.WriteFile(filepath.Join(root, "a.go"), []byte("package sample\n\nfunc Inside() {}\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module sample\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	results, err := manager.Search(ctx, "Inside")
+	if err != nil {
+		t.Fatalf("Search() error = %v", err)
+	}
+
+	for _, result := range results {
+		if !withinRoot(root, result.Path) {
+			t.Errorf("the result is in %q, want it inside the root", result.Path)
+		}
 	}
 }
 

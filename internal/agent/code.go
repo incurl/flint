@@ -36,6 +36,10 @@ const (
 	ToolCodeMoveFile = "code_move_file"
 	// ToolCodeDeleteFile removes a file.
 	ToolCodeDeleteFile = "code_delete_file"
+	// ToolCodeSearch searches the symbols of the workspace.
+	ToolCodeSearch = "code_search"
+	// ToolCodeFindReferences finds the uses of a symbol.
+	ToolCodeFindReferences = "code_find_references"
 )
 
 // The descriptions the model reads.
@@ -95,6 +99,18 @@ const (
 	codeDeleteFileDescription = "Remove a file of the code of the application. " +
 		"Use it when the user asks for a file to be deleted. " +
 		"A directory is removed with everything in it when recursive is true."
+
+	codeSearchDescription = "Search the symbols of the whole code of the " +
+		"application by name: the functions, the types, the methods and the " +
+		"variables. " +
+		"The query is a name or a part of one, and it is matched in a " +
+		"relaxed way. " +
+		"Use it when you know what a symbol is called but not where it is."
+
+	codeFindReferencesDescription = "Find every place where a symbol is used, " +
+		"in every file of the code of the application. " +
+		"The symbol is named, and the search covers the whole workspace. " +
+		"Use it before you change a symbol, to see what depends on it."
 )
 
 // The parameter types of the code tools.
@@ -190,6 +206,19 @@ type CodeDeleteFileParams struct {
 	Recursive bool `json:"recursive,omitempty" description:"Remove a directory with everything in it."`
 }
 
+// CodeSearchParams are the arguments of the code_search tool.
+type CodeSearchParams struct {
+	// Query is the name to look for.
+	Query string `json:"query" description:"The name of the symbol to look for, or a part of it."`
+}
+
+// CodeFindReferencesParams are the arguments of the
+// code_find_references tool.
+type CodeFindReferencesParams struct {
+	// Symbol is the name of the symbol.
+	Symbol string `json:"symbol" description:"The name of the symbol to find the uses of."`
+}
+
 // RegisterCodeTools registers the tools that read and change the code
 // of the application.
 //
@@ -211,6 +240,8 @@ func RegisterCodeTools(registry *Registry, manager *code.Manager, gate *Gate) {
 	registry.Register(NewCodeReferencesTool(manager))
 	registry.Register(NewCodeDiagnosticsTool(manager))
 	registry.Register(NewCodeCallHierarchyTool(manager))
+	registry.Register(NewCodeSearchTool(manager))
+	registry.Register(NewCodeFindReferencesTool(manager))
 
 	registry.Register(NewGuardedTool(NewCodeRenameTool(manager), gate, codeRenameApproval))
 	registry.Register(NewGuardedTool(NewCodeReplaceSymbolTool(manager), gate, codeReplaceApproval))
@@ -535,6 +566,68 @@ func NewCodeDeleteFileTool(manager *code.Manager) Tool {
 			return fmt.Sprintf("the file %q is removed", params.Path), nil
 		},
 	}
+}
+
+// NewCodeSearchTool returns the tool that searches the symbols of the
+// workspace.
+//
+// The search is the one of the language server: it reads the
+// declarations of the code, and not the lines that hold the name.
+func NewCodeSearchTool(manager *code.Manager) Tool {
+	return &codeTool[CodeSearchParams]{
+		manager:     manager,
+		name:        ToolCodeSearch,
+		description: codeSearchDescription,
+		run: func(ctx context.Context, manager *code.Manager, params *CodeSearchParams) (string, error) {
+			results, err := manager.Search(ctx, params.Query)
+			if err != nil {
+				return "", err
+			}
+
+			if len(results) == 0 {
+				return "no symbol matches the query", nil
+			}
+
+			return formatSearchResults(results), nil
+		},
+	}
+}
+
+// NewCodeFindReferencesTool returns the tool that finds the uses of a
+// symbol over the whole workspace.
+func NewCodeFindReferencesTool(manager *code.Manager) Tool {
+	return &codeTool[CodeFindReferencesParams]{
+		manager:     manager,
+		name:        ToolCodeFindReferences,
+		description: codeFindReferencesDescription,
+		run: func(ctx context.Context, manager *code.Manager, params *CodeFindReferencesParams) (string, error) {
+			locations, err := manager.ReferencesOf(ctx, params.Symbol)
+			if err != nil {
+				return "", err
+			}
+
+			return formatLocations("reference", locations), nil
+		},
+	}
+}
+
+// formatSearchResults renders the symbols that match a query.
+func formatSearchResults(results []code.SearchResult) string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "%d symbol(s):\n\n", len(results))
+
+	for _, result := range results {
+		fmt.Fprintf(&b, "%s %s (line %d)", result.Kind, result.Name, result.Line)
+
+		if result.Container != "" {
+			fmt.Fprintf(&b, " in %s", result.Container)
+		}
+
+		fmt.Fprintf(&b, " — %s\n", result.Path)
+	}
+
+	return b.String()
 }
 
 // formatDiagnostics renders the problems of the code.

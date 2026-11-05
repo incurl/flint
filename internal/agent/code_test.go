@@ -33,6 +33,8 @@ func TestRegisterCodeTools(t *testing.T) {
 		ToolCodeReferences,
 		ToolCodeDiagnostics,
 		ToolCodeCallHierarchy,
+		ToolCodeSearch,
+		ToolCodeFindReferences,
 		ToolCodeRename,
 		ToolCodeReplaceSymbol,
 		ToolCodeCreateFile,
@@ -83,6 +85,8 @@ func TestCodeToolsAreInTheMode(t *testing.T) {
 		ToolCodeReferences,
 		ToolCodeDiagnostics,
 		ToolCodeCallHierarchy,
+		ToolCodeSearch,
+		ToolCodeFindReferences,
 	} {
 		if IsMutatingTool(name) {
 			t.Errorf("%s is a mutating tool, want it to be a reading one", name)
@@ -125,6 +129,8 @@ func TestCodeToolSchema(t *testing.T) {
 		{NewCodeCallHierarchyTool(manager), []string{"path", "line", "column", "direction"}},
 		{NewCodeRenameTool(manager), []string{"path", "line", "column", "new_name"}},
 		{NewCodeReplaceSymbolTool(manager), []string{"path", "symbol", "action", "replacement"}},
+		{NewCodeSearchTool(manager), []string{"query"}},
+		{NewCodeFindReferencesTool(manager), []string{"symbol"}},
 	}
 
 	for _, tc := range cases {
