@@ -365,7 +365,7 @@ func (m *Manager) Rename(ctx context.Context, path string, line, column int, new
 		return nil, fmt.Errorf("%w: the symbol at %s:%d", ErrNotFound, path, line)
 	}
 
-	edits, err := editsFromWorkspaceEdit(*edit)
+	edits, err := editsFromWorkspaceEdit(*edit, client.GetOffsetEncoding())
 	if err != nil {
 		return nil, err
 	}

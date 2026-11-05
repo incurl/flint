@@ -398,7 +398,7 @@ func TestJSRendererOverrides(t *testing.T) {
 }
 
 // TestCodeConfig verifies the code settings: the default directory, the
-// flag, the env var and the explicit directory.
+// default being on, and the three ways to change it.
 func TestCodeConfig(t *testing.T) {
 	t.Run("defaults", func(t *testing.T) {
 		cfg, err := config.Load("", config.Flags{})
@@ -406,8 +406,10 @@ func TestCodeConfig(t *testing.T) {
 			t.Fatalf("Load() error = %v", err)
 		}
 
-		if cfg.Code.Enabled {
-			t.Error("Code.Enabled = true, want false by default")
+		// The tools are on: the language server is started lazily, so
+		// an agent that never asks about the code never pays for it.
+		if !cfg.Code.Enabled {
+			t.Error("Code.Enabled = false, want true by default")
 		}
 
 		// The directory sits next to the data directory.
@@ -417,14 +419,10 @@ func TestCodeConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("flag", func(t *testing.T) {
-		cfg, err := config.Load("", config.Flags{CodeEnabled: true, CodeRoot: "/custom"})
+	t.Run("root", func(t *testing.T) {
+		cfg, err := config.Load("", config.Flags{CodeRoot: "/custom"})
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
-		}
-
-		if !cfg.Code.Enabled {
-			t.Error("Code.Enabled = false, want true")
 		}
 
 		if got := cfg.CodeRoot(); got != "/custom" {
@@ -432,21 +430,67 @@ func TestCodeConfig(t *testing.T) {
 		}
 	})
 
-	t.Run("env", func(t *testing.T) {
-		t.Setenv("FLINT_CODE", "1")
-		t.Setenv("FLINT_CODE_ROOT", "/from-env")
+	t.Run("env turns them off", func(t *testing.T) {
+		t.Setenv("FLINT_CODE", "0")
 
 		cfg, err := config.Load("", config.Flags{})
 		if err != nil {
 			t.Fatalf("Load() error = %v", err)
 		}
 
-		if !cfg.Code.Enabled {
-			t.Error("Code.Enabled = false, want true")
+		if cfg.Code.Enabled {
+			t.Error("Code.Enabled = true, want false")
+		}
+	})
+
+	t.Run("file turns them off", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "flint.toml")
+
+		if err := os.WriteFile(path, []byte("[code]\nenabled = false\n"), 0o600); err != nil {
+			t.Fatalf("WriteFile() error = %v", err)
 		}
 
-		if got := cfg.CodeRoot(); got != "/from-env" {
-			t.Errorf("CodeRoot() = %q, want /from-env", got)
+		cfg, err := config.Load(path, config.Flags{})
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.Code.Enabled {
+			t.Error("Code.Enabled = true, want false")
+		}
+	})
+
+	t.Run("the flag wins over the env", func(t *testing.T) {
+		t.Setenv("FLINT_CODE", "0")
+
+		flags, _, err := config.ParseFlags([]string{"--code"})
+		if err != nil {
+			t.Fatalf("ParseFlags() error = %v", err)
+		}
+
+		cfg, err := config.Load("", *flags)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if !cfg.Code.Enabled {
+			t.Error("Code.Enabled = false, want true: the flag beats the env")
+		}
+	})
+
+	t.Run("no-code turns them off", func(t *testing.T) {
+		flags, _, err := config.ParseFlags([]string{"--no-code"})
+		if err != nil {
+			t.Fatalf("ParseFlags() error = %v", err)
+		}
+
+		cfg, err := config.Load("", *flags)
+		if err != nil {
+			t.Fatalf("Load() error = %v", err)
+		}
+
+		if cfg.Code.Enabled {
+			t.Error("Code.Enabled = true, want false")
 		}
 	})
 }

@@ -1110,7 +1110,7 @@ type CodeConfig struct {
 	// Root is the directory the agent is allowed to read. It defaults
 	// to a "flint_code" directory next to the data directory.
 	Root string `toml:"root"`
-	// Enabled turns the code tools on. They are off by default.
+	// Enabled turns the code tools on. They are on by default.
 	Enabled bool `toml:"enabled"`
 }
 

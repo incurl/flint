@@ -124,11 +124,13 @@ if cfg.Code.Enabled {
 }
 ```
 
-The tools are off by default: the language server is a program of its
-own, and an application whose data is not code does not need it.
+The tools are **on by default**: the language server is started lazily,
+so an application whose agent never asks about the code never pays for
+it.
 
-Turn them on with `--code`, `FLINT_CODE=1`, or `code.enabled = true`
-in the configuration file.
+Turn them off with `--no-code`, `FLINT_CODE=0`, or `code.enabled =
+false` in the configuration file. `--code` turns them back on when the
+environment or the file has turned them off.
 
 ---
 

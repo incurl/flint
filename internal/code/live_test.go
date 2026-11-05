@@ -199,6 +199,84 @@ func TestLiveRename(t *testing.T) {
 	}
 }
 
+// TestLiveRenameWithNonASCII checks the rename of a symbol whose name
+// is not in ASCII.
+//
+// The offsets of the protocol are counted in the encoding the server
+// negotiated, and the bytes of the file are counted in UTF-8. The two
+// only agree on ASCII, so a name with an accent is the case where the
+// conversion is wrong.
+func TestLiveRenameWithNonASCII(t *testing.T) {
+	if _, err := exec.LookPath(serverCommand); err != nil {
+		t.Skipf("%s is not on the PATH", serverCommand)
+	}
+
+	root := t.TempDir()
+
+	// "Grüß" is five bytes in UTF-8 and four UTF-16 code units.
+	source := "package sample\n\n// Grüß greets.\nfunc Grüß() string {\n\treturn \"hello\"\n}\n\nfunc main() {\n\t_ = Grüß()\n}\n"
+
+	path := filepath.Join(root, "sample.go")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	goMod := filepath.Join(root, "go.mod")
+	if err := os.WriteFile(goMod, []byte("module sample\n\ngo 1.27\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	// The use of the symbol is on the last line of the file.
+	line, column := findSymbol(t, path, "Grüß()")
+
+	edits, err := manager.Rename(ctx, "sample.go", line, column, "Salute")
+	if err != nil {
+		t.Fatalf("Rename() error = %v", err)
+	}
+
+	if err := manager.Apply(edits); err != nil {
+		t.Fatalf("Apply() error = %v", err)
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	if !strings.Contains(string(got), "func Salute() string") {
+		t.Errorf("the declaration was not renamed:\n%s", string(got))
+	}
+
+	if !strings.Contains(string(got), "_ = Salute()") {
+		t.Errorf("the use was not renamed:\n%s", string(got))
+	}
+
+	// The comment above the declaration is not renamed: a comment is
+	// not a symbol, and the server leaves it alone.
+	if strings.Contains(string(got), "func Grüß") {
+		t.Errorf("the declaration was not renamed:\n%s", string(got))
+	}
+
+	// The file must still compile: a rename that breaks the code is
+	// not a rename.
+	build := exec.CommandContext(ctx, "go", "build", "./...")
+	build.Dir = root
+
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Errorf("the renamed file does not build: %v\n%s", err, string(out))
+	}
+}
+
 // symbolNames returns the names of the symbols and of their children.
 func symbolNames(symbols []Symbol) map[string]bool {
 	names := make(map[string]bool)

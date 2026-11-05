@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	lsp "github.com/charmbracelet/x/powernap/pkg/lsp"
+	powernap "github.com/charmbracelet/x/powernap/pkg/lsp"
 	"github.com/charmbracelet/x/powernap/pkg/lsp/protocol"
 )
 
@@ -159,7 +159,7 @@ func readLine(path string, line int) string {
 // A rename that creates, renames or deletes a file is refused: the
 // caller asked for a rename, and a file that moves is a change the
 // model did not describe.
-func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit) ([]Edit, error) {
+func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit, encoding powernap.OffsetEncoding) ([]Edit, error) {
 	var out []Edit
 
 	for uri, edits := range edit.Changes {
@@ -168,7 +168,7 @@ func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit) ([]Edit, error) {
 			return nil, fmt.Errorf("code: the edit of %q: %w", uri, err)
 		}
 
-		converted, err := editsFromTextEdits(path, edits)
+		converted, err := editsFromTextEdits(path, edits, encoding)
 		if err != nil {
 			return nil, err
 		}
@@ -200,7 +200,7 @@ func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit) ([]Edit, error) {
 			textEdits = append(textEdits, textEdit)
 		}
 
-		converted, err := editsFromTextEdits(path, textEdits)
+		converted, err := editsFromTextEdits(path, textEdits, encoding)
 		if err != nil {
 			return nil, err
 		}
@@ -213,14 +213,20 @@ func editsFromWorkspaceEdit(edit protocol.WorkspaceEdit) ([]Edit, error) {
 
 // editsFromTextEdits converts the edits of one file.
 //
-// The LSP edits are ranges of characters, counted in UTF-16 code units
-// by default. They are converted into byte offsets, because that is
-// what a Go string is indexed by.
+// The LSP edits are ranges of characters, counted in the encoding the
+// server negotiated: UTF-16 code units by default, UTF-8 bytes or
+// UTF-32 code points when the server asks for them. They are
+// converted into byte offsets, because that is what a Go string is
+// indexed by.
 //
 // The conversion is done per line: the character offset is relative to
 // the start of the line, and the byte offset of the line is found by
 // counting the lines before it.
-func editsFromTextEdits(path string, edits []protocol.TextEdit) ([]Edit, error) {
+func editsFromTextEdits(
+	path string,
+	edits []protocol.TextEdit,
+	encoding powernap.OffsetEncoding,
+) ([]Edit, error) {
 	if len(edits) == 0 {
 		return nil, nil
 	}
@@ -248,12 +254,12 @@ func editsFromTextEdits(path string, edits []protocol.TextEdit) ([]Edit, error) 
 	var out []Edit
 
 	for _, edit := range edits {
-		start, err := byteOffset(lines, lineOffsets, edit.Range.Start)
+		start, err := byteOffset(lines, lineOffsets, edit.Range.Start, encoding)
 		if err != nil {
 			return nil, fmt.Errorf("code: the edit of %s: %w", path, err)
 		}
 
-		end, err := byteOffset(lines, lineOffsets, edit.Range.End)
+		end, err := byteOffset(lines, lineOffsets, edit.Range.End, encoding)
 		if err != nil {
 			return nil, fmt.Errorf("code: the edit of %s: %w", path, err)
 		}
@@ -277,20 +283,69 @@ func editsFromTextEdits(path string, edits []protocol.TextEdit) ([]Edit, error) 
 // byteOffset turns an LSP position into a byte offset in the file.
 //
 // The position gives a line and a character offset in that line. The
-// character offset is a count of UTF-16 code units, which is not the
-// same as a count of bytes: a character outside the basic plane takes
-// two code units and up to four bytes.
-func byteOffset(lines []string, lineOffsets []int, position protocol.Position) (int, error) {
+// character offset is a count in the encoding the server negotiated,
+// which is not the same as a count of bytes: a character outside the
+// basic plane takes two UTF-16 code units and up to four bytes.
+func byteOffset(
+	lines []string,
+	lineOffsets []int,
+	position protocol.Position,
+	encoding powernap.OffsetEncoding,
+) (int, error) {
 	line := int(position.Line)
 
 	if line < 0 || line >= len(lines) {
 		return 0, fmt.Errorf("the position is on line %d, outside the file", position.Line+1)
 	}
 
-	// The characters of the line are counted in UTF-16 code units.
-	character := lsp.PositionToByteOffset(lines[line], position.Character)
+	character := characterToByteOffset(lines[line], position.Character, encoding)
 
 	return lineOffsets[line] + character, nil
+}
+
+// characterToByteOffset turns a character offset in a line into a byte
+// offset in the same line.
+//
+// The three encodings count differently: UTF-8 counts bytes, UTF-16
+// counts code units, and UTF-32 counts code points. Only the last two
+// need a conversion.
+func characterToByteOffset(line string, character uint32, encoding powernap.OffsetEncoding) int {
+	switch encoding {
+	case powernap.UTF8:
+		// The offset is already a count of bytes.
+		if int(character) > len(line) {
+			return len(line)
+		}
+
+		return int(character)
+
+	case powernap.UTF32:
+		return codepointToByteOffset(line, character)
+
+	default:
+		// UTF-16 is the default of the protocol.
+		return powernap.PositionToByteOffset(line, character)
+	}
+}
+
+// codepointToByteOffset turns a count of code points into a count of
+// bytes.
+func codepointToByteOffset(line string, codepoints uint32) int {
+	if codepoints == 0 {
+		return 0
+	}
+
+	count := uint32(0)
+
+	for byteOffset := range line {
+		if count >= codepoints {
+			return byteOffset
+		}
+
+		count++
+	}
+
+	return len(line)
 }
 
 // resourceOperation names the file operation a document change carries.

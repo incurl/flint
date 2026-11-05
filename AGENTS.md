@@ -358,6 +358,12 @@ Three rules catch most mistakes:
   the line stays. A model that reads a file knows the line of a
   symbol but rarely the column, so the column is corrected to the
   first identifier of the line.
+- **The offsets of the language server are counted in the encoding it
+  negotiated.** The client offers UTF-8 and UTF-16, and the server
+  picks one: a character offset is a count of bytes in the first and
+  a count of code units in the second, and the bytes of a Go string
+  are neither. The conversion uses `client.GetOffsetEncoding()`, and
+  a name outside of ASCII is the case where it matters.
 - **A conversation is read page by page.** A single page holds a
   hundred messages, and a conversation read with one page is silently
   truncated — the model sees the first hundred turns and never the

@@ -122,6 +122,7 @@ func renderCode(b *strings.Builder, cfg *Config) {
 	b.WriteString("[code]\n")
 	b.WriteString("# The code tools let the agent read and change the source code\n")
 	b.WriteString("# of the application. They need gopls on the PATH.\n")
+	b.WriteString("# They are on by default. Set this to false to turn them off.\n")
 	fmt.Fprintf(b, "enabled = %t\n", cfg.Code.Enabled)
 	b.WriteString("\n")
 	b.WriteString("# The directory the agent is allowed to read. A path outside of\n")

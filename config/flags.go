@@ -3,6 +3,7 @@ package config
 import (
 	"flag"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -40,8 +41,18 @@ type Flags struct {
 	JSRenderer bool
 	// RendererDir overrides the renderer script directory.
 	RendererDir string
-	// CodeEnabled turns the code tools on.
-	CodeEnabled bool
+	// CodeEnabled turns the code tools on or off.
+	//
+	// It is a pointer because the default is on: a plain bool cannot
+	// tell "not given" from "given as false", and the flag has to be
+	// able to turn the tools off.
+	CodeEnabled *bool
+	// CodeDisabled turns the code tools off.
+	//
+	// It is the counterpart of [Flags.CodeEnabled]: the flag package
+	// has no "--no-" prefix of its own, so the flag is registered
+	// under its own name.
+	CodeDisabled *bool
 	// CodeRoot overrides the directory the code tools may read.
 	CodeRoot string
 	// RemoteURL overrides the remote PocketBase server URL.
@@ -101,7 +112,8 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.BoolVar(&flags.JavaScript, "javascript", false, "enable the PocketBase JavaScriptVM plugin")
 	fs.BoolVar(&flags.JSRenderer, "js-renderer", false, "enable the JavaScript record renderer")
 	fs.StringVar(&flags.RendererDir, "renderer-dir", "", "directory of the JavaScript record renderer")
-	fs.BoolVar(&flags.CodeEnabled, "code", false, "enable the code tools (they need gopls on the PATH)")
+	fs.Var(newBoolValue(&flags.CodeEnabled), "code", "enable the code tools (they need gopls on the PATH)")
+	fs.Var(newBoolValue(&flags.CodeDisabled), "no-code", "disable the code tools")
 	fs.StringVar(&flags.CodeRoot, "code-root", "", "directory the code tools are allowed to read")
 	fs.StringVar(&flags.RemoteURL, "remote-url", "", "base URL of the remote PocketBase server")
 	fs.StringVar(&flags.RemoteToken, "remote-token", "", "API token of the remote PocketBase server (prefer FLINT_REMOTE_TOKEN)")
@@ -139,6 +151,54 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 
 	return &flags, fs.Args(), nil
 }
+
+// boolValue is a boolean flag that remembers whether it was given.
+//
+// The standard boolean flag of the flag package cannot tell "not given"
+// from "given as false", and a setting whose default is on needs that
+// difference: `--no-code` has to turn the tools off, and the absence
+// of the flag has to leave them as they are.
+type boolValue struct {
+	// target is the pointer the value is written to.
+	target **bool
+}
+
+// newBoolValue returns a flag value that writes to a pointer to a
+// boolean.
+func newBoolValue(target **bool) *boolValue {
+	return &boolValue{target: target}
+}
+
+// Set implements [flag.Value].
+func (b *boolValue) Set(s string) error {
+	value, err := strconv.ParseBool(s)
+	if err != nil {
+		return fmt.Errorf("config: %q is not a boolean", s)
+	}
+
+	*b.target = &value
+
+	return nil
+}
+
+// String implements [flag.Value].
+//
+// It renders the value that is set, and "true" when the flag was not
+// given: the help text is the only place it is read.
+func (b *boolValue) String() string {
+	if b.target == nil || *b.target == nil {
+		return "true"
+	}
+
+	return strconv.FormatBool(**b.target)
+}
+
+// IsBoolFlag implements [flag.boolFlag], the interface that tells the
+// flag package that the flag may be given without a value.
+//
+// It is what makes `--no-code` work: the flag package takes the name
+// after the dashes, and the value is the part that is left.
+func (b *boolValue) IsBoolFlag() bool { return true }
 
 // String renders the flags as a compact, log friendly string.
 //

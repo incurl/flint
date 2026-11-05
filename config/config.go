@@ -164,8 +164,12 @@ type CodeConfig struct {
 	Root string `toml:"root"`
 	// Enabled turns the code tools on.
 	//
-	// They are off by default: the language server is a program of its
-	// own, and an application whose data is not code does not need it.
+	// They are on by default: an application whose agent is asked
+	// about the code needs to be able to answer. The language server
+	// is started lazily, so an agent that never asks pays nothing.
+	//
+	// Turn them off with `code.enabled = false`, FLINT_CODE=0 or
+	// --no-code.
 	Enabled bool `toml:"enabled"`
 }
 
@@ -239,6 +243,12 @@ func Default() *Config {
 		},
 		Sync: SyncConfig{
 			BatchSize: DefaultSyncBatchSize,
+		},
+		// The code tools are on by default: the language server is
+		// started lazily, so an agent that never asks about the code
+		// never pays for it.
+		Code: CodeConfig{
+			Enabled: true,
 		},
 	}
 }
@@ -391,12 +401,13 @@ func (c *Config) SettingsRows() [][2]string {
 		}
 	}
 
-	if c.Code.Enabled {
-		rows = append(rows,
-			[2]string{"code.enabled", fmt.Sprintf("%t", c.Code.Enabled)},
-			[2]string{"code.root", c.CodeRoot()},
-		)
-	}
+	// The code tools are shown even when they are off: the setting
+	// that decides whether the agent can read the code is one the user
+	// wants to see.
+	rows = append(rows,
+		[2]string{"code.enabled", fmt.Sprintf("%t", c.Code.Enabled)},
+		[2]string{"code.root", c.CodeRoot()},
+	)
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
 		rows = append(rows,
@@ -706,8 +717,12 @@ func applyFlags(cfg *Config, flags Flags) {
 		cfg.RendererDir = flags.RendererDir
 	}
 
-	if flags.CodeEnabled {
-		cfg.Code.Enabled = true
+	if flags.CodeEnabled != nil {
+		cfg.Code.Enabled = *flags.CodeEnabled
+	}
+
+	if flags.CodeDisabled != nil && *flags.CodeDisabled {
+		cfg.Code.Enabled = false
 	}
 
 	if flags.CodeRoot != "" {
