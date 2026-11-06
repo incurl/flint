@@ -94,6 +94,81 @@ func TestPlanModeWithholdsTheToolsOfTheTemplate(t *testing.T) {
 	}
 }
 
+// TestEveryTemplateToolIsClassified verifies that every tool of the
+// template is classified as read-only or as mutating.
+//
+// The classification lives in two lists, and a tool that is in
+// neither is withheld from the planning mode. A read-only tool that
+// was forgotten is withheld as well: the plan cannot use it, and the
+// plan is exactly what needs it.
+//
+// The unknown tool stays withheld -- that is the safe default for a
+// downstream project -- but the tools of the template have to be
+// classified.
+func TestEveryTemplateToolIsClassified(t *testing.T) {
+	registry := agent.NewRegistry()
+
+	for _, name := range templateToolNames {
+		registry.Register(&recordingTool{name: name})
+	}
+
+	plan := registry.ToolNamesFor(agent.ModePlan)
+	act := registry.ToolNamesFor(agent.ModeAct)
+
+	if len(act) != len(templateToolNames) {
+		t.Errorf("the acting mode offers %d tools, want %d", len(act), len(templateToolNames))
+	}
+
+	for _, name := range templateToolNames {
+		mutating := agent.IsMutatingTool(name)
+
+		inPlan := contains(plan, name)
+		inAct := contains(act, name)
+
+		if !inAct {
+			t.Errorf("the acting mode does not offer %q", name)
+		}
+
+		if mutating && inPlan {
+			t.Errorf("the planning mode offers the mutating tool %q", name)
+		}
+
+		if !mutating && !inPlan {
+			t.Errorf("the read-only tool %q is withheld from the planning mode", name)
+		}
+	}
+}
+
+// templateToolNames are the tools the template registers.
+//
+// The list is the one of the registration functions, so that a tool
+// that is added is classified in the same place.
+var templateToolNames = []string{
+	agent.ToolListRecords,
+	agent.ToolGetRecord,
+	agent.ToolSearchRecords,
+	agent.ToolCountRecords,
+	agent.ToolListCollections,
+	agent.ToolCollectionSchema,
+	agent.ToolCreateRecord,
+	agent.ToolUpdateRecord,
+	agent.ToolDeleteRecord,
+	agent.ToolCreateCollection,
+	agent.ToolTodos,
+	agent.ToolCodeSymbols,
+	agent.ToolCodeDefinition,
+	agent.ToolCodeReferences,
+	agent.ToolCodeDiagnostics,
+	agent.ToolCodeCallHierarchy,
+	agent.ToolCodeSearch,
+	agent.ToolCodeFindReferences,
+	agent.ToolCodeRename,
+	agent.ToolCodeReplaceSymbol,
+	agent.ToolCodeCreateFile,
+	agent.ToolCodeMoveFile,
+	agent.ToolCodeDeleteFile,
+}
+
 // TestPlanPromptListsTheToolsItHas verifies that the planning prompt
 // advertises the tools the run actually has.
 //
