@@ -288,16 +288,25 @@ func (s *Embedded) RuntimeStore() *store.Store[string, any] // PocketBase's vola
 
 ```go
 func QueryParams(q Query) url.Values          // builds the native PocketBase params
-func BuildFilter(filter string, params ...any) (search.Expression, error)
-func SortFields(sort string) []string
+func SortFields(sort string) []search.SortField
 func ExpandList(expand string) []string
 func SearchURL(collection string) string       // /api/collections/{c}/records
 func RecordURL(collection, id string) string   // /api/collections/{c}/records/{id}
 func CollectionURL(collection string) string
+func QuoteFilterValue(v string) string         // escapes a value for a filter
 ```
 
-`BuildFilter` is the one to use when you need to validate a filter before
-sending it. It returns `ErrInvalidFilter` on a malformed expression.
+`QuoteFilterValue` is the one to use when a filter is built by
+concatenation: it escapes the quotes of the value, so that a value that
+holds one cannot end the literal and change the meaning of the filter.
+
+```go
+filter := "sessionId = " + pbstore.QuoteFilterValue(sessionID)
+```
+
+A filter that comes from the model is not built this way: it is
+handed to the store, which parses it with the native grammar and
+refuses it when it is malformed (`ErrInvalidFilter`).
 
 ---
 
@@ -702,6 +711,23 @@ type SavedMsg struct {
 }
 ```
 
+### The request token
+
+A page that fetches its data gives every request an identity, and the
+answer carries it. See § *The stale response guard*.
+
+```go
+type RequestToken uint64
+```
+
+The token is issued by the page, through `nextRequest`, and compared
+with `isCurrent`. A page exposes `IsCurrent` so that the root model
+can ask it whether an answer is still the one it is waiting for:
+
+```go
+func (p *RecordsPage) IsCurrent(token RequestToken) bool
+```
+
 ---
 
 ## `internal/agent` — the agentic layer
@@ -778,6 +804,8 @@ func NewCodeDefinitionTool(manager *code.Manager) Tool
 func NewCodeReferencesTool(manager *code.Manager) Tool
 func NewCodeDiagnosticsTool(manager *code.Manager) Tool
 func NewCodeCallHierarchyTool(manager *code.Manager) Tool
+func NewCodeSearchTool(manager *code.Manager) Tool
+func NewCodeFindReferencesTool(manager *code.Manager) Tool
 func NewCodeRenameTool(manager *code.Manager) Tool
 func NewCodeReplaceSymbolTool(manager *code.Manager) Tool
 func NewCodeCreateFileTool(manager *code.Manager) Tool
@@ -785,16 +813,34 @@ func NewCodeMoveFileTool(manager *code.Manager) Tool
 func NewCodeDeleteFileTool(manager *code.Manager) Tool
 
 const (
-	ToolCodeSymbols       = "code_symbols"
-	ToolCodeDefinition    = "code_definition"
-	ToolCodeReferences    = "code_references"
-	ToolCodeDiagnostics   = "code_diagnostics"
-	ToolCodeCallHierarchy = "code_call_hierarchy"
-	ToolCodeRename        = "code_rename"
-	ToolCodeReplaceSymbol = "code_replace_symbol"
-	ToolCodeCreateFile    = "code_create_file"
-	ToolCodeMoveFile      = "code_move_file"
-	ToolCodeDeleteFile    = "code_delete_file"
+	ToolCodeSymbols         = "code_symbols"
+	ToolCodeDefinition      = "code_definition"
+	ToolCodeReferences      = "code_references"
+	ToolCodeDiagnostics     = "code_diagnostics"
+	ToolCodeCallHierarchy   = "code_call_hierarchy"
+	ToolCodeSearch          = "code_search"
+	ToolCodeFindReferences  = "code_find_references"
+	ToolCodeRename          = "code_rename"
+	ToolCodeReplaceSymbol   = "code_replace_symbol"
+	ToolCodeCreateFile      = "code_create_file"
+	ToolCodeMoveFile        = "code_move_file"
+	ToolCodeDeleteFile      = "code_delete_file"
+)
+
+// The bounds of the code tools.
+//
+// A question about the whole workspace can have a very large answer:
+// the search of a common name matches thousands of symbols, and the
+// references of a widely used one match thousands of places. The
+// answer would fill the context window of the model, and the run would
+// end without the model having read the results.
+//
+// The answers are bounded, and the bound is reported: a truncated
+// answer says that it is partial, so that the model knows that it has
+// not seen everything.
+const (
+	maxCodeResults   = 100 // the symbols of a workspace search
+	maxCodeLocations = 100 // the places of a reference search
 )
 
 // The runner.
@@ -989,7 +1035,6 @@ func (m *Manager) Close()
 func (m *Manager) Symbols(ctx context.Context, path string) ([]Symbol, error)
 func (m *Manager) Definition(ctx context.Context, path string, line, column int) ([]Location, error)
 func (m *Manager) References(ctx context.Context, path string, line, column int) ([]Location, error)
-func (m *Manager) Rename(ctx context.Context, path string, line, column int, newName string) ([]Edit, error)
 
 // The rename. It returns the edits of the text and the operations on
 // the files themselves: a server may ask for both.
@@ -1084,6 +1129,13 @@ type SearchResult struct {
 when it is read and when the edits are written. The check is lexical:
 a symbolic link inside the root that points outside of it is not
 followed.
+
+⚠️ **The manager is safe for concurrent use.** The tools of a single
+step may run in parallel, and two of them may ask for the server at
+the same time. The server is started once — the start is guarded by a
+mutex of its own — and it is published under the lock of the client.
+The start happens outside of that lock: it takes a minute, and a
+`Close` must not wait for it.
 
 ⚠️ **The server is looked up on the PATH.** When it is missing, the
 error says so — `gopls is not on the PATH` — and the lookup is not
@@ -1358,36 +1410,61 @@ in a real collection.
 
 ## The stale response guard
 
-Every list-style message carries the page it was requested for, and the
-handler discards a response that is no longer current:
+Every asynchronous message carries the identity of the request it
+belongs to, and the handler discards an answer that is no longer
+current.
+
+For a list, the identity is a **request token**: a counter that gives
+every request its own identity.
 
 ```go
 type RecordsMsg struct {
 	Result *pbstore.PageResult
 	Err    error
-	Page   int // the page that was requested
+	Page   int             // the page that was requested
+	Token  RequestToken    // the request the answer belongs to
 }
 
 // in Update:
 case RecordsMsg:
 	p.loading = false
-	if msg.Err != nil {
+	// Discard the answer of a request the user has moved away from.
+	if !msg.Token.isCurrent(p.request) {
 		return p, nil
 	}
-	// Discard the response of a query that is no longer current.
-	if msg.Page != p.runtime.PageNumber {
+	if msg.Err != nil {
 		return p, nil
 	}
 	p.applyResult(msg.Result)
 	return p, nil
 ```
 
+The token is issued when the request is started, and it travels with
+the answer:
+
+```go
+func (p *RecordsPage) Load() tea.Cmd {
+	// ...
+	token := nextRequest(&p.request)
+
+	return func() tea.Msg {
+		// ...
+		return RecordsMsg{Result: result, Page: page, Token: token}
+	}
+}
+```
+
+**A page number is not enough.** Two requests for the same page with
+two different filters are two different requests, and the slower one
+must not overwrite the other. The page number alone cannot tell them
+apart: both are page 1.
+
 **Keep this whenever you add an asynchronous message.** Without it, a
 slow query that resolves after the user moved on overwrites what is on
 screen with stale data.
 
 The same rule applies to a single record, where the identity is the
-record id rather than the page:
+record id rather than a token:
 
 ```go
 type DetailMsg struct {
@@ -1408,11 +1485,11 @@ id, the late response for A is applied while `SelectedID` says B, and
 the detail page shows the wrong record.
 
 The root model applies the same guard so that a stale error does not
-raise a toast:
+raise a toast. It asks the page, because the page holds the counter:
 
 ```go
 case pages.RecordsMsg:
-	if msg.Page != m.runtime.PageNumber {
+	if !m.records.IsCurrent(msg.Token) {
 		break
 	}
 	// ...

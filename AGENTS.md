@@ -100,7 +100,7 @@ Break one of these and you have a bug, even if the tests pass.
    `sync` — have none, and that is correct: they render the `Runtime`
    and the configuration they were given.
 5. **The stale-response guard.** Every asynchronous message carries the
-   identity it was requested for — the page number for a list, the
+   identity it was requested for — a request token for a list, the
    record id for a detail — and the handler compares it to the current
    selection before applying the result. Without it, a slow response for
    something the user has already left overwrites what they are looking
@@ -396,6 +396,21 @@ Three rules catch most mistakes:
   the protocol are made in `internal/code/client.go` over the
   transport of that package. One server, one index: a second process
   would double the memory and hold two indexes.
+- **The language server is started once, and only once.** The tools of
+  a single step may run in parallel, and two of them may ask for the
+  server at the same time. The start is guarded by a mutex of its
+  own, and it happens outside of the lock of the client: a start
+  takes a minute, and a `Close` must not wait for it.
+- **A request is identified by its token, and not by its page.** Two
+  requests for the same page with two different filters are two
+  different requests, and the slower one must not overwrite the
+  other. `pages.RequestToken` is the identity of a request, and a
+  page compares the token of an answer with the one it is waiting
+  for.
+- **The answer of a search is bounded.** The search of the whole
+  workspace with a common name matches thousands of symbols, and the
+  answer would fill the context window of the model. The code tools
+  cut their answer and say that it is partial.
 - **A file must be opened before the server answers about it.** The
   server knows the files it was told about, and a question about a
   position in a file it has not opened is answered with an error
