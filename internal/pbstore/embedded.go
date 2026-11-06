@@ -208,9 +208,9 @@ func (s *Embedded) List(ctx context.Context, q Query) (*PageResult, error) {
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, q.Collection)
 	}
 
-	collection, err := s.app.FindCachedCollectionByNameOrId(q.Collection)
+	collection, err := s.resolveCollection(q.Collection)
 	if err != nil {
-		return nil, fmt.Errorf("pbstore: resolve collection %q: %w", q.Collection, err)
+		return nil, err
 	}
 
 	resolver := core.NewRecordFieldResolver(s.app, collection, nil, true)
@@ -322,9 +322,9 @@ func (s *Embedded) Create(ctx context.Context, collection string, data map[strin
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
 
-	model, err := s.app.FindCachedCollectionByNameOrId(collection)
+	model, err := s.resolveCollection(collection)
 	if err != nil {
-		return nil, fmt.Errorf("pbstore: resolve collection %q: %w", collection, err)
+		return nil, err
 	}
 
 	rec := core.NewRecord(model)
@@ -609,9 +609,9 @@ func (s *Embedded) CollectionSchema(ctx context.Context, name string) ([]Collect
 		return nil, errors.New("pbstore: the collection name is required")
 	}
 
-	collection, err := s.app.FindCachedCollectionByNameOrId(name)
-	if err != nil || collection == nil {
-		return nil, fmt.Errorf("%w: the collection %q", ErrNotFound, name)
+	collection, err := s.resolveCollection(name)
+	if err != nil {
+		return nil, err
 	}
 
 	fields := make([]CollectionField, 0, len(collection.Fields))
@@ -631,6 +631,25 @@ func (s *Embedded) CollectionSchema(ctx context.Context, name string) ([]Collect
 	}
 
 	return fields, nil
+}
+
+// resolveCollection finds a collection by its name or its id.
+//
+// A collection that does not exist is [ErrNotFound], and not the error of
+// the database underneath: a caller that asks for a collection that is
+// not there has to be able to tell that from a failure of the store.
+//
+// The remote backend reports the same thing: the server answers 404 for
+// a collection it does not have, and the error is mapped to
+// [ErrNotFound]. The two backends answer alike, which is the point of
+// the interface.
+func (s *Embedded) resolveCollection(name string) (*core.Collection, error) {
+	collection, err := s.app.FindCachedCollectionByNameOrId(name)
+	if err != nil || collection == nil {
+		return nil, fmt.Errorf("%w: the collection %q", ErrNotFound, name)
+	}
+
+	return collection, nil
 }
 
 // describeField converts a native PocketBase field into a

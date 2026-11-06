@@ -710,34 +710,40 @@ func (i *factIndex) candidates(name string) []labelFact {
 
 The model may well ask "what did you find?" before it asks "go and
 find something". The collection of the facts does not exist yet, and
-`pbstore.List` reports a missing collection with a raw SQL error:
+that is not a failure of the store — it is a fact about the store.
 
-```
-wikidata: read the collection "wikidata_people": pbstore: resolve collection "wikidata_people": sql: no rows in result set
-```
-
-That is not an answer the model can do anything with. The analysis
-treats it as what it is — a collection that was never enriched — and
-reports zero enriched records:
+The data layer says so, in the one way that both backends can answer:
 
 ```go
-if isMissingCollection(err) {
+if errors.Is(err, pbstore.ErrNotFound) {
     logReport(ctx, opts.Logger, report)
 
     return report, nil
 }
 ```
 
-The two backends report a missing collection differently: the embedded
-one fails to resolve it, and the remote one gets an empty list from the
-server. `isMissingCollection` knows both.
+`ErrNotFound` is the sentinel of the package, and it is what a caller
+branches on. The analysis treats a missing collection as what it is —
+a collection that was never enriched — and reports zero enriched
+records.
 
-> **A better place to fix this is `pbstore`.** The honest fix is for
-> `Embedded.List` and `Remote.List` to return `ErrNotFound` for a
-> missing collection, and for the analysis to use `errors.Is`. The
-> message check is a workaround for a contract that is not quite right
-> yet, and it is fragile: a future version of PocketBase could change
-> the wording.
+> **This is a contract, and it has to be honoured by both backends.**
+> The remote one gets a 404 from the server and maps it to
+> `ErrNotFound`. The embedded one used to leak the error of the
+> database underneath — `sql: no rows in result set` — and the caller
+> had to recognise it by its message:
+>
+> ```go
+> // The workaround that was, and the reason it was wrong.
+> return strings.Contains(message, "no rows in result set") ||
+>     strings.Contains(message, "resolve collection") ||
+>     strings.Contains(message, "404")
+> ```
+>
+> A check on the message of an error is a check on the wording of
+> somebody else's library. The embedded backend now resolves the
+> collection the way `CollectionSchema` already did, and reports
+> `ErrNotFound` like the remote one.
 
 ### The report is JSON
 
@@ -1133,10 +1139,10 @@ what is already there, and it adds no surface of its own.**
    kind that serves the facts joined to the records. What does the join
    look like in the generated code?
 
-7. **Make the analysis work against a remote server.** The
-   `isMissingCollection` check is a workaround. Make `pbstore.List`
-   return `ErrNotFound` for a missing collection, and replace the check
-   with `errors.Is`. What else breaks?
+7. **Make the analysis work against a remote server.** It does: the
+   two backends report a missing collection with the same sentinel.
+   Find the two places where the answer was a check on the message of
+   an error, and replace them with `errors.Is`. What else breaks?
 
 ---
 
@@ -1156,7 +1162,8 @@ what is already there, and it adds no surface of its own.**
   a fact is the entity, the property and the record it came from.
 - A **fuzzy score is not a confidence**. The score is divided by the
   score of the name against itself.
-- A **collection that was never enriched is a fact**, not an error.
+- A **collection that was never enriched is a fact**, not an error —
+  and the data layer says so with a sentinel, not with a message.
 - A **generated project is not overwritten**, and it has **no
   requirement** it does not use.
 - The **tools are the surface**. There is no command, and the pipeline

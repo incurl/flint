@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 )
 
 // PreferencesCollection is the name of the collection holding the user
@@ -56,13 +55,9 @@ func LoadPreferences(ctx context.Context, store Store) (Preferences, error) {
 
 	record, err := store.FindFirst(ctx, PreferencesCollection, "")
 	if err != nil {
+		// The collection does not exist yet, or the record does not:
+		// the preferences were never stored. That is not an error.
 		if errors.Is(err, ErrNotFound) {
-			return Preferences{}, nil
-		}
-
-		// The collection does not exist yet: the preferences were never
-		// stored. That is not an error.
-		if isMissingCollection(err) {
 			return Preferences{}, nil
 		}
 
@@ -120,7 +115,7 @@ func SavePreferences(ctx context.Context, store Store, prefs Preferences) error 
 	}
 
 	existing, err := store.FindFirst(ctx, PreferencesCollection, "")
-	if err != nil && !errors.Is(err, ErrNotFound) && !isMissingCollection(err) {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return fmt.Errorf("pbstore: find the preferences: %w", err)
 	}
 
@@ -146,26 +141,6 @@ func SavePreferences(ctx context.Context, store Store, prefs Preferences) error 
 	}
 
 	return nil
-}
-
-// isMissingCollection reports whether the error means that the
-// collection does not exist.
-func isMissingCollection(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// The embedded backend reports a missing collection as a resolution
-	// failure, and the remote backend as a 404.
-	if errors.Is(err, ErrNotFound) {
-		return true
-	}
-
-	message := err.Error()
-
-	return strings.Contains(message, "no rows in result set") ||
-		strings.Contains(message, "resolve collection") ||
-		strings.Contains(message, "404")
 }
 
 // toBool converts a field value to a bool.

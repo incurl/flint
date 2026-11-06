@@ -709,3 +709,40 @@ func TestEmbeddedShortIDIsNormalisedEverywhere(t *testing.T) {
 		t.Errorf("Get() after the delete error = %v, want ErrNotFound", err)
 	}
 }
+
+// TestEmbeddedReportsAMissingCollection checks that a collection that
+// does not exist is [pbstore.ErrNotFound].
+//
+// The error of the database underneath — "no rows in result set" — is
+// not an answer a caller can do anything with. A caller that asks for
+// a collection that is not there has to be able to tell that from a
+// failure of the store.
+//
+// The remote backend reports the same thing: the server answers 404 for
+// a collection it does not have, and the error is mapped to
+// [pbstore.ErrNotFound]. The two backends answer alike, which is the
+// point of the interface.
+func TestEmbeddedReportsAMissingCollection(t *testing.T) {
+	store := newEmbeddedStore(t)
+	ctx := context.Background()
+
+	_, err := store.List(ctx, pbstore.Query{Collection: "nope", Page: 1, PerPage: 10})
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("List() error = %v, want ErrNotFound", err)
+	}
+
+	_, err = store.Count(ctx, "nope", "")
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("Count() error = %v, want ErrNotFound", err)
+	}
+
+	_, err = store.Create(ctx, "nope", map[string]any{"a": "b"})
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("Create() error = %v, want ErrNotFound", err)
+	}
+
+	_, err = store.CollectionSchema(ctx, "nope")
+	if !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("CollectionSchema() error = %v, want ErrNotFound", err)
+	}
+}

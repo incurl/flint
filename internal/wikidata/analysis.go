@@ -137,7 +137,7 @@ func AnalyzeWithWikidataConfig(
 		// A collection that does not exist is not a failure: it is a
 		// collection that was never enriched. The report says so,
 		// and the model can enrich it and ask again.
-		if isMissingCollection(err) {
+		if errors.Is(err, pbstore.ErrNotFound) {
 			logReport(ctx, opts.Logger, report)
 
 			return report, nil
@@ -182,28 +182,6 @@ func AnalyzeWithWikidataConfig(
 	logReport(ctx, opts.Logger, report)
 
 	return report, nil
-}
-
-// isMissingCollection reports whether an error means that the
-// collection is not there.
-//
-// The two backends do not report a missing collection the same way: the
-// embedded one fails to resolve the collection, and the remote one gets
-// an empty list from the server. The error of the embedded one is a
-// wrapped one, so the check is on the message.
-func isMissingCollection(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if errors.Is(err, pbstore.ErrNotFound) {
-		return true
-	}
-
-	message := err.Error()
-
-	return strings.Contains(message, "resolve collection") ||
-		strings.Contains(message, "no rows in result set")
 }
 
 // EnrichedCollectionName returns the name of the collection that holds

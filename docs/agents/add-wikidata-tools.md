@@ -165,7 +165,12 @@ parallel, and a registration may happen while a query is being built.
 4. **A query is bounded twice.** A deadline bounds the time, and
    `sparql.WithMaxSolutions` bounds the memory.
 
-5. **The remote backend cannot create the collection.** The enrichment
+5. **A missing collection is `pbstore.ErrNotFound`.** The data layer
+   reports a collection that is not there with the sentinel of the
+   package, and both backends do. A check on the message of an error is
+   a check on the wording of somebody else's library.
+
+6. **The remote backend cannot create the collection.** The enrichment
    needs the `wikidata_<collection>` collection, and only the embedded
    backend can create one. The error of the remote backend says so, and
    it is not swallowed.
@@ -173,21 +178,21 @@ parallel, and a registration may happen while a query is being built.
    The **generation** works with both: it reads the schema through the
    store, and the store reads a remote schema over REST.
 
-6. **A guess is not a fact.** A fuzzy match below the threshold is not
+7. **A guess is not a fact.** A fuzzy match below the threshold is not
    counted, and the threshold is part of the report.
 
-7. **The generated project stays inside the root.** The model chooses
+8. **The generated project stays inside the root.** The model chooses
    the directory, and a path that escapes the root is refused. The check
    is lexical, exactly like the one of the code tools.
 
-8. **The generated project is not overwritten.** The files of a
+9. **The generated project is not overwritten.** The files of a
    generated project belong to the user once they are written. The
    overwrite is explicit.
 
-9. **A run is bounded.** It reads at most `wikidata.MaxSampleSize`
-   records, and every record is a query.
+10. **A run is bounded.** It reads at most `wikidata.MaxSampleSize`
+    records, and every record is a query.
 
-10. **A dry run changes nothing.** It does not create the collection, it
+11. **A dry run changes nothing.** It does not create the collection, it
     does not write the facts, and it does not leave a record in the log.
 
 ---

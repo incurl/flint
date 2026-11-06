@@ -434,6 +434,10 @@ Three rules catch most mistakes:
   loop detection is the diagnosis: the same call, with the same
   arguments, returning the same answer more than five times in ten
   steps ends the run with `ErrLoopDetected`.
+- **A collection that is not there is `pbstore.ErrNotFound`.** Both
+  backends report a missing collection with the sentinel of the package,
+  and the message of the error is not part of the contract. A check on
+  the wording of somebody else's library breaks when they change it.
 - **A query that is built from data is escaped.** The literal of a SPARQL
   query is delimited by quotes, and a value that holds a quote ends the
   literal and changes the meaning of the query. Every value that goes

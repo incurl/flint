@@ -150,6 +150,21 @@ if errors.Is(err, pbstore.ErrNotFound) {
 }
 ```
 
+**`ErrNotFound` is what a missing collection is.** Both backends report
+it, and the message of the error is not part of the contract: the
+embedded one resolves the collection itself, and the remote one gets a
+404 from the server and maps it. A caller that recognises a missing
+collection by its message is checking the wording of somebody else's
+library.
+
+```go
+// List, Count, Create, Get, FindFirst, Update, Delete and
+// CollectionSchema all report a missing collection this way.
+if errors.Is(err, pbstore.ErrNotFound) {
+    // the collection is not there
+}
+```
+
 ### `Query`
 
 ```go
@@ -1274,8 +1289,8 @@ func EnrichedCollectionName(collection string) string
 
 A collection that was never enriched is **not an error**: the report
 holds zero enriched records, and the model can enrich the collection and
-ask again. The two backends report a missing collection differently, and
-the analysis knows both.
+ask again. The data layer reports a missing collection with the
+`pbstore.ErrNotFound` sentinel, and both backends do.
 
 The join is **exact** when the original collection holds a Wikidata
 identifier, and **fuzzy** when it does not: a record is then matched
