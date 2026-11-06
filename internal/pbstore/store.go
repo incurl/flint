@@ -299,6 +299,9 @@ type Store interface {
 	List(ctx context.Context, q Query) (*PageResult, error)
 
 	// Get returns a single record by id.
+	//
+	// The id is normalised by the store, so that a short id from a
+	// remote source finds the record the sync wrote.
 	Get(ctx context.Context, collection, id string) (*Record, error)
 
 	// FindFirst returns the first record matching the provided filter.
@@ -309,10 +312,14 @@ type Store interface {
 
 	// Update merges the provided field data into an existing record.
 	//
-	// The fields that are not present in data are left untouched.
+	// The fields that are not present in data are left untouched. The
+	// id is normalised by the store, exactly like the one of [Store.Get].
 	Update(ctx context.Context, collection, id string, data map[string]any) (*Record, error)
 
 	// Delete removes a record.
+	//
+	// The id is normalised by the store, exactly like the one of
+	// [Store.Get].
 	Delete(ctx context.Context, collection, id string) error
 
 	// Count returns the number of records matching the provided filter.

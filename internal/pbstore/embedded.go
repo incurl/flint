@@ -351,7 +351,7 @@ func (s *Embedded) Update(ctx context.Context, collection, id string, data map[s
 		return nil, fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
 
-	rec, err := s.app.FindRecordById(collection, id)
+	rec, err := s.app.FindRecordById(collection, normalizeID(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("%w: %s/%s", ErrNotFound, collection, id)
@@ -383,7 +383,7 @@ func (s *Embedded) Delete(ctx context.Context, collection, id string) error {
 		return fmt.Errorf("%w: %q", ErrCollectionNotAllowed, collection)
 	}
 
-	rec, err := s.app.FindRecordById(collection, id)
+	rec, err := s.app.FindRecordById(collection, normalizeID(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return fmt.Errorf("%w: %s/%s", ErrNotFound, collection, id)

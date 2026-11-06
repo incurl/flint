@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/pocketbase/pocketbase"
@@ -638,5 +639,73 @@ func TestEmbeddedCollectionSchemaUnknown(t *testing.T) {
 
 	if !errors.Is(err, pbstore.ErrNotFound) {
 		t.Errorf("CollectionSchema() error = %v, want ErrNotFound", err)
+	}
+}
+
+// TestEmbeddedShortIDIsNormalisedEverywhere verifies that a short id
+// finds the record in every operation.
+//
+// PocketBase requires an id of at least fifteen characters, so the sync
+// pads a short id from a remote source. The reading and the writing
+// have to agree on the padding: a record that can be read but not
+// updated is a record the application cannot change.
+func TestEmbeddedShortIDIsNormalisedEverywhere(t *testing.T) {
+	store := newEmbeddedStore(t)
+	ctx := context.Background()
+
+	if _, err := store.EnsureCollection(ctx, "vocab", []pbstore.CollectionField{
+		{Name: "term", Type: pbstore.FieldTypeText},
+	}); err != nil {
+		t.Fatalf("EnsureCollection() error = %v", err)
+	}
+
+	record, err := store.Create(ctx, "vocab", map[string]any{"term": "go"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	if len(record.ID) < 15 {
+		t.Fatalf("the id of a new record is %q, want at least 15 characters", record.ID)
+	}
+
+	// The padded id of a short remote id: the sync writes the record
+	// under it, and the callers know the record under the short one.
+	const short = "ev87"
+
+	padded := short + strings.Repeat("0", 15-len(short))
+
+	if _, err := store.Create(ctx, "vocab", map[string]any{
+		"id":   padded,
+		"term": "rust",
+	}); err != nil {
+		t.Fatalf("Create() with a padded id error = %v", err)
+	}
+
+	found, err := store.Get(ctx, "vocab", short)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+
+	if found.ID != padded {
+		t.Errorf("Get() returned %q, want %q", found.ID, padded)
+	}
+
+	// The update has to find the very same record.
+	updated, err := store.Update(ctx, "vocab", short, map[string]any{"term": "zig"})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	if updated.ID != padded {
+		t.Errorf("Update() returned %q, want %q", updated.ID, padded)
+	}
+
+	// And the delete has to find it too.
+	if err := store.Delete(ctx, "vocab", short); err != nil {
+		t.Fatalf("Delete() error = %v", err)
+	}
+
+	if _, err := store.Get(ctx, "vocab", short); !errors.Is(err, pbstore.ErrNotFound) {
+		t.Errorf("Get() after the delete error = %v, want ErrNotFound", err)
 	}
 }
