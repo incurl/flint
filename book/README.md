@@ -25,6 +25,7 @@ confidently.
 | **Ready to build your own application**      | **Part IV**            |
 | **Looking for something to build**           | **Chapter 27**         |
 | **Wants the model to drive the app**       | **Chapter 22**         |
+| **Wants to enrich data with Wikidata**     | **Chapter 28**         |
 | **Want to run hooks on a PocketBase server**  | **Chapter 15**         |
 
 ## How to read it
@@ -83,6 +84,8 @@ template lives at `github.com/incurl/flint`.
 | `internal/state/`       | The runtime state                              |
 | `internal/agent/`       | The agentic layer: tools, runs, permissions     |
 | `internal/session/`     | The conversations of the agent                 |
+| `internal/wikidata/`    | The enrichment of a collection with Wikidata   |
+| `internal/generator/`   | The Go project that reads the enriched schema  |
 | `config/`               | The configuration loader                       |
 | `examples/wikidata/`    | A complete domain adapter                      |
 
@@ -136,6 +139,7 @@ make run        # start the TUI
 25. [Advanced Patterns](ch25-advanced-patterns.md)
 26. [Domain Patterns](ch26-domain-patterns.md)
 27. [Creative Ideas and Geek Playgrounds](ch27-creative-ideas.md)
+28. [Enriching with Wikidata: The Agent as a Researcher](ch28-wikidata-enrichment.md)
 
 ### Appendices
 

@@ -28,6 +28,8 @@ PocketBase server over REST, behind one interface.
 | `internal/agent`  | The agentic layer: tool registry, run lifecycle, permission gate. | Knows nothing about the UI. Publishes events. |
 | `internal/code`   | The language server: the symbols, the definitions, the renames. | Knows nothing about the model. The root is a boundary. |
 | `internal/session` | The conversations of the agent, stored in PocketBase. | Reads and writes through `pbstore`.            |
+| `internal/wikidata` | Enriches a collection with the facts of Wikidata. | Talks to a SPARQL endpoint; writes through `pbstore`. |
+| `internal/generator` | Writes a Go project that reads an enriched schema. | Reads the schema through `pbstore`. |
 | `internal/app`   | Root Bubble Tea model: routing, global keys, status bar, toasts. | Owns global concerns only.                |
 | `internal/pages` | One file per screen. Self-contained.                    | A page never imports `internal/app`.           |
 | `internal/components` | Reusable widgets: record card, JSON viewer/editor, toast, status bar, pagination. | Generic, no domain knowledge.      |
@@ -46,8 +48,10 @@ cmd/tui → app → pages → components → theme
            jsonfilter           │
              ↘                 │
              agent ─────────────┘
-             ↕  ↘
-          session  code → (the language server)
+             ↕  ↘                ↘
+          session  code      wikidata → (the SPARQL endpoint)
+                        ↘
+                     generator
 ```
 
 - `pages` **must not** import `app` — that is an import cycle. Pages
@@ -132,6 +136,7 @@ recipe, the files to touch, and the checks to run.
 | [`add-a-sync.md`](docs/agents/add-a-sync.md)         | You want to pull remote data into the local cache.      |
 | [`add-an-agent-tool.md`](docs/agents/add-an-agent-tool.md) | You want the model to do something new.             |
 | [`add-code-tools.md`](docs/agents/add-code-tools.md) | You want the model to read and change the code.      |
+| [`add-wikidata-tools.md`](docs/agents/add-wikidata-tools.md) | You want the model to enrich data with Wikidata. |
 | [`AGENT_SETUP.md`](docs/AGENT_SETUP.md) | You want to *use* the agent: setup, providers, usage. |
 | [`debug-a-tui.md`](docs/agents/debug-a-tui.md)       | The UI is frozen, blank, or unresponsive.                |
 | [`verify.md`](docs/agents/verify.md)                 | Before you commit. Run this.                            |
@@ -429,6 +434,22 @@ Three rules catch most mistakes:
   loop detection is the diagnosis: the same call, with the same
   arguments, returning the same answer more than five times in ten
   steps ends the run with `ErrLoopDetected`.
+- **A query that is built from data is escaped.** The literal of a SPARQL
+  query is delimited by quotes, and a value that holds a quote ends the
+  literal and changes the meaning of the query. Every value that goes
+  into a query text goes through an escaper first — the same class of bug
+  as the one fixed in `internal/pbstore/queries.go`.
+- **A write that runs twice does not write twice.** The store has no
+  transaction API, so a batch is a loop, and a loop that fails half way
+  leaves what it wrote. The write is therefore idempotent: the fact is
+  looked up by its natural key and updated, not written a second time.
+- **A query is bounded twice.** A deadline bounds the time, and a budget
+  of solutions bounds the memory: a query that builds a million solutions
+  in ten seconds is still a million solutions in memory. A query that
+  spends the budget fails — it is not a partial answer.
+- **A guess is not a fact.** A fuzzy match that is not confident enough
+  is not counted, and the threshold is part of the report. A report that
+  counts the guesses as facts is a lie.
 - **`internal/` is not importable from outside the module.** Downstream
   projects use the template's own packages by copying them in, or by
   keeping everything in one module.

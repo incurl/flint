@@ -288,6 +288,37 @@ flat record.
 The embedded backend creates the collections on demand; the remote one
 cannot, and `session.Migrations()` creates them on the server.
 
+### `internal/wikidata` — the enrichment
+
+The package asks a SPARQL endpoint about the entities of a collection
+and writes what it learns into a `wikidata_<collection>` collection: one
+record per fact, joined on the identifier of the entity.
+
+It is the only package that talks to Wikidata, and it reads and writes
+through `pbstore.Store` like everything else. Two rules shape it:
+
+- **A query is bounded twice.** A deadline bounds the time, and a budget
+  of solutions bounds the memory. A query that spends the budget fails;
+  it is not a partial answer.
+- **Every value that goes into a query text is escaped.** A value that
+  holds a quote would end the literal and change the meaning of the
+  query.
+
+The **property registry** is the extension point: a downstream project
+registers the properties of an entity type of its own with
+`wikidata.RegisterPropertySet`, and the query builder picks them up.
+
+### `internal/generator` — the generated project
+
+The generator writes a Go project that reads an enriched schema. It
+reads the schema through `pbstore.Store` — not through the PocketBase
+app — so that it works against a remote server as well as against the
+local database.
+
+The **root** is the boundary of the output: the output directory is
+relative to it, and a path that escapes it is refused, exactly like the
+code tools refuse to read outside of theirs.
+
 ## The data layer
 
 See [`PBSTORE_GUIDE.md`](PBSTORE_GUIDE.md) for the details. The short

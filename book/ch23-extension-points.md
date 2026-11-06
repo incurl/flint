@@ -37,6 +37,12 @@ And a seventh, added by the agentic layer:
 | - | ------------------------ | --------------------------- | ----------------------------- |
 | 7 | The **agent tools**     | `internal/agent`            | `registry.Register(tool)`     |
 
+And an eighth, added by the enrichment of Chapter 28:
+
+| # | Extension point             | Lives in                 | Reached by                    |
+| - | --------------------------- | ------------------------ | ----------------------------- |
+| 8 | The **property registry**   | `internal/wikidata`      | `wikidata.RegisterPropertySet(set)` |
+
 The first one has a runtime variant worth calling out: the record
 renderer can also be **overridden by a script** in `flint_hooks/`,
 without a Go rebuild. See §23.3.
@@ -832,19 +838,85 @@ never show the request.
 description is vague will be called at the wrong moment, and the
 symptom is a model that ignores your data — not an error.
 
-## 23.10 The extension matrix
+## 23.10 The property registry
 
-| Extension point | Cost  | Touches the core? | Reversible? |
-| --------------- | ----- | ----------------- | ----------- |
-| The renderer    | Low   | No                | Yes         |
-| The migrations  | Zero  | No                | Yes         |
-| The theme       | Low   | Yes (one file)    | Yes         |
-| The agent tools | Low   | No                | Yes         |
-| The pages       | Medium| Yes (two files)   | Yes         |
-| The sync        | High  | No (implement)    | Yes         |
-| The store       | High  | No (implement)    | Yes         |
+The enrichment of Chapter 28 added an eighth extension point: the
+**properties** the enrichment asks for.
 
-## 23.11 The order to extend in
+### The interface
+
+A property set is data, and the registry is the way in:
+
+```go
+// RegisterPropertySet registers a property set under an entity type.
+//
+// It is the extension point of the package: a downstream project
+// registers the properties of an entity type of its own, and the query
+// builder picks them up.
+//
+// A set that is already registered is replaced, and the properties of the
+// two are merged: a registration that adds a property to a known entity
+// type does not drop the others.
+func RegisterPropertySet(set PropertySet) error
+
+// RegisterFieldProperty registers the property that a field name
+// suggests.
+func RegisterFieldProperty(field, property string) error
+```
+
+### What a downstream project can do
+
+**Add an entity type** that the template does not know about:
+
+```go
+wikidata.RegisterPropertySet(wikidata.PropertySet{
+    EntityType:  "species",
+    Description: "A species of animal.",
+    Properties: []wikidata.Property{
+        {IRI: "wdt:P141", Label: "conservation status", FullIRI: wikidata.PrefixWDT + "P141"},
+    },
+})
+```
+
+**Say what a field is worth**, for a collection that holds a field the
+template does not know about:
+
+```go
+wikidata.RegisterFieldProperty("first_published", "wdt:P577")
+```
+
+**Add a property to a known type** without losing the others: a
+registration is *merged*, not replaced.
+
+### The cost
+
+**Low.** One call, at the start of the application.
+
+⚠️ **The registry is guarded, and it has to be.** The tools of a step may
+run in parallel, and a registration may happen while a query is being
+built. A map that is written while it is read is a crash that happens
+once a week, on a Friday, for a user who did nothing wrong.
+
+⚠️ **A registry that nothing can reach is a constant.** The first
+version of the enrichment had the property sets in an unexported map,
+and the documentation claimed that a downstream project could add to it.
+It could not. The exported `RegisterPropertySet` is what makes the
+claim true.
+
+## 23.11 The extension matrix
+
+| Extension point     | Cost  | Touches the core? | Reversible? |
+| ------------------- | ----- | ----------------- | ----------- |
+| The renderer        | Low   | No                | Yes         |
+| The migrations      | Zero  | No                | Yes         |
+| The theme           | Low   | Yes (one file)    | Yes         |
+| The agent tools     | Low   | No                | Yes         |
+| The property registry | Low | No                | Yes         |
+| The pages           | Medium| Yes (two files)   | Yes         |
+| The sync            | High  | No (implement)    | Yes         |
+| The store           | High  | No (implement)    | Yes         |
+
+## 23.12 The order to extend in
 
 ⚠️ **Do not start with the store.** The temptation is to build the
 data layer first, because it feels like the "real" work. But the store
@@ -866,7 +938,7 @@ expensive**, because every page that touches it has to be revisited.
 Rebuilding the renderer is cheap, because it is a single injected
 object.
 
-## 23.12 A worked example: adding a domain
+## 23.13 A worked example: adding a domain
 
 Let us walk through adding a "measurement units" domain to the
 template, in the order above.
@@ -1029,7 +1101,7 @@ func TestRenderer(t *testing.T) {
 }
 ```
 
-## 23.13 Exercises
+## 23.14 Exercises
 
 1. Implement the `SectionedRenderer` optional interface from §23.3 and
    render grouped sections in the record card.
@@ -1049,9 +1121,9 @@ func TestRenderer(t *testing.T) {
    configuration validation accepts it.
 
 6. Extend the template with a domain of your own, following the
-   six-step procedure in §23.12.
+   six-step procedure in §23.13.
 
-## 23.14 What you learned
+## 23.15 What you learned
 
 - An extension point must be **reachable without editing the core**.
 - The template has **seven**: the renderer, the migrations, the theme,
@@ -1067,7 +1139,7 @@ func TestRenderer(t *testing.T) {
 - Add capabilities with **optional interfaces** (type assertions), not
   by breaking the published ones.
 
-## 23.15 Further reading
+## 23.16 Further reading
 
 - `internal/components/recordcard.go` — the `RecordRenderer` interface.
 - `internal/app/app.go` — the injection points.

@@ -959,6 +959,105 @@ const (
 )
 ```
 
+### The Wikidata tools
+
+Three tools talk to Wikidata:
+
+| Tool                 | What it does                                     | Gated? |
+| -------------------- | ------------------------------------------------ | ------ |
+| `wikidata_enrich`    | Enriches a collection with the facts of Wikidata | **yes** |
+| `wikidata_analyze`   | Reports what the enrichment achieved            | no     |
+| `wikidata_generate`  | Writes a Go project that reads the enriched data | **yes** |
+
+`wikidata_enrich` writes the facts of Wikidata into the data of the
+user, exactly like a record does: the plan proposes it, the act mode
+carries it out. It is behind the permission gate.
+
+`wikidata_analyze` only reads, so the planning mode may use it: a plan
+for an enrichment needs to know what the enrichment achieved.
+
+`wikidata_generate` writes files, so it is gated like the code tools:
+the plan proposes the project, the act mode writes it. The project is
+written inside the **root** — the code directory of the application —
+and a path that escapes it is refused.
+
+```go
+// The three tools.
+func NewWikidataEnrichTool(store pbstore.Store, client *wikidata.Client, logger *slog.Logger) Tool
+func NewWikidataAnalyzeTool(store pbstore.Store, client *wikidata.Client, logger *slog.Logger) Tool
+func NewWikidataGenerateTool(store pbstore.Store, root string, logger *slog.Logger) Tool
+
+// The registration.
+func RegisterWikidataTools(registry *Registry, store pbstore.Store, client *wikidata.Client, gate *Gate, root string, logger *slog.Logger)
+```
+
+The tools are only registered when the configuration asks for them: they
+reach a public endpoint, and an application that never asks about
+Wikidata must not open a connection to it.
+
+The enrichment only works with the **embedded** backend, because it
+creates the collection of the facts. The remote backend cannot create a
+collection — there, the collections are created by a migration on the
+server — and the error says so.
+
+The **generation** works with both: it reads the schema through the
+store, and the store reads a remote schema over REST.
+
+#### The arguments
+
+```go
+// The arguments of the enrichment.
+type WikidataEnrichParams struct {
+    Collection string `json:"collection"`
+    EntityType string `json:"entity_type,omitempty"`
+    SampleSize int    `json:"sample_size,omitempty"`
+    DryRun     bool   `json:"dry_run,omitempty"`
+}
+
+// The arguments of the analysis.
+type WikidataAnalyzeParams struct {
+    Collection string `json:"collection"`
+}
+
+// The arguments of the generation.
+type WikidataGenerateParams struct {
+    Collection string `json:"collection"`
+    Kind       string `json:"kind,omitempty"`
+    OutputDir  string `json:"output_dir,omitempty"`
+    ModulePath string `json:"module_path,omitempty"`
+    Overwrite  bool   `json:"overwrite,omitempty"`
+}
+```
+
+The `sample_size` is capped at `wikidata.MaxSampleSize`. Every record is
+a query, and the queries are rate limited.
+
+#### What the user says
+
+> **Enrich the `people` collection with the facts from Wikidata.**
+
+→ `wikidata_enrich` with `{"collection": "people"}`
+
+> **How many of the people did Wikidata know about?**
+
+→ `wikidata_analyze` with `{"collection": "people"}`
+
+> **Check what Wikidata would tell us before you change anything.**
+
+→ `wikidata_enrich` with `{"collection": "people", "dry_run": true}`
+
+> **Generate a small API that serves the people and their facts.**
+
+→ `wikidata_generate` with `{"collection": "people", "kind": "api"}`
+
+> **Regenerate it — the collection has a new field.**
+
+→ `wikidata_generate` with `{"collection": "people", "overwrite": true}`
+
+The `overwrite` is explicit: without it, the call fails with
+`generator.ErrProjectExists`, and the error names the remedy. The files
+of a generated project belong to the user once they are written.
+
 ### The collection tools
 
 Two tools speak about the shape of a collection, and not about its
@@ -1013,6 +1112,252 @@ It returns the fields a caller writes: the system fields of PocketBase
 collection that does not exist is an error (`pbstore.ErrNotFound`), and
 not an empty schema: an empty answer for a collection that is not there
 would be read as a collection with no fields.
+
+---
+
+## `internal/wikidata` — the facts of Wikidata
+
+The package enriches a PocketBase collection with the facts of Wikidata.
+It asks a SPARQL endpoint about the entities of a collection, writes what
+it learns into a `wikidata_<collection>` collection, and reports what the
+join between the two holds.
+
+The data layer is reached through `pbstore.Store` and never through the
+PocketBase app: the store is the only thing that knows whether the data is
+local or remote.
+
+### The client
+
+```go
+// The client.
+func NewClient(endpoint string, opts ...Option) *Client
+func (c *Client) Query(ctx context.Context, query string) (*graph.Graph, error)
+func (c *Client) QueryRows(ctx context.Context, query string) (*sparql.Result, error)
+func (c *Client) Endpoint() string
+
+// The options.
+func WithDelay(d time.Duration) Option
+func WithTimeout(d time.Duration) Option
+func WithMaxSolutions(n int) Option
+func WithLogger(l *slog.Logger) Option
+func WithHTTPClient(c *http.Client) Option
+```
+
+`QueryRows` is the method the enrichment uses: a `SELECT` is answered by
+its variable names and its rows, and a `*graph.Graph` holds triples and
+not bindings. `Query` is the CONSTRUCT-shaped answer.
+
+Every query is bounded **twice**: by a deadline, which bounds the time,
+and by a budget of solutions, which bounds the memory. A query that
+spends the budget fails with `wikidata.ErrTooManySolutions` — it is not a
+partial answer.
+
+The client waits `WithDelay` between two queries. The public endpoint
+asks for it, and a client that does not wait is a client that gets
+blocked.
+
+The errors are the sentinels: `ErrTooManySolutions`, `ErrTimeout`,
+`ErrUnknownEntityType` and `ErrNoEndpoint`.
+
+### The query builder
+
+```go
+// The query builder.
+func BuildQueryFromPocketBase(record *core.Record, entityType string) (string, error)
+func InferProperties(record *core.Record, entityType string) []Property
+func QuoteLiteral(value string) string
+```
+
+The **entity type** selects the properties to ask for, and the **fields
+of the record** select the entity to ask about:
+
+- a record that holds a `wikidata_id` (or a `qid`) is asked about
+  directly: the identifier is data, and it is never hardcoded;
+- a record that only holds a name is searched for by that name.
+
+Every value that goes into the query text is escaped by `QuoteLiteral`. A
+value that holds a double quote would otherwise end the literal and change
+the meaning of the query.
+
+The property sets are **data**, and the registry is the extension point:
+
+```go
+// The registry.
+func RegisterPropertySet(set PropertySet) error
+func RegisterFieldProperty(field, property string) error
+func PropertySetFor(entityType string) (PropertySet, error)
+func KnownEntityTypes() []string
+```
+
+A downstream project registers the properties of an entity type of its
+own, and the query builder picks them up:
+
+```go
+wikidata.RegisterPropertySet(wikidata.PropertySet{
+    EntityType:  "species",
+    Description: "A species of animal.",
+    Properties: []wikidata.Property{
+        {IRI: "wdt:P141", Label: "conservation status", FullIRI: wikidata.PrefixWDT + "P141"},
+    },
+})
+```
+
+A registration that adds a property to a known entity type **merges**:
+the properties of the template are kept.
+
+`RegisterFieldProperty` is the second half: it says what a field name is
+worth, so that a collection that holds a field the template does not know
+about is still enriched.
+
+The registry is guarded by a mutex: the tools of a step may run in
+parallel, and a registration may happen while a query is being built.
+
+`InferProperties` is the inference: it looks at the field names of the
+record (`birth_date` → `wdt:P569`, `country` → `wdt:P17`) and returns
+the union of that and the properties of the entity type. A field name
+that is not in the table contributes nothing and does not break the
+inference.
+
+### The planner and the executor
+
+```go
+// The planner.
+type Planner interface {
+    Plan(ctx context.Context, state State) (Action, error)
+}
+func NewStorePlanner(store pbstore.Store, logger *slog.Logger) *StorePlanner
+func ReadState(ctx context.Context, store pbstore.Store, target string, refreshInterval time.Duration) (State, error)
+
+// The executor.
+type Executor interface {
+    Execute(ctx context.Context, action Action) (Outcome, error)
+}
+func NewAgentExecutor(store pbstore.Store, client *Client, opts ExecutorOptions) *AgentExecutor
+```
+
+The planner **decides**, it does not follow a script:
+
+| Situation                                          | Action         |
+| -------------------------------------------------- | -------------- |
+| No `wikidata_<target>` collection exists            | `ActionCreate` |
+| The collection exists but is empty                  | `ActionEnrich` |
+| It is populated and the last run is too old         | `ActionRefresh`|
+| It is populated and was just enriched               | `ActionStop`   |
+
+The executor writes **idempotently**: a fact is looked up by its natural
+key (the entity, the property and the record it was read from) with
+`store.FindFirst`, and it is updated rather than written twice. The
+store has no transaction API, so a run that fails half way leaves the
+facts it wrote, and a second run completes the work without duplicating
+it.
+
+The runs are recorded in the `agent_log` collection. The log is
+append-only: a repeated run writes a second record, because a log of the
+runs is a list of the runs. The **facts** are the ones that must not be
+written twice.
+
+A run reads at most `wikidata.MaxSampleSize` records. Every record is a
+query, and the queries are rate limited: a model that asks for a million
+records must not hold the endpoint for a day.
+
+A **dry run** changes nothing at all: it does not create the collection,
+it does not write the facts, and it does not leave a record in the log.
+
+### The analysis
+
+```go
+// The analysis.
+func AnalyzeWithWikidata(ctx context.Context, store pbstore.Store, originalCollectionName string) (*AnalysisReport, error)
+func AnalyzeWithWikidataConfig(ctx context.Context, store pbstore.Store, originalCollectionName string, opts AnalysisOptions) (*AnalysisReport, error)
+func EnrichedCollectionName(collection string) string
+```
+
+A collection that was never enriched is **not an error**: the report
+holds zero enriched records, and the model can enrich the collection and
+ask again. The two backends report a missing collection differently, and
+the analysis knows both.
+
+The join is **exact** when the original collection holds a Wikidata
+identifier, and **fuzzy** when it does not: a record is then matched
+against the labels of the facts by its name, with `github.com/sahilm/fuzzy`.
+
+The fuzzy match reports its confidence. The score of the fuzzy library is
+an unbounded number, so it is divided by the score of the name against
+itself: the result is a ratio between zero and one, and a match below
+the threshold is not counted. A guess is not a fact, and a report that
+counts the guesses as facts is a lie.
+
+The report is logged as JSON at INFO level, so that a downstream consumer
+can parse the log line.
+
+---
+
+## `internal/generator` — the generated project
+
+The generator writes a Go project that reads an enriched PocketBase
+schema. It is the last step of the enrichment.
+
+```go
+// The generator.
+func Generate(ctx context.Context, store pbstore.Store, opts Options) error
+
+// The options.
+type Options struct {
+    OriginalCollection string
+    EnrichedCollection string
+    Kind               string
+    OutputDir          string
+    Root               string
+    ModulePath         string
+    PocketBaseURL      string
+}
+```
+
+The schema is read through `pbstore.Store`, and not through the
+PocketBase app: the store is the only thing that knows whether the data
+is local or remote, and a generator that reads the app can only
+generate from the local data. The `wikidata_*` collection of a remote
+server is generated from like any other.
+
+The **root** is the boundary of the output. The output directory is
+relative to it, and a path that escapes it — through a `..` or through
+a symbolic link — is refused with `generator.ErrOutsideRoot`. The check
+is lexical, exactly like the one of the code tools.
+
+The **kind** decides the shape of the application: `cli`, `api` or
+`dashboard`.
+
+The PocketBase field types are mapped to Go types with an explicit
+switch. A type that is not known maps to `string` — and never to `any`,
+which would lose the shape of the value without saying so.
+
+The schema that the generator reads is the one of the store: the system
+fields are left out, and a field type that the store does not describe
+— a relation, for instance — is left out with them.
+
+A field name that is not a valid Go identifier is converted (`first_name`
+→ `FirstName`), and a name that starts with a digit is prefixed
+(`2nd_place` → `Field2NdPlace`). The generated code is formatted, and it
+is verified by a test that **builds** it.
+
+The generated project reads the records over the REST API of PocketBase,
+with the standard library alone. Its `go.mod` therefore holds **no
+requirement**: a requirement the project does not use is one that
+`go mod tidy` removes, and a `go.mod` that a tidy changes was not right.
+
+A project that is already there is **not** overwritten. The files of a
+generated project belong to the user once they are written, and a run
+that replaced them would take the edits with it. The overwrite is
+explicit:
+
+```go
+// The options.
+type Options struct {
+    // ...
+    // Overwrite allows the generation over an existing project.
+    Overwrite bool
+}
+```
 
 ---
 
@@ -1292,6 +1637,8 @@ type Config struct {
 	Agent AgentConfig `toml:"agent"`
 	// Code holds the settings of the code tools.
 	Code CodeConfig `toml:"code"`
+	// Wikidata holds the settings of the Wikidata tools.
+	Wikidata WikidataConfig `toml:"wikidata"`
 }
 
 type CodeConfig struct {
@@ -1300,6 +1647,23 @@ type CodeConfig struct {
 	Root string `toml:"root"`
 	// Enabled turns the code tools on. They are on by default.
 	Enabled bool `toml:"enabled"`
+}
+
+type WikidataConfig struct {
+	// Enabled turns the Wikidata tools on. They are off by default:
+	// they reach a public endpoint, and an application that never
+	// asks about Wikidata must not open a connection to it.
+	Enabled bool `toml:"enabled"`
+	// Endpoint is the SPARQL endpoint. It defaults to the public
+	// endpoint of Wikidata.
+	Endpoint string `toml:"endpoint"`
+	// DelayMS is the pause between two queries, in milliseconds. It
+	// defaults to 100.
+	DelayMS int `toml:"delay_ms"`
+	// SampleSize is the number of records a run asks about.
+	SampleSize int `toml:"sample_size"`
+	// MaxSolutions is the budget of solutions of a single query.
+	MaxSolutions int `toml:"max_solutions"`
 }
 
 type EmbeddedConfig struct {

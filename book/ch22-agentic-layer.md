@@ -181,6 +181,15 @@ Ten tools, all backed by the store:
 | `delete_record` | Deletes a record | **yes** |
 | `create_collection` | Creates a collection | **yes** |
 
+And three more, which reach out to the world rather than to the store.
+Chapter 28 is about them:
+
+| Tool | What it does | Gated |
+| - | - | - |
+| `wikidata_enrich` | Enriches a collection with the facts of Wikidata | **yes** |
+| `wikidata_analyze` | Reports what the enrichment achieved | no |
+| `wikidata_generate` | Writes a Go project that reads the enriched data | **yes** |
+
 The read-only tools come first in the registry, and the order is
 deliberate: the tool list is a list the model reads.
 
@@ -197,6 +206,38 @@ an underscore is refused — those hold the internals of PocketBase or of
 the application. And the tool only works with the embedded backend:
 the remote one cannot create a collection, and the error says that the
 collections are created by a migration on the server.
+
+### The tools are how the user speaks
+
+A tool is not only an interface for the model. It is also the way the
+user asks for something, and the description of a tool is what the model
+turns a sentence into a call.
+
+The user says:
+
+> **Enrich the `people` collection with the facts from Wikidata.**
+
+and the model calls `wikidata_enrich` with `{"collection": "people"}`.
+
+The user says:
+
+> **How many of the people did Wikidata know about?**
+
+and the model calls `wikidata_analyze` with `{"collection": "people"}`.
+
+The user says:
+
+> **Generate a small API that serves the people and their Wikidata
+> facts.**
+
+and the model calls `wikidata_generate` with
+`{"collection": "people", "kind": "api"}`.
+
+The sentences are not parsed. They are *understood*, and the tools are
+the vocabulary the understanding is expressed in. A tool with a vague
+description gives the model nothing to match the sentence against, and
+the model guesses — and a guess that writes to the data of the user is
+an expensive guess.
 
 ### A tool validates before it writes
 

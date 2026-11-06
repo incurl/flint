@@ -532,6 +532,15 @@ data.
 | `delete_record`     | Deletes a record                  | **yes** |
 | `create_collection` | Creates a collection              | **yes** |
 
+And three more, which reach out to Wikidata. They are **off by
+default** — see §5.1:
+
+| Tool                | What it does                     | Gated? |
+| ------------------- | -------------------------------- | ------ |
+| `wikidata_enrich`   | Enriches a collection with the facts of Wikidata | **yes** |
+| `wikidata_analyze`  | Reports what the enrichment achieved | no  |
+| `wikidata_generate` | Writes a Go project that reads the enriched data | **yes** |
+
 The read tools are not gated: they cannot change anything. The write
 tools are, because they change the data of the user.
 
@@ -561,6 +570,80 @@ Two bounds keep a runaway model from exhausting the process:
 
 - A tool call is cut off after **30 seconds**.
 - A listing tool returns at most **100 records**, and 30 by default.
+
+### 5.1 The Wikidata tools
+
+Three tools enrich a collection with the facts of Wikidata, and they
+are **off by default**: they reach a public endpoint, and an application
+that never asks about Wikidata must not open a connection to it.
+
+```toml
+# flint.toml
+[wikidata]
+enabled = true
+endpoint = "https://query.wikidata.org/sparql"
+delay_ms = 100
+sample_size = 20
+max_solutions = 100000
+```
+
+```bash
+# Or with the environment.
+FLINT_WIKIDATA=1
+FLINT_WIKIDATA_ENDPOINT=http://127.0.0.1:9999/sparql
+
+# Or with the flag.
+--wikidata
+```
+
+| Tool | What it does | Gated? |
+| ---- | ------------ | ------ |
+| `wikidata_enrich` | Enriches a collection with the facts of Wikidata | **yes** |
+| `wikidata_analyze` | Reports what the enrichment achieved | no |
+| `wikidata_generate` | Writes a Go project that reads the enriched data | **yes** |
+
+**What the user says:**
+
+> **Enrich the `people` collection with the facts from Wikidata.**
+
+The model calls `wikidata_enrich` with `{"collection": "people"}`. The
+facts are written into a new collection named `wikidata_people`, one
+record per fact. The run is idempotent: a fact that is already there is
+updated, not written twice.
+
+> **How many of the people did Wikidata know about?**
+
+The model calls `wikidata_analyze`, and the answer is the report as
+JSON: how many records were matched, how many were not, how many facts
+per property, and how many of the matches were made by name rather than
+by identifier.
+
+> **Check what Wikidata would tell us about the `writers` collection
+> before you change anything.**
+
+The model calls `wikidata_enrich` with `{"dry_run": true}`. The
+endpoint is asked, and nothing is written: not the collection, not the
+facts, not the log.
+
+> **Generate a small API that serves the people and their Wikidata
+> facts.**
+
+The model calls `wikidata_generate` with
+`{"collection": "people", "kind": "api"}`. The project is written inside
+the code directory of the application, and a path that escapes it is
+refused.
+
+⚠️ **The enrichment needs the embedded backend.** It creates the
+collection of the facts, and only the embedded backend can create a
+collection. The remote backend returns an error that says so — there,
+the collections are created by a migration on the server.
+
+⚠️ **The generation does not.** It reads the schema through the store,
+and the store reads a remote schema over REST.
+
+The full story is in
+[`add-wikidata-tools.md`](agents/add-wikidata-tools.md), and the exact
+API is in [`agents/REFERENCE.md`](agents/REFERENCE.md).
 
 ### The task list
 
@@ -993,8 +1076,12 @@ created — usually a read-only data directory. The log says
 
 - [`book/ch22-agentic-layer.md`](../book/ch22-agentic-layer.md) — how
   the layer works, and why it is shaped that way.
+- [`book/ch28-wikidata-enrichment.md`](../book/ch28-wikidata-enrichment.md)
+  — the enrichment of a collection with the facts of Wikidata.
 - [`docs/agents/add-an-agent-tool.md`](agents/add-an-agent-tool.md) —
   adding a tool of your own.
+- [`docs/agents/add-wikidata-tools.md`](agents/add-wikidata-tools.md) —
+  the enrichment, and the rules that are not optional.
 - [`docs/agents/REFERENCE.md`](agents/REFERENCE.md) — the exact API.
 - [`docs/GETTING_STARTED.md`](GETTING_STARTED.md) — the rest of the
   application.

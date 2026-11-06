@@ -67,6 +67,12 @@ linters:
       - linters:
           - misspell
         text: "`Initialize` is a misspelling of `Initialise`"
+      # "wikidata_analyze" is the name of an agent tool, and the name is
+      # the contract with the model: a model that learned it cannot
+      # unlearn it. The Go identifiers around it use the UK spelling.
+      - linters:
+          - misspell
+        text: "`analyze` is a misspelling of `analyse`"
     paths:
       - third_party$
       - builtin$

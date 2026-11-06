@@ -22,6 +22,7 @@ code, and the checks to run.
 | [`add-a-config-option.md`](add-a-config-option.md)       | You need a new setting.                                   |
 | [`add-a-sync.md`](add-a-sync.md)                         | You want to pull remote data into the local cache.        |
 | [`add-an-agent-tool.md`](add-an-agent-tool.md)           | You want the model to do something new.                   |
+| [`add-wikidata-tools.md`](add-wikidata-tools.md)         | You want to enrich data with Wikidata.                    |
 | [`filter-json-fields.md`](filter-json-fields.md)         | You want to filter records by a JSON field or an array.   |
 | [`user-preferences.md`](user-preferences.md)               | You want to add a setting the user can change.             |
 | [`js-record-renderer.md`](js-record-renderer.md)           | You want the user to change how records look, in JS.       |

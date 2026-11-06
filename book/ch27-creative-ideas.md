@@ -1005,6 +1005,14 @@ missing a label" is.
 review the diff before approving it — the same shape as the permission
 request, but with the payload of the change in it.
 
+**This one is built.** Chapter 28 is the implementation of the idea: the
+enrichment of a collection with the facts of Wikidata is a domain agent,
+with a property registry that a downstream project extends, and three
+tools that the model calls. The parts that were missing when this
+chapter was written — a seam for the domain knowledge, and a way for the
+user to ask for it in a sentence — are the property registry and the
+tool descriptions.
+
 ## 27.20 The idea list
 
 
