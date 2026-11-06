@@ -72,6 +72,9 @@ var readOnlyTools = []string{
 	ToolCodeCallHierarchy,
 	ToolCodeSearch,
 	ToolCodeFindReferences,
+	// The analysis of the enrichment only reads: it reports what the
+	// enrichment achieved, and a plan needs to know that.
+	ToolWikidataAnalyze,
 }
 
 // mutatingTools are the tools that change the data.
@@ -99,6 +102,14 @@ var mutatingTools = []string{
 	ToolCodeCreateFile,
 	ToolCodeMoveFile,
 	ToolCodeDeleteFile,
+	// The enrichment writes the facts of Wikidata into the data of the
+	// user, exactly like a record does. The plan proposes it, the act
+	// mode carries it out.
+	ToolWikidataEnrich,
+	// The generation writes files: a Go project on the disk of the
+	// user. It is a change of the same kind as the code tools, and it
+	// goes behind the same gate.
+	ToolWikidataGenerate,
 }
 
 // IsMutatingTool reports whether a tool changes the data.

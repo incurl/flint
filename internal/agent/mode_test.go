@@ -167,6 +167,9 @@ var templateToolNames = []string{
 	agent.ToolCodeCreateFile,
 	agent.ToolCodeMoveFile,
 	agent.ToolCodeDeleteFile,
+	agent.ToolWikidataEnrich,
+	agent.ToolWikidataAnalyze,
+	agent.ToolWikidataGenerate,
 }
 
 // TestPlanPromptListsTheToolsItHas verifies that the planning prompt
