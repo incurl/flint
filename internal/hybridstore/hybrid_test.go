@@ -176,6 +176,39 @@ func TestHybridLocalFilterPaginates(t *testing.T) {
 	}
 }
 
+// TestHybridLocalFilterPagePastTheEnd verifies that a page beyond
+// the last one is empty, and not a panic.
+//
+// The user can page past the end of the records, and the collection
+// may have shrunk since the last listing: the slice of the matched
+// records has to be clamped, or the application dies with a slice out
+// of range.
+func TestHybridLocalFilterPagePastTheEnd(t *testing.T) {
+	t.Parallel()
+
+	store := newHybridStore(t, 0)
+	defer func() { _ = store.Close() }()
+
+	// Two records match the filter. The fifth page is past them.
+	page, err := store.List(context.Background(), pbstore.Query{
+		Collection: "jf",
+		Filter:     `meta.tags.#(=="cli")`,
+		Page:       5,
+		PerPage:    1,
+	})
+	if err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+
+	if len(page.Records) != 0 {
+		t.Errorf("got %d records on the page, want none", len(page.Records))
+	}
+
+	if page.TotalItems != 2 {
+		t.Errorf("TotalItems = %d, want 2", page.TotalItems)
+	}
+}
+
 func TestHybridLocalFilterIsBounded(t *testing.T) {
 	t.Parallel()
 

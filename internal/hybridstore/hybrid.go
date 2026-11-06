@@ -138,6 +138,13 @@ func (h *Hybrid) listLocal(ctx context.Context, q pbstore.Query) (*pbstore.PageR
 		start = 0
 	}
 
+	// A page past the last one is empty, and not a slice out of
+	// range: the user can page beyond the end of the records, and
+	// the collection may have shrunk since the last listing.
+	if start > total {
+		start = total
+	}
+
 	end := start + perPage
 	if end > total {
 		end = total
