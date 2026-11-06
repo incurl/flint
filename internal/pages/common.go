@@ -22,6 +22,41 @@ import (
 // the sum of the default column widths.
 const defaultTableWidth = 88
 
+// RequestToken identifies a request.
+//
+// A page that fetches its data asks the store in a command, and the
+// answer comes back later. The answer of a request the user has moved
+// away from must not replace what is on the screen.
+//
+// The token is the identity of the request: it counts up, so every
+// request has a different one, and the page compares the token of the
+// answer with the one of the request it is waiting for. A request that
+// is not the current one is discarded.
+//
+// A page number alone is not enough: two requests for the same page
+// with two different filters are two different requests, and the
+// slower one must not overwrite the other.
+type RequestToken uint64
+
+// nextRequest returns the token of a new request.
+//
+// The counter belongs to the page, so the tokens of two pages do not
+// collide.
+func nextRequest(counter *uint64) RequestToken {
+	*counter++
+
+	return RequestToken(*counter)
+}
+
+// isCurrent reports whether the token is the one of the request the
+// page is waiting for.
+//
+// A zero token is never current: it is the token of a request that was
+// never made, and it must not be accepted by mistake.
+func (t RequestToken) isCurrent(counter uint64) bool {
+	return t != 0 && uint64(t) == counter
+}
+
 // The timeouts bound the store calls that the pages run in a command.
 //
 // They are deliberately different: a single read is expected to be

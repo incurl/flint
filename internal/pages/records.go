@@ -27,6 +27,12 @@ type RecordsMsg struct {
 	Err error
 	// Page is the page number that was requested.
 	Page int
+	// Token identifies the request the answer belongs to.
+	//
+	// The page number alone is not enough: two requests for the same
+	// page with two different filters are two different requests, and
+	// the slower one must not overwrite the other.
+	Token RequestToken
 }
 
 // RecordsFilterMsg is the message emitted when the user submits a new
@@ -63,6 +69,11 @@ type RecordsPage struct {
 	loading bool
 	// records holds the records of the current page.
 	records []*pbstore.Record
+	// request counts the listings that were started.
+	//
+	// The counter gives every request its own identity, so that the
+	// answer of a listing the user has moved away from is discarded.
+	request uint64
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -134,12 +145,29 @@ func (p *RecordsPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, nil
 
 	case RecordsMsg:
-		p.loading = false
-		if msg.Err != nil {
+		// Discard the response of a request that is no longer
+		// current: the user has moved on, and the slower answer must
+		// not replace what is on the screen.
+		//
+		// The token is the identity of the request. The page number
+		// is checked as well, because a message that carries no token
+		// at all -- one that was not made by this page -- must not
+		// replace the rows either.
+		//
+		// The spinner is left alone by a stale answer: the request
+		// it belongs to is over, but the one the page is waiting
+		// for is still in flight.
+		if !msg.Token.isCurrent(p.request) {
 			return p, nil
 		}
-		// Discard the response of a query that is no longer current.
+
+		p.loading = false
+
 		if msg.Page != p.runtime.PageNumber {
+			return p, nil
+		}
+
+		if msg.Err != nil {
 			return p, nil
 		}
 
@@ -283,6 +311,9 @@ func (p *RecordsPage) Refresh() tea.Cmd {
 //
 // All the store access happens inside the command goroutine, so the
 // render loop is never blocked by a database call.
+//
+// The request is given a token, and the answer carries it: a response
+// that is not the one the page is waiting for is discarded.
 func (p *RecordsPage) Load() tea.Cmd {
 	store := p.store
 	renderer := p.renderer
@@ -292,9 +323,11 @@ func (p *RecordsPage) Load() tea.Cmd {
 	page := p.runtime.PageNumber
 	perPage := p.runtime.PerPage
 
+	token := nextRequest(&p.request)
+
 	return func() tea.Msg {
 		if store == nil || collection == "" {
-			return RecordsMsg{Err: fmt.Errorf("pages: no collection selected"), Page: page}
+			return RecordsMsg{Err: fmt.Errorf("pages: no collection selected"), Page: page, Token: token}
 		}
 
 		result, err := listRecords(store, renderer, pbstore.Query{
@@ -305,10 +338,10 @@ func (p *RecordsPage) Load() tea.Cmd {
 			PerPage:    perPage,
 		})
 		if err != nil {
-			return RecordsMsg{Err: err, Page: page}
+			return RecordsMsg{Err: err, Page: page, Token: token}
 		}
 
-		return RecordsMsg{Result: result, Page: page}
+		return RecordsMsg{Result: result, Page: page, Token: token}
 	}
 }
 
@@ -385,4 +418,14 @@ func (p *RecordsPage) SelectedRecord() *pbstore.Record {
 	}
 
 	return p.records[cursor]
+}
+
+// IsCurrent reports whether an answer belongs to the listing the page
+// is waiting for.
+//
+// The root model uses it to leave a stale answer alone: a slow
+// response must not resurrect an error toast for a listing the user
+// has moved away from.
+func (p *RecordsPage) IsCurrent(token RequestToken) bool {
+	return token.isCurrent(p.request)
 }

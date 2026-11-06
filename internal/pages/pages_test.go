@@ -20,6 +20,12 @@ type stubStore struct {
 	collections []pbstore.Collection
 	records     []*pbstore.Record
 	err         error
+	// byFilter holds the records a query returns for a given filter.
+	//
+	// A stub that answers the same thing to every query cannot tell
+	// a current answer from a stale one: the test needs the two to
+	// be different.
+	byFilter map[string][]*pbstore.Record
 }
 
 func (s *stubStore) Mode() pbstore.Mode { return pbstore.ModeEmbedded }
@@ -35,11 +41,16 @@ func (s *stubStore) List(ctx context.Context, q pbstore.Query) (*pbstore.PageRes
 		return nil, s.err
 	}
 
+	records := s.records
+	if byFilter, ok := s.byFilter[q.Filter]; ok {
+		records = byFilter
+	}
+
 	return &pbstore.PageResult{
-		Records:    s.records,
+		Records:    records,
 		Page:       1,
 		PerPage:    30,
-		TotalItems: len(s.records),
+		TotalItems: len(records),
 		TotalPages: 1,
 	}, nil
 }
@@ -103,6 +114,75 @@ func newRuntime() *state.Runtime {
 	return r
 }
 
+// loadRecords runs the listing of the page and feeds the answer back
+// to it.
+//
+// The tests drive the real command instead of building the message by
+// hand: the message carries the token of the request, and a message
+// without one is discarded by the page. A test that builds the message
+// itself would not exercise the guard it claims to test.
+func loadRecords(t *testing.T, page *pages.RecordsPage) *pages.RecordsPage {
+	t.Helper()
+
+	cmd := page.Load()
+	if cmd == nil {
+		t.Fatal("Load() returned no command")
+	}
+
+	msg, ok := cmd().(pages.RecordsMsg)
+	if !ok {
+		t.Fatalf("Load() returned %T, want a RecordsMsg", cmd())
+	}
+
+	updated, _ := page.Update(msg)
+
+	return updated.(*pages.RecordsPage)
+}
+
+// runSearch runs the search of the page and feeds the answer back to
+// it.
+//
+// The message carries the token of the request, so the tests drive the
+// real command instead of building the message by hand.
+func runSearch(t *testing.T, page *pages.SearchPage) *pages.SearchPage {
+	t.Helper()
+
+	cmd := page.Search()
+	if cmd == nil {
+		t.Fatal("Search() returned no command")
+	}
+
+	msg, ok := cmd().(pages.SearchResultMsg)
+	if !ok {
+		t.Fatalf("Search() returned %T, want a SearchResultMsg", cmd())
+	}
+
+	updated, _ := page.Update(msg)
+
+	return updated.(*pages.SearchPage)
+}
+
+// applyRecords feeds the answer of a listing to the page.
+//
+// The command is not run here: the test holds it, and runs it when it
+// wants the answer to arrive.
+func applyRecords(t *testing.T, page *pages.RecordsPage, cmd tea.Cmd) *pages.RecordsPage {
+	t.Helper()
+
+	if cmd == nil {
+		t.Fatal("the listing command is nil")
+	}
+
+	msg, ok := cmd().(pages.RecordsMsg)
+	if !ok {
+		t.Fatalf("the listing returned %T, want a RecordsMsg", cmd())
+	}
+
+	updated, _ := page.Update(msg)
+
+	return updated.(*pages.RecordsPage)
+}
+
 // TestHomePage verifies the landing page.
 func TestHomePage(t *testing.T) {
 	store := &stubStore{
@@ -152,16 +232,7 @@ func TestRecordsPage(t *testing.T) {
 		t.Error("Init() returned no command")
 	}
 
-	result := &pbstore.PageResult{
-		Records:    store.records,
-		Page:       1,
-		PerPage:    30,
-		TotalItems: 1,
-		TotalPages: 1,
-	}
-
-	updated, _ := page.Update(pages.RecordsMsg{Result: result, Page: 1})
-	page = updated.(*pages.RecordsPage)
+	page = loadRecords(t, page)
 
 	view := page.View().Content
 	if !strings.Contains(view, "Records") {
@@ -209,10 +280,7 @@ func TestSearchPage(t *testing.T) {
 		t.Error("Init() returned no command")
 	}
 
-	updated, _ := page.Update(pages.SearchResultMsg{Result: &pbstore.PageResult{
-		Records: store.records,
-	}})
-	page = updated.(*pages.SearchPage)
+	page = runSearch(t, page)
 
 	view := page.View().Content
 	if !strings.Contains(view, "Search") {
@@ -226,13 +294,74 @@ func TestSearchPage(t *testing.T) {
 
 // TestSearchPageError verifies that a filter error is displayed.
 func TestSearchPageError(t *testing.T) {
-	page := pages.NewSearchPage(&stubStore{}, newRuntime(), theme.Default(), nil)
+	store := &stubStore{err: pbstore.ErrInvalidFilter}
 
-	updated, _ := page.Update(pages.SearchResultMsg{Err: pbstore.ErrInvalidFilter})
-	page = updated.(*pages.SearchPage)
+	page := pages.NewSearchPage(store, newRuntime(), theme.Default(), nil)
+
+	page = runSearch(t, page)
 
 	if !strings.Contains(page.View().Content, "invalid filter") {
 		t.Errorf("View() = %q, want it to contain the error", page.View().Content)
+	}
+}
+
+// TestSearchPageDiscardsStaleResponse verifies that the answer of a
+// search the user has moved away from is discarded.
+//
+// The search page had no guard at all: a slow search replaced the
+// results of the one the user was waiting for, and the list showed the
+// records of a filter that was no longer the one on the screen.
+func TestSearchPageDiscardsStaleResponse(t *testing.T) {
+	store := &stubStore{
+		records: []*pbstore.Record{
+			{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Current"}},
+		},
+		byFilter: map[string][]*pbstore.Record{
+			"other": {},
+		},
+	}
+
+	page := pages.NewSearchPage(store, newRuntime(), theme.Default(), nil)
+
+	// The input takes the focus, so that the keys reach it.
+	page.Init()
+
+	// The first search is started, and its answer is held back.
+	first := page.Search()
+
+	// The user runs another search. The filter is typed with the
+	// keys, because the input of the page is not exported.
+	for _, r := range "other" {
+		updated, _ := page.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		page = updated.(*pages.SearchPage)
+	}
+
+	second := page.Search()
+
+	// The second answer arrives first.
+	msg, ok := second().(pages.SearchResultMsg)
+	if !ok {
+		t.Fatalf("Search() returned %T, want a SearchResultMsg", second())
+	}
+
+	updated, _ := page.Update(msg)
+	page = updated.(*pages.SearchPage)
+
+	if strings.Contains(page.View().Content, "Current") {
+		t.Errorf("View() = %q, want the current response to be applied", page.View().Content)
+	}
+
+	// The first answer arrives late, and it must be discarded.
+	msg, ok = first().(pages.SearchResultMsg)
+	if !ok {
+		t.Fatalf("Search() returned %T, want a SearchResultMsg", first())
+	}
+
+	updated, _ = page.Update(msg)
+	page = updated.(*pages.SearchPage)
+
+	if strings.Contains(page.View().Content, "Current") {
+		t.Errorf("View() = %q, want the stale response to be discarded", page.View().Content)
 	}
 }
 
@@ -319,51 +448,64 @@ func TestRendererIsUsed(t *testing.T) {
 		TitleFields: []string{"label"},
 	})
 
-	updated, _ := page.Update(pages.RecordsMsg{Result: &pbstore.PageResult{Records: store.records}, Page: 1})
-	page = updated.(*pages.RecordsPage)
+	page = loadRecords(t, page)
 
 	if !strings.Contains(page.View().Content, "Go") {
 		t.Errorf("View() = %q, want it to contain the rendered title", page.View().Content)
 	}
 }
 
-// TestRecordsPageDiscardsStaleResponse verifies that a response for a page
-// that is no longer the current one is discarded.
+// TestRecordsPageDiscardsStaleResponse verifies that the answer of a
+// request the user has moved away from is discarded.
 //
-// Without this guard a slow query that resolves after the user moved to
-// another page would overwrite the visible rows with stale data.
+// Without this guard a slow query that resolves after the user changed
+// the filter would overwrite the visible rows with stale data. The
+// page number alone does not catch it: two requests for the same page
+// with two different filters are two different requests, and the
+// slower one must not win.
 func TestRecordsPageDiscardsStaleResponse(t *testing.T) {
+	current := []*pbstore.Record{
+		{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Current"}},
+	}
+	stale := []*pbstore.Record{
+		{ID: "rec2", CollectionName: "vocab", Fields: map[string]any{"label": "Stale"}},
+	}
+
 	store := &stubStore{
-		records: []*pbstore.Record{
-			{ID: "rec1", CollectionName: "vocab", Fields: map[string]any{"label": "Current"}},
+		records: current,
+		byFilter: map[string][]*pbstore.Record{
+			"other": stale,
 		},
 	}
 
 	runtime := newRuntime()
 	page := pages.NewRecordsPage(store, runtime, theme.Default(), nil)
 
-	// The user navigates to page 3 while the page 1 request is in flight.
-	runtime.PageNumber = 3
+	// The first request is started, and the answer is held back.
+	first := page.Load()
 
-	updated, _ := page.Update(pages.RecordsMsg{
-		Result: &pbstore.PageResult{
-			Records:    store.records,
-			Page:       1,
-			PerPage:    30,
-			TotalItems: 1,
-			TotalPages: 1,
-		},
-		Page: 1,
-	})
-	page = updated.(*pages.RecordsPage)
+	// The user changes the filter, and a second request is started.
+	runtime.Filter = "other"
+	second := page.Load()
+
+	// The second answer arrives first, and it is the current one.
+	page = applyRecords(t, page, second)
+
+	if !strings.Contains(page.View().Content, "Stale") {
+		t.Errorf("View() = %q, want the current response to be applied", page.View().Content)
+	}
+
+	// The first answer arrives late. It belongs to a request the user
+	// has moved away from, and it must not replace the rows.
+	page = applyRecords(t, page, first)
 
 	if strings.Contains(page.View().Content, "Current") {
 		t.Errorf("View() = %q, want the stale response to be discarded", page.View().Content)
 	}
 }
 
-// TestRecordsPageKeepsCurrentResponse verifies that a response matching the
-// current page is applied.
+// TestRecordsPageKeepsCurrentResponse verifies that the answer of the
+// request the page is waiting for is applied.
 func TestRecordsPageKeepsCurrentResponse(t *testing.T) {
 	store := &stubStore{
 		records: []*pbstore.Record{
@@ -371,22 +513,9 @@ func TestRecordsPageKeepsCurrentResponse(t *testing.T) {
 		},
 	}
 
-	runtime := newRuntime()
-	runtime.PageNumber = 3
+	page := pages.NewRecordsPage(store, newRuntime(), theme.Default(), nil)
 
-	page := pages.NewRecordsPage(store, runtime, theme.Default(), nil)
-
-	updated, _ := page.Update(pages.RecordsMsg{
-		Result: &pbstore.PageResult{
-			Records:    store.records,
-			Page:       3,
-			PerPage:    30,
-			TotalItems: 1,
-			TotalPages: 1,
-		},
-		Page: 3,
-	})
-	page = updated.(*pages.RecordsPage)
+	page = loadRecords(t, page)
 
 	if !strings.Contains(page.View().Content, "Current") {
 		t.Errorf("View() = %q, want the current response to be applied", page.View().Content)
@@ -409,16 +538,7 @@ func TestRecordsPageRendersRows(t *testing.T) {
 
 	page := pages.NewRecordsPage(store, newRuntime(), theme.Default(), nil)
 
-	result := &pbstore.PageResult{
-		Records:    store.records,
-		Page:       1,
-		PerPage:    30,
-		TotalItems: 1,
-		TotalPages: 1,
-	}
-
-	updated, _ := page.Update(pages.RecordsMsg{Result: result, Page: 1})
-	page = updated.(*pages.RecordsPage)
+	page = loadRecords(t, page)
 
 	view := page.View().Content
 	if !strings.Contains(view, "Go") {

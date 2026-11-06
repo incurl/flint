@@ -21,6 +21,12 @@ type SearchResultMsg struct {
 	Result *pbstore.PageResult
 	// Err holds the error, when the search failed.
 	Err error
+	// Token identifies the request the answer belongs to.
+	//
+	// The filter is not enough to identify a request: the user can
+	// run the same filter twice, and the answer of the first run must
+	// not replace the answer of the second one.
+	Token RequestToken
 }
 
 // SearchItem is a single search result.
@@ -72,6 +78,11 @@ type SearchPage struct {
 	loading bool
 	// err holds the last search error.
 	err error
+	// request counts the searches that were started.
+	//
+	// The counter gives every request its own identity, so that the
+	// answer of a search the user has moved away from is discarded.
+	request uint64
 	// width is the available rendering width.
 	width int
 	// height is the available rendering height.
@@ -146,6 +157,17 @@ func (p *SearchPage) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return p, nil
 
 	case SearchResultMsg:
+		// Discard the answer of a search the user has moved away
+		// from: a slow search must not replace the results of the
+		// one the user is waiting for.
+		//
+		// The spinner is left alone by a stale answer: the search it
+		// belongs to is over, but the one the page is waiting for is
+		// still in flight.
+		if !msg.Token.isCurrent(p.request) {
+			return p, nil
+		}
+
 		p.loading = false
 		if msg.Err != nil {
 			p.err = msg.Err
@@ -242,6 +264,9 @@ func (p *SearchPage) resize() {
 // The filter is validated by the store, which uses the native PocketBase
 // filter parser. An invalid expression is reported as an error message
 // instead of crashing the TUI.
+//
+// The request is given a token, and the answer carries it: an answer
+// that is not the one the page is waiting for is discarded.
 func (p *SearchPage) Search() tea.Cmd {
 	store := p.store
 	renderer := p.renderer
@@ -250,13 +275,15 @@ func (p *SearchPage) Search() tea.Cmd {
 	perPage := p.runtime.PerPage
 	filter := strings.TrimSpace(p.input.Value())
 
+	token := nextRequest(&p.request)
+
 	return func() tea.Msg {
 		if store == nil {
-			return SearchResultMsg{Err: fmt.Errorf("pages: no store configured")}
+			return SearchResultMsg{Err: fmt.Errorf("pages: no store configured"), Token: token}
 		}
 
 		if collection == "" {
-			return SearchResultMsg{Err: fmt.Errorf("pages: select a collection on the home page first")}
+			return SearchResultMsg{Err: fmt.Errorf("pages: select a collection on the home page first"), Token: token}
 		}
 
 		result, err := listRecords(store, renderer, pbstore.Query{
@@ -267,10 +294,10 @@ func (p *SearchPage) Search() tea.Cmd {
 			PerPage:    perPage,
 		})
 		if err != nil {
-			return SearchResultMsg{Err: err}
+			return SearchResultMsg{Err: err, Token: token}
 		}
 
-		return SearchResultMsg{Result: result}
+		return SearchResultMsg{Result: result, Token: token}
 	}
 }
 

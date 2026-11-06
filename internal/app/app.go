@@ -365,9 +365,10 @@ func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 
 	case pages.RecordsMsg:
-		// Discard the response of a query that is no longer current, so
-		// that a slow response does not resurrect a stale error toast.
-		if msg.Page != m.runtime.PageNumber {
+		// Discard the response of a request that is no longer
+		// current, so that a slow response does not resurrect a
+		// stale error toast.
+		if !m.records.IsCurrent(msg.Token) {
 			break
 		}
 
