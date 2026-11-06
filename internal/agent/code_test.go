@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
@@ -340,4 +341,81 @@ func (r *refusingRequester) calls() int {
 	defer r.mu.Unlock()
 
 	return r.count
+}
+
+// TestFormatSearchResultsIsBounded verifies that a search that matches
+// a great many symbols is cut, and that the answer says so.
+//
+// A search of the whole workspace with a common name matches
+// thousands of symbols, and the answer would fill the context window
+// of the model: the run would end without the model having read the
+// results.
+func TestFormatSearchResultsIsBounded(t *testing.T) {
+	t.Parallel()
+
+	results := make([]code.SearchResult, 0, maxCodeResults+50)
+	for i := range maxCodeResults + 50 {
+		results = append(results, code.SearchResult{
+			Name: "symbol",
+			Kind: "function",
+			Path: "main.go",
+			Line: i + 1,
+		})
+	}
+
+	truncated := len(results) > maxCodeResults
+	if truncated {
+		results = results[:maxCodeResults]
+	}
+
+	out := formatSearchResults(results, truncated)
+
+	if !strings.Contains(out, "the list is partial") {
+		t.Errorf("the answer does not say that it is partial: %q", out)
+	}
+
+	// The whole answer must fit in a reasonable number of lines.
+	if lines := strings.Count(out, "\n"); lines > maxCodeResults+5 {
+		t.Errorf("the answer holds %d lines, want at most %d", lines, maxCodeResults+5)
+	}
+}
+
+// TestFormatLocationsIsBounded verifies that a list of places is cut,
+// and that the answer says so.
+func TestFormatLocationsIsBounded(t *testing.T) {
+	t.Parallel()
+
+	locations := make([]code.Location, 0, maxCodeLocations+50)
+	for i := range maxCodeLocations + 50 {
+		locations = append(locations, code.Location{
+			Path: "main.go",
+			Line: i + 1,
+		})
+	}
+
+	truncated := len(locations) > maxCodeLocations
+	if truncated {
+		locations = locations[:maxCodeLocations]
+	}
+
+	out := formatLocations("reference", locations, truncated)
+
+	if !strings.Contains(out, "the list is partial") {
+		t.Errorf("the answer does not say that it is partial: %q", out)
+	}
+}
+
+// TestFormatResultsThatFitIsNotPartial verifies that a complete answer
+// does not claim to be partial.
+//
+// A bound that is always reported would teach the model to ignore the
+// note.
+func TestFormatResultsThatFitIsNotPartial(t *testing.T) {
+	t.Parallel()
+
+	out := formatSearchResults([]code.SearchResult{{Name: "symbol"}}, false)
+
+	if strings.Contains(out, "the list is partial") {
+		t.Errorf("the answer claims to be partial: %q", out)
+	}
 }

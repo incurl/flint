@@ -10,6 +10,27 @@ import (
 	"github.com/incurl/flint/internal/code"
 )
 
+// The bounds of the code tools.
+//
+// A question about the whole workspace can have a very large answer:
+// the search of a common name matches thousands of symbols, and the
+// references of a widely used one match thousands of places. The
+// answer would fill the context window of the model, and the run would
+// end without the model having read the results.
+//
+// The answers are bounded, and the bound is reported: a truncated
+// answer says that it is partial, so that the model knows that it has
+// not seen everything.
+const (
+	// maxCodeResults is the number of symbols a workspace search
+	// returns at most.
+	maxCodeResults = 100
+
+	// maxCodeLocations is the number of places a reference search
+	// returns at most.
+	maxCodeLocations = 100
+)
+
 // The names of the code tools.
 //
 // They are the identifiers the model uses to call the tools, so they
@@ -345,7 +366,7 @@ func NewCodeDefinitionTool(manager *code.Manager) Tool {
 				return "", err
 			}
 
-			return formatLocations("definition", locations), nil
+			return formatLocations("definition", locations, false), nil
 		},
 	}
 }
@@ -363,7 +384,7 @@ func NewCodeReferencesTool(manager *code.Manager) Tool {
 				return "", err
 			}
 
-			return formatLocations("reference", locations), nil
+			return formatLocations("reference", locations, false), nil
 		},
 	}
 }
@@ -588,7 +609,12 @@ func NewCodeSearchTool(manager *code.Manager) Tool {
 				return "no symbol matches the query", nil
 			}
 
-			return formatSearchResults(results), nil
+			truncated := len(results) > maxCodeResults
+			if truncated {
+				results = results[:maxCodeResults]
+			}
+
+			return formatSearchResults(results, truncated), nil
 		},
 	}
 }
@@ -606,13 +632,21 @@ func NewCodeFindReferencesTool(manager *code.Manager) Tool {
 				return "", err
 			}
 
-			return formatLocations("reference", locations), nil
+			truncated := len(locations) > maxCodeLocations
+			if truncated {
+				locations = locations[:maxCodeLocations]
+			}
+
+			return formatLocations("reference", locations, truncated), nil
 		},
 	}
 }
 
 // formatSearchResults renders the symbols that match a query.
-func formatSearchResults(results []code.SearchResult) string {
+//
+// A truncated answer says so: the model has to know that it has not
+// seen every symbol of the workspace.
+func formatSearchResults(results []code.SearchResult, truncated bool) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "%d symbol(s):\n\n", len(results))
@@ -625,6 +659,10 @@ func formatSearchResults(results []code.SearchResult) string {
 		}
 
 		fmt.Fprintf(&b, " — %s\n", result.Path)
+	}
+
+	if truncated {
+		b.WriteString("\n(the list is partial)\n")
 	}
 
 	return b.String()
@@ -691,7 +729,7 @@ func formatSymbols(symbols []code.Symbol, depth int) string {
 }
 
 // formatLocations renders the places a symbol was found.
-func formatLocations(kind string, locations []code.Location) string {
+func formatLocations(kind string, locations []code.Location, truncated bool) string {
 	var b strings.Builder
 
 	fmt.Fprintf(&b, "%d %s(s):\n\n", len(locations), kind)
@@ -702,6 +740,10 @@ func formatLocations(kind string, locations []code.Location) string {
 		if location.Text != "" {
 			fmt.Fprintf(&b, "  %s\n", strings.TrimSpace(location.Text))
 		}
+	}
+
+	if truncated {
+		b.WriteString("\n(the list is partial)\n")
 	}
 
 	return b.String()
