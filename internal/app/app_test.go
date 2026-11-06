@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -16,6 +17,7 @@ import (
 	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/state"
+	"github.com/incurl/flint/internal/theme"
 )
 
 // errTest is the error injected in the error handling test.
@@ -77,6 +79,12 @@ type stubStore struct {
 	preferences pbstore.Preferences
 	// hasPreferences reports whether the preferences were stored.
 	hasPreferences bool
+	// writes counts the writes that reached the store.
+	//
+	// The counter is what tells a write that happened in the update
+	// loop from one that happened in a command. It is atomic, because
+	// a command runs in its own goroutine.
+	writes atomic.Int64
 }
 
 func (s *stubStore) Mode() pbstore.Mode { return s.mode }
@@ -124,6 +132,8 @@ func (s *stubStore) Create(ctx context.Context, collection string, data map[stri
 	// The preferences are stored in the collection, so the stub accepts
 	// them instead of failing like a missing collection would.
 	if collection == pbstore.PreferencesCollection {
+		s.writes.Add(1)
+
 		return &pbstore.Record{ID: "prefs", Fields: data}, nil
 	}
 
@@ -131,6 +141,12 @@ func (s *stubStore) Create(ctx context.Context, collection string, data map[stri
 }
 
 func (s *stubStore) Update(ctx context.Context, collection, id string, data map[string]any) (*pbstore.Record, error) {
+	if collection == pbstore.PreferencesCollection {
+		s.writes.Add(1)
+
+		return &pbstore.Record{ID: "prefs", Fields: data}, nil
+	}
+
 	return nil, pbstore.ErrNotFound
 }
 
@@ -314,6 +330,40 @@ func TestModelToastExpires(t *testing.T) {
 
 	if contains(m.View().Content, "hello") {
 		t.Error("the toast is still displayed after the expiry")
+	}
+}
+
+// TestThePreferencesAreWrittenInACommand verifies that the preferences
+// are written by a command, and not by the update loop.
+//
+// The update loop must never block: a store call in it freezes the
+// interface, and a frozen interface is an application that looks
+// broken. The write of the preferences is a store call, so it has to
+// run in the command.
+//
+// The test looks at the store right after the key press: the write must
+// not have happened yet, because the command was not run.
+func TestThePreferencesAreWrittenInACommand(t *testing.T) {
+	store := &stubStore{mode: pbstore.ModeEmbedded}
+
+	model := app.New(store, config.Default(), nil, nil)
+
+	// The theme is switched, which writes the preferences.
+	updated, cmd := model.Update(tea.KeyPressMsg{Code: 'T', Text: "T"})
+	model = updated.(*app.Model)
+
+	if got := store.writes.Load(); got != 0 {
+		t.Errorf("the update loop wrote to the store %d time(s), want none", got)
+	}
+
+	if cmd == nil {
+		t.Fatal("the switch returned no command")
+	}
+
+	// The change itself is applied right away: the theme is a view
+	// state, and it must not wait for the write.
+	if model.Theme().Variant != theme.VariantLight {
+		t.Errorf("the theme is %q, want %q", model.Theme().Variant, theme.VariantLight)
 	}
 }
 

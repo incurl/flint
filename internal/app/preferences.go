@@ -46,10 +46,12 @@ func (m *Model) zoom(direction func(theme.Scale) theme.Scale) tea.Cmd {
 	m.prefs.Scale = int(next)
 	m.theme.Apply(m.theme.Variant, next)
 
-	m.persistPreferences()
 	m.refreshSettings()
 
-	return m.toast.Show(components.ToastSuccess, fmt.Sprintf("zoom %s", next))
+	return tea.Batch(
+		m.persistPreferences(),
+		m.toast.Show(components.ToastSuccess, fmt.Sprintf("zoom %s", next)),
+	)
 }
 
 // toggleTheme switches between the dark and the light palette.
@@ -64,10 +66,12 @@ func (m *Model) toggleTheme() tea.Cmd {
 	m.prefs.Theme = next.String()
 	m.theme.Apply(next, theme.Scale(m.prefs.Scale))
 
-	m.persistPreferences()
 	m.refreshSettings()
 
-	return m.toast.Show(components.ToastSuccess, fmt.Sprintf("theme %s", next))
+	return tea.Batch(
+		m.persistPreferences(),
+		m.toast.Show(components.ToastSuccess, fmt.Sprintf("theme %s", next)),
+	)
 }
 
 // toggleCompact switches the compact record list.
@@ -77,7 +81,6 @@ func (m *Model) toggleCompact() tea.Cmd {
 	m.prefs.Compact = !m.prefs.Compact
 	m.runtime.Compact = m.prefs.Compact
 
-	m.persistPreferences()
 	m.refreshSettings()
 
 	label := "compact rows"
@@ -85,7 +88,10 @@ func (m *Model) toggleCompact() tea.Cmd {
 		label = "comfortable rows"
 	}
 
-	return m.toast.Show(components.ToastSuccess, label)
+	return tea.Batch(
+		m.persistPreferences(),
+		m.toast.Show(components.ToastSuccess, label),
+	)
 }
 
 // refreshSettings updates the settings page with the live preferences.
@@ -121,20 +127,34 @@ func (m *Model) refreshSettings() {
 	m.settingsPage.SetRows(rows)
 }
 
-// persistPreferences writes the preferences to the store.
+// persistPreferences returns the command that writes the preferences to
+// the store.
 //
-// The preferences are a convenience: a failure to store them must not
-// break the application, so the error is only logged.
-func (m *Model) persistPreferences() {
-	if m.store == nil {
-		return
+// The write happens in the command, and not in the update loop: a
+// store call blocks, and the render loop must never block. The
+// preferences are a convenience, so a failure to store them does not
+// break the application: the error is only logged.
+//
+// The preferences are captured by value: the model keeps mutating
+// while the command runs, and the command must write the ones the
+// change was about.
+func (m *Model) persistPreferences() tea.Cmd {
+	store := m.store
+	if store == nil {
+		return nil
 	}
 
-	if err := pbstore.SavePreferences(context.Background(), m.store, m.prefs); err != nil {
-		// The remote backend cannot hold the preferences. That is not an
-		// error the user can act on, so it stays silent.
-		if !errors.Is(err, pbstore.ErrPreferencesUnavailable) {
-			slog.Error("failed to persist the preferences", "error", err)
+	prefs := m.prefs
+
+	return func() tea.Msg {
+		if err := pbstore.SavePreferences(context.Background(), store, prefs); err != nil {
+			// The remote backend cannot hold the preferences. That is
+			// not an error the user can act on, so it stays silent.
+			if !errors.Is(err, pbstore.ErrPreferencesUnavailable) {
+				slog.Error("failed to persist the preferences", "error", err)
+			}
 		}
+
+		return nil
 	}
 }
