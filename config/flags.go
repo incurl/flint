@@ -55,6 +55,20 @@ type Flags struct {
 	CodeDisabled *bool
 	// CodeRoot overrides the directory the code tools may read.
 	CodeRoot string
+	// WikidataEnabled turns the Wikidata tools on or off.
+	//
+	// It is a pointer because the default is off: a plain bool cannot
+	// tell "not given" from "given as false", and the flag has to be
+	// able to turn the tools on.
+	WikidataEnabled *bool
+	// WikidataEndpoint overrides the SPARQL endpoint of Wikidata.
+	WikidataEndpoint string
+	// WikidataDelayMS overrides the pause between two SPARQL queries,
+	// in milliseconds.
+	WikidataDelayMS int
+	// WikidataSampleSize overrides the number of records a run asks
+	// Wikidata about.
+	WikidataSampleSize int
 	// RemoteURL overrides the remote PocketBase server URL.
 	RemoteURL string
 	// RemoteToken overrides the remote API token.
@@ -115,6 +129,10 @@ func ParseFlags(args []string) (*Flags, []string, error) {
 	fs.Var(newBoolValue(&flags.CodeEnabled), "code", "enable the code tools (they need gopls on the PATH)")
 	fs.Var(newBoolValue(&flags.CodeDisabled), "no-code", "disable the code tools")
 	fs.StringVar(&flags.CodeRoot, "code-root", "", "directory the code tools are allowed to read")
+	fs.Var(newBoolValue(&flags.WikidataEnabled), "wikidata", "enable the Wikidata tools")
+	fs.StringVar(&flags.WikidataEndpoint, "wikidata-endpoint", "", "SPARQL endpoint of the Wikidata tools")
+	fs.IntVar(&flags.WikidataDelayMS, "wikidata-delay-ms", 0, "pause between two SPARQL queries, in milliseconds")
+	fs.IntVar(&flags.WikidataSampleSize, "wikidata-sample-size", 0, "how many records a run asks Wikidata about")
 	fs.StringVar(&flags.RemoteURL, "remote-url", "", "base URL of the remote PocketBase server")
 	fs.StringVar(&flags.RemoteToken, "remote-token", "", "API token of the remote PocketBase server (prefer FLINT_REMOTE_TOKEN)")
 	fs.StringVar(&remoteList, "remote-collections", "", "comma separated allowlist of the remote collections")

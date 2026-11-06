@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ import (
 	"github.com/incurl/flint/internal/hybridstore"
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/theme"
+	"github.com/incurl/flint/internal/wikidata"
 )
 
 // EnvPrefix is the prefix of the environment variables read by the loader.
@@ -79,6 +81,8 @@ type Config struct {
 	Agent AgentConfig `toml:"agent"`
 	// Code holds the settings of the code tools.
 	Code CodeConfig `toml:"code"`
+	// Wikidata holds the settings of the Wikidata tools.
+	Wikidata WikidataConfig `toml:"wikidata"`
 
 	// path is the file the configuration was loaded from.
 	//
@@ -144,6 +148,42 @@ type AgentConfig struct {
 	// to a character count. A model that reports its window through
 	// the provider -- the ones that do -- needs no configuration.
 	ContextWindow int `toml:"context_window"`
+}
+
+// WikidataConfig holds the settings of the Wikidata tools.
+//
+// The tools are off by default: they talk to a public endpoint, and an
+// application that never asks about Wikidata must not open a connection
+// to it.
+type WikidataConfig struct {
+	// Enabled turns the Wikidata tools on.
+	//
+	// Turn them on with `wikidata.enabled = true`, FLINT_WIKIDATA=1
+	// or --wikidata.
+	Enabled bool `toml:"enabled"`
+	// Endpoint is the SPARQL endpoint the queries are sent to.
+	//
+	// It is the public endpoint of Wikidata by default.
+	Endpoint string `toml:"endpoint"`
+	// Delay is the pause between two queries, in milliseconds.
+	//
+	// The public endpoint asks the client to wait between the
+	// queries, and a client that does not is a client that gets
+	// blocked.
+	//
+	// It is an integer and not a duration: the TOML file holds
+	// numbers, and the convention of the file is a number of
+	// milliseconds.
+	DelayMS int `toml:"delay_ms"`
+	// SampleSize is the number of records that are asked about by a
+	// run.
+	SampleSize int `toml:"sample_size"`
+	// MaxSolutions is the budget of solutions of a single query.
+	//
+	// The budget bounds the memory of a query: a deadline bounds the
+	// time, and a query that builds a million solutions in ten
+	// seconds is still a million solutions in memory.
+	MaxSolutions int `toml:"max_solutions"`
 }
 
 // CodeConfig holds the settings of the code tools.
@@ -249,6 +289,15 @@ func Default() *Config {
 		// never pays for it.
 		Code: CodeConfig{
 			Enabled: true,
+		},
+		// The Wikidata tools are off by default: they reach a public
+		// endpoint, and an application that never asks about Wikidata
+		// must not open a connection to it.
+		Wikidata: WikidataConfig{
+			Endpoint:     wikidata.DefaultEndpoint,
+			DelayMS:      int(wikidata.DefaultDelay.Milliseconds()),
+			SampleSize:   wikidata.DefaultSampleSize,
+			MaxSolutions: wikidata.DefaultMaxSolutions,
 		},
 	}
 }
@@ -407,6 +456,14 @@ func (c *Config) SettingsRows() [][2]string {
 	rows = append(rows,
 		[2]string{"code.enabled", fmt.Sprintf("%t", c.Code.Enabled)},
 		[2]string{"code.root", c.CodeRoot()},
+	)
+
+	// The Wikidata tools are shown even when they are off: they reach
+	// a public endpoint, and the user wants to see that they are off.
+	rows = append(rows,
+		[2]string{"wikidata.enabled", fmt.Sprintf("%t", c.Wikidata.Enabled)},
+		[2]string{"wikidata.endpoint", c.Wikidata.Endpoint},
+		[2]string{"wikidata.delay_ms", fmt.Sprintf("%d", c.Wikidata.DelayMS)},
 	)
 
 	if pbstore.Mode(c.Mode) == pbstore.ModeEmbedded {
@@ -594,6 +651,26 @@ func applyEnv(cfg *Config) {
 		cfg.Code.Root = v
 	}
 
+	if v := os.Getenv(EnvPrefix + "WIKIDATA"); v != "" {
+		cfg.Wikidata.Enabled = parseBool(v)
+	}
+
+	if v := os.Getenv(EnvPrefix + "WIKIDATA_ENDPOINT"); v != "" {
+		cfg.Wikidata.Endpoint = v
+	}
+
+	if v := os.Getenv(EnvPrefix + "WIKIDATA_DELAY_MS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Wikidata.DelayMS = n
+		}
+	}
+
+	if v := os.Getenv(EnvPrefix + "WIKIDATA_SAMPLE_SIZE"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil {
+			cfg.Wikidata.SampleSize = n
+		}
+	}
+
 	if v := os.Getenv(EnvPrefix + "ENCRYPTION_ENV"); v != "" {
 		cfg.Embedded.EncryptionEnv = v
 	}
@@ -727,6 +804,22 @@ func applyFlags(cfg *Config, flags Flags) {
 
 	if flags.CodeRoot != "" {
 		cfg.Code.Root = flags.CodeRoot
+	}
+
+	if flags.WikidataEnabled != nil {
+		cfg.Wikidata.Enabled = *flags.WikidataEnabled
+	}
+
+	if flags.WikidataEndpoint != "" {
+		cfg.Wikidata.Endpoint = flags.WikidataEndpoint
+	}
+
+	if flags.WikidataDelayMS > 0 {
+		cfg.Wikidata.DelayMS = flags.WikidataDelayMS
+	}
+
+	if flags.WikidataSampleSize > 0 {
+		cfg.Wikidata.SampleSize = flags.WikidataSampleSize
 	}
 
 	if flags.DataDir != "" {

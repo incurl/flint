@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/fantasy"
@@ -18,6 +19,7 @@ import (
 	"github.com/incurl/flint/internal/pages"
 	"github.com/incurl/flint/internal/pbstore"
 	"github.com/incurl/flint/internal/session"
+	"github.com/incurl/flint/internal/wikidata"
 )
 
 // defaultAgentSystemPrompt is the instruction given to the model when
@@ -75,6 +77,27 @@ func newRunner(cfg *config.Config, store pbstore.Store, logger *slog.Logger) (*a
 		}
 
 		agent.RegisterCodeTools(registry, manager, agent.NewGate(permissionMode(cfg), broker))
+	}
+
+	// The Wikidata tools let the agent enrich a collection with the
+	// facts of Wikidata. They reach a public endpoint, so they are
+	// only registered when the configuration asks for them.
+	if cfg.Wikidata.Enabled {
+		client := wikidata.NewClient(
+			cfg.Wikidata.Endpoint,
+			wikidata.WithDelay(time.Duration(cfg.Wikidata.DelayMS)*time.Millisecond),
+			wikidata.WithMaxSolutions(cfg.Wikidata.MaxSolutions),
+			wikidata.WithLogger(logger),
+		)
+
+		agent.RegisterWikidataTools(
+			registry,
+			store,
+			client,
+			agent.NewGate(permissionMode(cfg), broker),
+			cfg.CodeRoot(),
+			logger,
+		)
 	}
 
 	systemPrompt := cfg.Agent.SystemPrompt

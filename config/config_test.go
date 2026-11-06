@@ -525,3 +525,57 @@ func TestSettingsRowsShowTheEndpoint(t *testing.T) {
 		t.Error("the settings page does not show the endpoint of the agent")
 	}
 }
+
+// TestTheWikidataSettingsAreLoaded checks that the Wikidata settings are
+// read from the environment.
+//
+// The tools reach a public endpoint, so the settings that decide whether
+// they run are settings the user has to be able to set.
+func TestTheWikidataSettingsAreLoaded(t *testing.T) {
+	t.Setenv("FLINT_WIKIDATA", "1")
+	t.Setenv("FLINT_WIKIDATA_ENDPOINT", "http://127.0.0.1:9999/sparql")
+	t.Setenv("FLINT_WIKIDATA_DELAY_MS", "250")
+	t.Setenv("FLINT_WIKIDATA_SAMPLE_SIZE", "7")
+
+	cfg, err := config.Load("", config.Flags{})
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	if !cfg.Wikidata.Enabled {
+		t.Error("the Wikidata tools are not enabled")
+	}
+
+	if cfg.Wikidata.Endpoint != "http://127.0.0.1:9999/sparql" {
+		t.Errorf("the endpoint is %q", cfg.Wikidata.Endpoint)
+	}
+
+	if cfg.Wikidata.DelayMS != 250 {
+		t.Errorf("the delay is %d, want 250", cfg.Wikidata.DelayMS)
+	}
+
+	if cfg.Wikidata.SampleSize != 7 {
+		t.Errorf("the sample size is %d, want 7", cfg.Wikidata.SampleSize)
+	}
+}
+
+// TestTheWikidataToolsAreOffByDefault checks that the tools are off
+// unless the configuration turns them on.
+//
+// They reach a public endpoint, and an application that never asks about
+// Wikidata must not open a connection to it.
+func TestTheWikidataToolsAreOffByDefault(t *testing.T) {
+	cfg := config.Default()
+
+	if cfg.Wikidata.Enabled {
+		t.Error("the Wikidata tools are on by default")
+	}
+
+	if cfg.Wikidata.Endpoint == "" {
+		t.Error("the endpoint has no default")
+	}
+
+	if cfg.Wikidata.DelayMS <= 0 {
+		t.Error("the delay has no default")
+	}
+}

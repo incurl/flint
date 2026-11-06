@@ -111,7 +111,38 @@ func Render(cfg *Config) string {
 
 	renderCode(&b, cfg)
 
+	renderWikidata(&b, cfg)
+
 	return b.String()
+}
+
+// renderWikidata writes the Wikidata section.
+//
+// The section is written on its own because the tools are off by
+// default: they reach a public endpoint, and an application that never
+// asks about Wikidata must not open a connection to it.
+func renderWikidata(b *strings.Builder, cfg *Config) {
+	b.WriteString("[wikidata]\n")
+	b.WriteString("# The Wikidata tools let the agent enrich a collection with the\n")
+	b.WriteString("# facts of Wikidata. They are off by default. Set this to true\n")
+	b.WriteString("# to turn them on.\n")
+	fmt.Fprintf(b, "enabled = %t\n", cfg.Wikidata.Enabled)
+	b.WriteString("\n")
+	b.WriteString("# The SPARQL endpoint the queries are sent to. Leave it empty for\n")
+	b.WriteString("# the public endpoint of Wikidata.\n")
+	fmt.Fprintf(b, "endpoint = %q\n", cfg.Wikidata.Endpoint)
+	b.WriteString("\n")
+	b.WriteString("# The pause between two queries, in milliseconds. The public\n")
+	b.WriteString("# endpoint asks for one.\n")
+	fmt.Fprintf(b, "delay_ms = %d\n", cfg.Wikidata.DelayMS)
+	b.WriteString("\n")
+	b.WriteString("# How many records of the collection a run asks Wikidata about.\n")
+	fmt.Fprintf(b, "sample_size = %d\n", cfg.Wikidata.SampleSize)
+	b.WriteString("\n")
+	b.WriteString("# The budget of solutions of a single query. It bounds the memory\n")
+	b.WriteString("# of the query: a deadline bounds the time.\n")
+	fmt.Fprintf(b, "max_solutions = %d\n", cfg.Wikidata.MaxSolutions)
+	b.WriteString("\n")
 }
 
 // renderCode writes the code section.
