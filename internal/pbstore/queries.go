@@ -157,6 +157,23 @@ func escapeFilterValue(v string) string {
 	return replacer.Replace(v)
 }
 
+// QuoteFilterValue renders a value as a PocketBase filter literal.
+//
+// The value is put in single quotes, and the characters that would end
+// the literal are escaped. A filter that is built by concatenation
+// needs it: a value that holds a quote would otherwise end the literal
+// and change the meaning of the filter.
+//
+// The result is safe to concatenate into a filter expression.
+func QuoteFilterValue(v string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`'`, `\'`,
+	)
+
+	return "'" + replacer.Replace(v) + "'"
+}
+
 // Names of the PocketBase system fields that are not exported as
 // constants by the core package.
 const (

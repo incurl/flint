@@ -235,3 +235,26 @@ func TestSearchURL(t *testing.T) {
 		t.Errorf("CollectionURL() = %q", got)
 	}
 }
+
+// TestQuoteFilterValue verifies that a value that holds a quote is
+// escaped, and not able to end the literal it is put in.
+//
+// A filter that is built by concatenation needs it: a value that
+// holds a quote would otherwise change the meaning of the filter, and
+// a filter that matches more than it should reads the data of another
+// session.
+func TestQuoteFilterValue(t *testing.T) {
+	t.Parallel()
+
+	got := pbstore.QuoteFilterValue("a' || id != '")
+	want := `'a\' || id != \''`
+
+	if got != want {
+		t.Errorf("QuoteFilterValue() = %q, want %q", got, want)
+	}
+
+	// A plain value is quoted, and nothing else.
+	if got := pbstore.QuoteFilterValue("plain"); got != "'plain'" {
+		t.Errorf("QuoteFilterValue() = %q, want %q", got, "'plain'")
+	}
+}

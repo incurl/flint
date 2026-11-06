@@ -322,7 +322,7 @@ func (s *Service) Messages(ctx context.Context, sessionID string, limit int) ([]
 	for page := 1; ; page++ {
 		query := pbstore.Query{
 			Collection: MessagesCollection,
-			Filter:     FieldSessionID + " = '" + sessionID + "'",
+			Filter:     FieldSessionID + " = " + pbstore.QuoteFilterValue(sessionID),
 			Sort:       "created",
 			Page:       page,
 			PerPage:    perPage,
