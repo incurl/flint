@@ -59,6 +59,12 @@ type Manager struct {
 
 	// mu guards the client and the state below.
 	mu sync.Mutex
+	// startMu guards the start of the server.
+	//
+	// The start is slow, and it happens outside of mu, so that a
+	// concurrent Close is not blocked behind it. This mutex is what
+	// keeps two callers from starting two servers.
+	startMu sync.Mutex
 	// client is the language server, nil until it is started.
 	client *client
 	// diagnostics holds the problems the server found.
@@ -121,14 +127,52 @@ func (m *Manager) Close() {
 
 // server returns the language server, starting it when needed.
 //
-// The caller must hold the lock.
+// It is safe for concurrent use: the tools of a single step may run in
+// parallel, and two of them may ask for the server at the same time.
+// Only one of them starts it, and the others wait for it.
+//
+// The start is slow -- gopls indexes the workspace -- and it happens
+// outside the lock, so that a concurrent Close is not blocked behind
+// it for a minute. The lock is taken again to publish the client.
 func (m *Manager) server(ctx context.Context) (*client, error) {
-	if m.closed {
+	m.mu.Lock()
+	closed := m.closed
+	client := m.client
+	m.mu.Unlock()
+
+	if closed {
 		return nil, errors.New("code: the manager is closed")
 	}
 
-	if m.client != nil {
-		return m.client, nil
+	if client != nil {
+		return client, nil
+	}
+
+	return m.startServer(ctx)
+}
+
+// startServer starts the language server, once.
+//
+// The callers that arrive at the same time wait for the one that does
+// the work: the start is guarded by a mutex of its own, so that only
+// one of them starts a server and the others find it running.
+func (m *Manager) startServer(ctx context.Context) (*client, error) {
+	m.startMu.Lock()
+	defer m.startMu.Unlock()
+
+	// The server may have been started by another caller while this
+	// one waited for the lock.
+	m.mu.Lock()
+	closed := m.closed
+	client := m.client
+	m.mu.Unlock()
+
+	if closed {
+		return nil, errors.New("code: the manager is closed")
+	}
+
+	if client != nil {
+		return client, nil
 	}
 
 	if time.Now().Before(m.unavailableUntil) {
@@ -137,14 +181,14 @@ func (m *Manager) server(ctx context.Context) (*client, error) {
 
 	path, err := exec.LookPath(serverCommand)
 	if err != nil {
-		m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
+		m.markUnavailable()
 
 		return nil, fmt.Errorf("%w: %s is not on the PATH", ErrServerMissing, serverCommand)
 	}
 
 	c, err := newClient(path, m.root, m.logger)
 	if err != nil {
-		m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
+		m.markUnavailable()
 
 		return nil, err
 	}
@@ -159,16 +203,41 @@ func (m *Manager) server(ctx context.Context) (*client, error) {
 	if err != nil {
 		c.Kill()
 
-		m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
+		m.markUnavailable()
 
 		return nil, err
 	}
 
 	m.logger.Info("the language server is running", "server", serverCommand, "root", m.root)
 
+	// The client is published under the lock, and the manager may have
+	// been closed while the server was starting: a server that nobody
+	// asked for any more is killed instead of being left running.
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.closed {
+		c.Kill()
+
+		return nil, errors.New("code: the manager is closed")
+	}
+
 	m.client = c
 
 	return c, nil
+}
+
+// markUnavailable records that the server is not to be looked for
+// again for a while.
+//
+// A server that is missing stays missing until the user installs it
+// and restarts, and retrying every call would make every call pay for
+// the search.
+func (m *Manager) markUnavailable() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.unavailableUntil = time.Now().Add(unavailableRetryDelay)
 }
 
 // publishDiagnostics stores the problems the server found.

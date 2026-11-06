@@ -1,11 +1,95 @@
 package code
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 )
+
+// TestConcurrentCallsAreSafe guards the concurrency of the manager.
+//
+// The tools of a single step of a run may be executed in parallel, and
+// two of them may ask for the language server at the same time. The
+// manager is documented as safe for concurrent use, and the race
+// detector is what proves it: the client is published under the lock,
+// and only one caller starts the server.
+func TestConcurrentCallsAreSafe(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+
+	path := filepath.Join(root, "main.go")
+	if err := os.WriteFile(path, []byte("package main\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	manager, err := NewManager(root, nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	defer manager.Close()
+
+	var wg sync.WaitGroup
+
+	for range 8 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// The server may be missing: the test does not need
+			// it, it needs the manager to be safe to call.
+			_, _ = manager.Symbols(context.Background(), path)
+			_, _ = manager.AllDiagnostics(context.Background())
+			_, _ = manager.Search(context.Background(), "main")
+		}()
+	}
+
+	wg.Wait()
+}
+
+// TestCloseWhileTheServerStarts verifies that a Close that happens
+// while the server is starting does not deadlock.
+//
+// The start takes a minute, and it happens outside of the lock of the
+// client: a Close must not wait for it. The server that is started
+// after the Close is killed instead of being left running.
+func TestCloseWhileTheServerStarts(t *testing.T) {
+	t.Parallel()
+
+	manager, err := NewManager(t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	var wg sync.WaitGroup
+
+	for range 4 {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// The server may be missing: the test needs the
+			// manager to be safe to call, and not the server.
+			_, _ = manager.Symbols(context.Background(), "main.go")
+		}()
+	}
+
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		manager.Close()
+	}()
+
+	wg.Wait()
+}
 
 // TestWithinRoot guards the boundary of the code tools.
 func TestWithinRoot(t *testing.T) {
